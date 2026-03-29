@@ -1,80 +1,104 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Submit your first spec and get a validated PR in under 5 minutes.
 ---
 
-## Get started in three steps
+<Steps>
+  <Step title="Install zombiectl">
+    <CodeGroup>
+    ```bash npm
+    npm install -g zombiectl
+    ```
+    ```bash npx (no install)
+    npx zombiectl --help
+    ```
+    ```bash curl
+    curl -fsSL https://usezombie.sh/install.sh | sh
+    ```
+    </CodeGroup>
 
-Get your documentation site running locally and make your first customization.
+    Verify the installation:
 
-### Step 1: Set up your local environment
+    ```bash
+    zombiectl --version
+    ```
+  </Step>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Log in">
+    ```bash
+    zombiectl login
+    ```
 
-### Step 2: Deploy your changes
+    This opens your browser for Clerk authentication. Once complete, your session token is stored locally.
+  </Step>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+  <Step title="Connect a repo">
+    ```bash
+    zombiectl workspace add https://github.com/your-org/your-repo
+    ```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    This installs the UseZombie GitHub App on your repository and creates a workspace.
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Write a spec">
+    Create a markdown file describing what you want built:
 
-### Step 3: Go live
+    ```markdown docs/spec/add-health-endpoint.md
+    # Add health check endpoint
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    ## Goal
 
-## Next steps
+    Add a `GET /healthz` endpoint that returns `{ "status": "ok" }` with a 200 status code.
 
-Now that you have your docs running, explore these key features:
+    ## Files to modify
 
-<CardGroup cols={2}>
+    - `src/http/routes.zig` — add route handler
+    - `src/http/handlers.zig` — implement handler function
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+    ## Acceptance criteria
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+    - Endpoint returns 200 with JSON body `{ "status": "ok" }`
+    - Response content-type is `application/json`
+    - Endpoint requires no authentication
+    ```
+  </Step>
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+  <Step title="Submit the spec">
+    ```bash
+    zombiectl run --spec docs/spec/add-health-endpoint.md
+    ```
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+    UseZombie validates the spec, enqueues the run, and assigns an agent.
+  </Step>
 
+  <Step title="Check status">
+    ```bash
+    zombiectl runs list
+    zombiectl runs status <run_id>
+    ```
+
+    The agent implements your spec, runs `make lint`, `make test`, and `make build` with self-repair, then opens a PR with a scorecard.
+  </Step>
+
+  <Step title="Review the PR">
+    Open the PR on GitHub. You will find:
+
+    - An agent-generated explanation of what changed
+    - A scorecard comment with gate results, repair loop count, wall time, and token consumption
+    - The full diff ready for review
+  </Step>
+</Steps>
+
+## What's next?
+
+<CardGroup cols={3}>
+  <Card title="How it works" icon="diagram-project" href="/how-it-works">
+    Understand the full spec-to-PR lifecycle.
+  </Card>
+  <Card title="Writing specs" icon="file-lines" href="/specs/writing-specs">
+    Learn how to write effective specs for agents.
+  </Card>
+  <Card title="Gate loop" icon="rotate" href="/runs/gate-loop">
+    See how agents self-repair through lint, test, and build gates.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

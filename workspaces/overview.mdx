@@ -1,0 +1,32 @@
+---
+title: "Workspaces"
+description: "What a workspace is and how it works."
+---
+
+A workspace binds a GitHub repository to UseZombie. It is the fundamental unit of organization, billing, and access control.
+
+## What a workspace contains
+
+Each workspace has its own:
+
+- **Repository connection** -- a 1:1 binding to a GitHub repo via the UseZombie GitHub App.
+- **Entitlements** -- determined by the plan tier (Hobby or Scale).
+- **Billing** -- credit balance, usage tracking, and budget controls are scoped per workspace.
+- **Agent configuration** -- harness settings, execution profiles, and environment variables.
+- **Isolation** -- runs in one workspace cannot access specs, artifacts, or credentials from another.
+
+## Plan limits
+
+| Feature | Hobby (Free) | Scale |
+|---------|-------------|-------|
+| Workspaces | 1 | Unlimited |
+| Specs | Unlimited | Unlimited |
+| Self-repair gate loop | Included | Included |
+| Priority queue | -- | Included |
+
+## Workspace lifecycle
+
+1. **Create** -- connect a GitHub repo with `zombiectl workspace add`.
+2. **Active** -- specs are synced, runs are accepted.
+3. **Paused** -- new runs are rejected; in-flight runs complete normally.
+4. **Removed** -- workspace is deleted. Run history is retained for 30 days.

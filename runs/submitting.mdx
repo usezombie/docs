@@ -1,0 +1,109 @@
+---
+title: "Submitting runs"
+description: "How to submit a spec and start a run."
+---
+
+## CLI submission
+
+The fastest way to start a run is `zombiectl run`:
+
+```bash
+zombiectl run --spec <file>
+```
+
+The command validates the spec locally, uploads it to the API, and returns a `run_id` immediately.
+
+```
+Run created: run_01JQ7K...
+Status: PLANNED → RUNNING
+```
+
+### Watch mode (future)
+
+<Info>
+  Watch mode is planned but not yet available. When shipped, it will stream gate progress over SSE so you can follow the run in real time.
+</Info>
+
+```bash
+zombiectl run --spec <file> --watch
+```
+
+## API submission
+
+You can also submit a run directly via the API:
+
+```bash
+curl -X POST https://api.usezombie.com/v1/runs \
+  -H "Authorization: Bearer $ZOMBIE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id": "ws_01JQ7K...",
+    "spec": "# Add health check endpoint\n\nAdd a GET /healthz endpoint..."
+  }'
+```
+
+The response includes the `run_id` and initial status:
+
+```json
+{
+  "id": "run_01JQ7K...",
+  "status": "PLANNED",
+  "created_at": "2026-03-29T12:00:00Z"
+}
+```
+
+## What happens after submission
+
+Once a run is submitted:
+
+1. The API validates the spec content and workspace reference.
+2. A run row is written to the database with status `PLANNED`.
+3. The run is enqueued in Redis for the next available worker to pick up.
+4. The worker transitions the run to `RUNNING` and begins the gate loop.
+
+## Run states
+
+Every run moves through a linear state machine:
+
+| State | Meaning |
+| --- | --- |
+| `PLANNED` | Run accepted, queued for execution |
+| `RUNNING` | Worker picked up the run, agent is executing |
+| `COMPLETED` | All gates passed, PR opened |
+| `FAILED` | Gate loop exhausted or unrecoverable error |
+
+## Checking run status
+
+List your recent runs:
+
+```bash
+zombiectl runs list
+```
+
+```
+ID              STATUS      SPEC                     CREATED
+run_01JQ7K...   COMPLETED   add-healthz-endpoint     2m ago
+run_01JQ8M...   RUNNING     fix-auth-redirect        30s ago
+run_01JQ6P...   FAILED      refactor-db-layer        1h ago
+```
+
+Check a specific run:
+
+```bash
+zombiectl runs status <id>
+```
+
+```
+Run:      run_01JQ7K...
+Status:   COMPLETED
+Spec:     add-healthz-endpoint
+Branch:   zombie/01JQ7K/add-healthz-endpoint
+PR:       https://github.com/your-org/your-repo/pull/42
+Score:    87 (Gold)
+Duration: 3m 12s
+
+Gates:
+  lint    PASS  (1 loop)
+  test    PASS  (2 loops)
+  build   PASS  (1 loop)
+```

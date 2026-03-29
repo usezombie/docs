@@ -1,0 +1,31 @@
+---
+title: "Configuration"
+description: "Configuration precedence and environment variables."
+---
+
+## Precedence
+
+Configuration is resolved in deterministic order, highest priority first:
+
+1. **CLI flag** -- `--api https://...`
+2. **Environment variable** -- `ZOMBIE_API_URL`
+3. **`.env.local`** -- dev fallback file in the current directory
+4. **Built-in default** -- compiled into the CLI
+
+A value set at a higher level always overrides lower levels. For example, `--api` on the command line takes precedence over `ZOMBIE_API_URL` in the environment.
+
+## Environment variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ZOMBIE_API_URL` | API base URL | `https://api.usezombie.com` |
+| `ZOMBIE_TOKEN` | Auth token (for CI and scripts) | *(from `zombiectl login`)* |
+
+## CI usage
+
+In CI environments, set `ZOMBIE_TOKEN` from your secrets manager and use `--no-input` for non-interactive operation:
+
+```bash
+export ZOMBIE_TOKEN="$ZOMBIE_SECRET"
+zombiectl runs list --no-input --json
+```

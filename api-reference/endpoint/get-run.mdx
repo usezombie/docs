@@ -1,0 +1,59 @@
+---
+title: "Get run"
+description: "Fetch run status and scorecard."
+api: "GET /v1/runs/{run_id}"
+---
+
+## Path parameters
+
+<ParamField path="run_id" type="string" required>
+  The unique identifier of the run.
+</ParamField>
+
+## Response
+
+<ResponseField name="run_id" type="string">
+  Unique identifier for the run.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current run status. One of `QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`.
+</ResponseField>
+
+<ResponseField name="scorecard" type="object">
+  Scorecard with dimension-level pass/fail results. Present when the run has completed.
+</ResponseField>
+
+<ResponseField name="gate_results" type="array">
+  Array of gate evaluation results. Each entry includes the gate name, pass/fail status, and output.
+</ResponseField>
+
+<ResponseField name="artifacts" type="array">
+  Array of artifact URLs produced by the run (logs, diffs, screenshots).
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "run_id": "run_01J8XVKA3M",
+  "status": "COMPLETED",
+  "scorecard": {
+    "total": 12,
+    "passed": 11,
+    "failed": 1,
+    "dimensions": [
+      { "id": "1.1", "name": "CLI parser handles required flags", "status": "PASSED" },
+      { "id": "1.2", "name": "Run command returns deterministic state", "status": "FAILED" }
+    ]
+  },
+  "gate_results": [
+    { "gate": "lint", "status": "PASSED", "output": "" },
+    { "gate": "test", "status": "PASSED", "output": "" }
+  ],
+  "artifacts": [
+    "https://api.usezombie.com/v1/artifacts/run_01J8XVKA3M/log.txt",
+    "https://api.usezombie.com/v1/artifacts/run_01J8XVKA3M/diff.patch"
+  ]
+}
+```
+</ResponseExample>

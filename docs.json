@@ -1,11 +1,15 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "UseZombie",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#d96b2b",
+    "light": "#e78a3c",
+    "dark": "#c45a1f",
+    "background": {
+      "dark": "#05080d",
+      "light": "#ffffff"
+    }
   },
   "favicon": "/favicon.svg",
   "navigation": {
@@ -18,31 +22,49 @@
             "pages": [
               "index",
               "quickstart",
-              "development"
+              "how-it-works",
+              "concepts"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Specs",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "specs/writing-specs",
+              "specs/supported-formats",
+              "specs/validation"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Runs",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "runs/submitting",
+              "runs/gate-loop",
+              "runs/scorecard",
+              "runs/pr-output",
+              "runs/troubleshooting"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Workspaces",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "workspaces/overview",
+              "workspaces/managing"
+            ]
+          },
+          {
+            "group": "Billing and cost control",
+            "pages": [
+              "billing/plans",
+              "billing/budgets"
+            ]
+          },
+          {
+            "group": "CLI reference",
+            "pages": [
+              "cli/install",
+              "cli/zombiectl",
+              "cli/flags",
+              "cli/configuration"
             ]
           }
         ]
@@ -51,18 +73,30 @@
         "tab": "API reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
               "api-reference/introduction"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Runs",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/endpoint/create-run",
+              "api-reference/endpoint/get-run",
+              "api-reference/endpoint/retry-run"
+            ]
+          },
+          {
+            "group": "Specs",
+            "pages": [
+              "api-reference/endpoint/list-specs"
+            ]
+          },
+          {
+            "group": "Workspaces",
+            "pages": [
+              "api-reference/endpoint/pause-workspace",
+              "api-reference/endpoint/sync-workspace"
             ]
           }
         ]
@@ -71,13 +105,13 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "GitHub",
+          "href": "https://github.com/usezombie/usezombie",
+          "icon": "github"
         },
         {
           "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
+          "href": "https://usezombie.com/blog",
           "icon": "newspaper"
         }
       ]
@@ -91,32 +125,32 @@
     "links": [
       {
         "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "href": "mailto:support@usezombie.com"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "label": "Mission Control",
+      "href": "https://app.usezombie.com"
     }
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "x": "https://x.com/usezombie",
+      "github": "https://github.com/usezombie",
+      "discord": "https://discord.gg/usezombie"
     }
   }
 }

@@ -1,0 +1,50 @@
+---
+title: "Managing workspaces"
+description: "Create, list, and remove workspaces."
+---
+
+## Add a workspace
+
+```bash
+zombiectl workspace add
+```
+
+This command walks you through connecting a GitHub repository:
+
+1. Opens the UseZombie GitHub App installation flow in your browser.
+2. You select the repository to connect.
+3. The workspace is created and an initial spec sync runs automatically.
+
+If the GitHub App is already installed on the target organization, the command skips the installation step and connects the repository directly.
+
+## List workspaces
+
+```bash
+zombiectl workspace list
+```
+
+Displays all workspaces in your account with their status, connected repository, and plan tier.
+
+```
+ID                  REPO                        STATUS   PLAN
+ws_01J8XV9R2M       acme/backend                ACTIVE   Scale
+ws_01J8XVKA3M       acme/frontend               ACTIVE   Hobby
+ws_01J8XVKB7N       acme/infra                  PAUSED   Scale
+```
+
+## Remove a workspace
+
+```bash
+zombiectl workspace remove <workspace-id>
+```
+
+Removing a workspace:
+
+- Stops accepting new runs immediately.
+- Allows in-flight runs to complete.
+- Retains run history for 30 days.
+- Uninstalls the GitHub App connection for that repository.
+
+<Warning>
+  This action cannot be undone. You will need to re-add the workspace and reinstall the GitHub App to reconnect.
+</Warning>

@@ -1,0 +1,41 @@
+---
+title: "Install"
+description: "Install the zombiectl CLI."
+---
+
+## Install methods
+
+<CodeGroup>
+```bash npm
+npm install -g zombiectl
+```
+
+```bash npx (no install)
+npx zombiectl --help
+```
+
+```bash curl
+curl -fsSL https://usezombie.sh/install.sh | sh
+```
+</CodeGroup>
+
+## Requirements
+
+- **Node.js 18+** is required for the npm and npx methods.
+- The curl installer detects your platform and downloads a prebuilt binary — no Node.js dependency.
+
+## Verify installation
+
+```bash
+zombiectl --version
+```
+
+## Check connectivity
+
+Run the built-in diagnostics command to verify API connectivity and local configuration:
+
+```bash
+zombiectl doctor
+```
+
+`doctor` does not require authentication. It checks that the CLI can reach the UseZombie API and reports any configuration issues.
