@@ -61,9 +61,9 @@ The `/agents` path is isolated from the human pipeline with separate authenticat
 
 ## Agent relay endpoint
 
-<Warning>
-  **🚧 In Development** — Releasing **April 5, 2026**.
-</Warning>
+<Info>
+  🧟 **Early Access** · Launching **April 5, 2026**
+</Info>
 
 `POST /v1/agent/stream` is a stateless relay for lightweight agent interactions. The CLI sends tool definitions and messages, `zombied` adds the workspace's LLM API key and system prompt, forwards to the configured provider, and streams the response back as SSE.
 
