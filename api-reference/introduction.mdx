@@ -59,6 +59,16 @@ Errors return a structured JSON envelope:
 
 The `/agents` path is isolated from the human pipeline with separate authentication and rate limits. External agents (Claude Code, Codex, OpenCode) submit specs via this route for agent-to-agent workflows.
 
+## Agent relay endpoint
+
+<Warning>
+  **🚧 In Development** — Releasing **April 5, 2026**.
+</Warning>
+
+`POST /v1/agent/stream` is a stateless relay for lightweight agent interactions. The CLI sends tool definitions and messages, `zombied` adds the workspace's LLM API key and system prompt, forwards to the configured provider, and streams the response back as SSE.
+
+This endpoint powers `spec init` and `run --preview`. See the [agent relay model](/how-it-works#agent-relay-model) for the full architecture and the [endpoint reference](/api-reference/endpoint/agent-stream) for request/response details.
+
 ## Rate limits
 
 Rate limits are applied per workspace. Specific limits vary by plan tier. Rate-limited responses return HTTP 429 with a `Retry-After` header.

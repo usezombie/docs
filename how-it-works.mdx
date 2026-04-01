@@ -111,3 +111,41 @@ sequenceDiagram
 - **zombied worker** — Claim runs, orchestrate the gate loop, push results to GitHub. Supports drain and rolling deploys.
 - **zombied-executor** — Sidecar process that owns the sandbox lifecycle. Spawns NullClaw agents, manages worktrees, enforces resource limits.
 - **GitHub** — Target forge. Branch push, PR creation, scorecard comments.
+
+## Agent relay model
+
+For lightweight, interactive agent sessions (`spec init`, `run --preview`), UseZombie uses a different execution model: the **agent relay**. Instead of queuing work for a sandbox, `zombied` acts as a stateless pass-through between the CLI and the workspace's LLM provider.
+
+```mermaid
+sequenceDiagram
+    participant CLI as zombiectl
+    participant API as zombied API
+    participant LLM as LLM Provider
+
+    CLI->>API: POST /v1/agent/stream (mode, tools, messages)
+    API->>LLM: Forward with system prompt + API key
+    LLM-->>API: tool_use: list_dir(".")
+    API-->>CLI: SSE: event: tool_use
+    Note over CLI: Executes locally on laptop
+    CLI->>API: POST /v1/agent/stream (messages + tool_result)
+    API->>LLM: Forward accumulated messages
+    LLM-->>API: tool_use: read_file("go.mod")
+    API-->>CLI: SSE: event: tool_use
+    Note over CLI: Reads file locally
+    CLI->>API: POST /v1/agent/stream (messages + tool_result)
+    API->>LLM: Forward accumulated messages
+    LLM-->>API: text: "# M5_001: Rate Limiting..."
+    API-->>CLI: SSE: event: text_delta + done {usage}
+```
+
+**Key differences from the pipeline model:**
+
+| | Pipeline (full runs) | Agent relay (spec init, preview) |
+|---|---|---|
+| **Execution** | Sandbox on worker, queued | Direct handler, no queue |
+| **File access** | Agent reads files in sandbox | CLI reads files locally, sends to model on demand |
+| **Duration** | 1-5 minutes | 3-8 seconds |
+| **State** | Durable (DB + Redis) | Stateless (CLI manages conversation) |
+| **Provider** | Configured per workspace | Same, resolved by `zombied` |
+
+The relay model is inspired by how Claude Code and OpenCode work: the CLI holds tool definitions, the model calls them on demand, and the API layer is a relay. The difference is `zombied` sits between CLI and provider because API keys are server-side secrets managed per-workspace.

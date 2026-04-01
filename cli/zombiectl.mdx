@@ -86,13 +86,36 @@ zombiectl specs sync
 
 ### `zombiectl spec init`
 
-Generate a spec template from repository analysis.
+Generate a spec from a natural language description. An agent explores your repo via the [agent relay](/how-it-works#agent-relay-model), reads manifest files and project structure, and drafts a complete milestone spec.
 
 ```bash
-zombiectl spec init
+zombiectl spec init --describe "Add rate limiting per API key with Redis backend"
 ```
 
-<Note>This command is planned for a future release.</Note>
+**What happens:**
+1. CLI sends your description + tool definitions to `zombied`
+2. Agent explores your repo via tool calls (read_file, list_dir, glob) — files are read locally, never uploaded
+3. Agent drafts a spec with the right language, gate commands, and acceptance criteria
+4. CLI writes the spec to `docs/spec/v1/pending/`
+
+```
+🧟 analyzing your repo...
+→ listed ./             (root structure)
+→ read go.mod           (Go 1.21, github.com/acme/api)
+→ read Makefile          (lint, test, build)
+→ listed src/            (4 dirs, 23 files)
+
+🧟 drafting spec...
+
+✓ wrote docs/spec/v1/pending/M5_001_RATE_LIMITING.md
+  4.8s | 4 reads | 15.6K tokens | $0.09
+```
+
+Requires authentication. The agent uses your workspace's configured LLM provider.
+
+<Warning>
+  **🚧 In Development** — Releasing **April 5, 2026**. This command uses the agent relay architecture (M18_003).
+</Warning>
 
 ### `zombiectl spec validate <file>`
 
@@ -113,6 +136,37 @@ Submit a spec and start a run.
 ```bash
 zombiectl run --spec specs/PENDING_checkout_flow.md
 ```
+
+### `zombiectl run --spec <file> --preview`
+
+Preview the blast radius before executing. An agent reads your spec and explores the repo via the [agent relay](/how-it-works#agent-relay-model) to predict which files will be touched.
+
+```bash
+zombiectl run --spec specs/M5_001_RATE_LIMITING.md --preview
+```
+
+```
+🧟 analyzing your repo against spec...
+→ read M5_001_RATE_LIMITING.md
+→ listed src/http/       (middleware, handlers)
+→ read src/http/middleware.go
+→ listed src/redis/      (client)
+
+● src/http/middleware.go       high
+● src/redis/client.go          high
+◆ src/config/config.go         medium
+◆ docker-compose.yml           medium
+○ src/http/handler.go          low
+
+5 file(s) in blast radius
+  5.2s | 5 reads | 18.3K tokens | $0.11
+```
+
+Use `--preview-only` to preview without starting a run.
+
+<Warning>
+  **🚧 In Development** — Releasing **April 5, 2026**. This command uses the agent relay architecture (M18_003).
+</Warning>
 
 ### `zombiectl run --spec <file> --watch`
 

@@ -59,6 +59,12 @@ These are the building blocks of UseZombie. Understanding them will help you nav
     The process of providing relevant codebase context — file contents, module structure, dependency graphs — to agents alongside the spec. Good context injection is what separates accurate implementations from hallucinated ones. This is a key area of ongoing improvement in UseZombie.
   </Accordion>
 
+  <Accordion title="Agent relay">
+    A stateless communication model where `zombied` acts as a pass-through between `zombiectl` and the workspace's LLM provider. The CLI sends tool definitions (read_file, list_dir, glob) with each request. The model decides which files to read via tool calls. The CLI executes tools locally on the developer's laptop and sends results back. Files never leave the machine unless the model explicitly asks for them.
+
+    Used by `spec init` and `run --preview` for lightweight, interactive agent sessions. The pipeline model (sandbox + worker) is used for full `run` execution.
+  </Accordion>
+
   <Accordion title="Steering">
     An agent-to-agent workflow where an external coding agent (Claude Code, Codex, OpenCode) submits specs to UseZombie. The external agent handles planning and spec authoring; UseZombie handles execution with verified gates. This lets you compose agent capabilities: one agent thinks, another builds with guardrails.
   </Accordion>

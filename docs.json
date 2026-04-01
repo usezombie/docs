@@ -87,6 +87,12 @@
             ]
           },
           {
+            "group": "Agent relay",
+            "pages": [
+              "api-reference/endpoint/agent-stream"
+            ]
+          },
+          {
             "group": "Specs",
             "pages": [
               "api-reference/endpoint/list-specs"
