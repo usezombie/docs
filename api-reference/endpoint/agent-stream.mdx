@@ -3,10 +3,6 @@ title: Agent stream
 description: Stateless agent relay for spec init and impact preview.
 ---
 
-<Info>
-  🧟 **Early Access** · Launching **April 5, 2026** · Part of the [agent relay](/how-it-works#agent-relay-model) architecture
-</Info>
-
 ## `POST /v1/agent/stream`
 
 Stateless relay between the CLI and the workspace's LLM provider. `zombied` adds the system prompt and API key, forwards to the provider, and streams the response back as SSE.
