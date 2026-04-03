@@ -1,0 +1,71 @@
+---
+title: "Key concepts"
+description: "Core terminology and mental model for UseZombie."
+---
+
+## Core terminology
+
+These are the building blocks of UseZombie. Understanding them will help you navigate the docs, configure workspaces, and interpret run results.
+
+<AccordionGroup>
+  <Accordion title="Spec">
+    A markdown file describing what you want built. Specs are format-agnostic — structured sections, free-form prose, or bullet lists all work. The agent reads natural language and infers implementation intent from your codebase. A spec is the input to every run.
+  </Accordion>
+
+  <Accordion title="Run">
+    A single execution of a spec. Each run has a lifecycle state: `QUEUED`, `RUNNING`, `COMPLETED`, or `FAILED`. A completed run produces artifacts (the implementation diff, gate logs) and a scorecard. Runs are immutable once finished — to retry, create a new run.
+  </Accordion>
+
+  <Accordion title="Gate loop">
+    The sequential validation cycle that runs after the agent finishes implementing: `make lint`, then `make test`, then `make build`. If any gate fails, the agent reads the error output, self-repairs, and re-runs the full gate sequence. The loop runs up to 3 times by default. This is what makes UseZombie runs self-repairing.
+  </Accordion>
+
+  <Accordion title="Scorecard">
+    Quality metrics attached to every completed run. Four weighted dimensions:
+
+    - **Completion** (40%) — Did the agent implement everything the spec asked for?
+    - **Error rate** (30%) — How many gate failures occurred before passing?
+    - **Latency** (20%) — Wall-clock time from enqueue to PR.
+    - **Resource efficiency** (10%) — Token and compute usage relative to task complexity.
+
+    Scores map to tiers: **Bronze** (0--39), **Silver** (40--69), **Gold** (70--89), **Elite** (90--100).
+  </Accordion>
+
+  <Accordion title="Workspace">
+    A bound GitHub repository with associated entitlements, billing configuration, and agent settings. When you run `zombiectl workspace add`, you create a workspace. All runs, harnesses, and billing are scoped to a workspace.
+  </Accordion>
+
+  <Accordion title="Harness">
+    Workspace-scoped agent configuration. A harness defines how agents operate within a workspace: which source repositories to read, which compiler/runtime versions to use, and which agent profiles are available. Operators store source references, compile version constraints, and activate profiles through the harness.
+  </Accordion>
+
+  <Accordion title="Agent profile">
+    A named configuration within a harness that defines the model, repair strategy, and gate settings for runs. Each profile accumulates its own score history across runs, making it easy to compare configurations. Switch profiles to experiment with different agent behaviors without changing workspace settings.
+  </Accordion>
+
+  <Accordion title="Worktree">
+    An isolated git working directory created for each run. The agent implements the spec in a worktree branched from the workspace's default branch, ensuring no changes touch main until you approve the PR. Worktrees are cleaned up automatically after run completion.
+  </Accordion>
+
+  <Accordion title="NullClaw">
+    The embedded agent runtime that executes specs inside the sandbox. NullClaw receives the spec, injected codebase context, and tool access, then produces an implementation. It operates within the worktree and has no access outside the sandbox boundary.
+  </Accordion>
+
+  <Accordion title="Executor">
+    The sidecar process (`zombied-executor`) that owns the sandbox lifecycle. The executor spawns NullClaw agents, manages worktree creation and cleanup, enforces resource limits (CPU, memory, time), and reports execution results back to the worker.
+  </Accordion>
+
+  <Accordion title="Context injection">
+    The process of providing relevant codebase context — file contents, module structure, dependency graphs — to agents alongside the spec. Good context injection is what separates accurate implementations from hallucinated ones. This is a key area of ongoing improvement in UseZombie.
+  </Accordion>
+
+  <Accordion title="Agent relay">
+    A stateless communication model where `zombied` acts as a pass-through between `zombiectl` and the workspace's LLM provider. The CLI sends tool definitions (read_file, list_dir, glob) with each request. The model decides which files to read via tool calls. The CLI executes tools locally on the developer's laptop and sends results back. Files never leave the machine unless the model explicitly asks for them.
+
+    Used by `spec init` and `run --preview` for lightweight, interactive agent sessions. The pipeline model (sandbox + worker) is used for full `run` execution.
+  </Accordion>
+
+  <Accordion title="Steering">
+    An agent-to-agent workflow where an external coding agent (Claude Code, Codex, OpenCode) submits specs to UseZombie. The external agent handles planning and spec authoring; UseZombie handles execution with verified gates. This lets you compose agent capabilities: one agent thinks, another builds with guardrails.
+  </Accordion>
+</AccordionGroup>

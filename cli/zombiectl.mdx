@@ -1,0 +1,260 @@
+---
+title: "Command reference"
+description: "Complete zombiectl command reference."
+---
+
+## Overview
+
+| Group | Commands |
+|-------|----------|
+| Authentication | `login`, `logout` |
+| Workspaces | `workspace add`, `workspace list`, `workspace remove`, `workspace upgrade-scale` |
+| Specs | `specs sync`, `spec init`, `spec validate` |
+| Runs | `run`, `run status`, `runs list`, `runs replay` |
+| Diagnostics | `doctor` |
+| Operator | `harness`, `skill-secret`, `agent`, `admin` |
+
+---
+
+## Authentication
+
+### `zombiectl login`
+
+Authenticate via Clerk OIDC device flow. Opens your default browser to complete sign-in.
+
+```bash
+zombiectl login
+```
+
+Use `--no-open` to print the auth URL instead of opening a browser automatically.
+
+### `zombiectl logout`
+
+Clear the local session token.
+
+```bash
+zombiectl logout
+```
+
+---
+
+## Workspaces
+
+### `zombiectl workspace add <repo-url>`
+
+Connect a GitHub repository as a workspace.
+
+```bash
+zombiectl workspace add https://github.com/org/repo
+```
+
+### `zombiectl workspace list`
+
+List all configured workspaces.
+
+```bash
+zombiectl workspace list
+```
+
+### `zombiectl workspace remove <id>`
+
+Remove a workspace binding.
+
+```bash
+zombiectl workspace remove ws_abc123
+```
+
+### `zombiectl workspace upgrade-scale`
+
+Upgrade a workspace from Hobby to Scale plan.
+
+```bash
+zombiectl workspace upgrade-scale [--workspace-id <id>]
+```
+
+---
+
+## Specs
+
+### `zombiectl specs sync`
+
+Sync `PENDING_*.md` spec files from a connected repository.
+
+```bash
+zombiectl specs sync
+```
+
+### `zombiectl spec init`
+
+Generate a spec from a natural language description. An agent explores your repo via the [agent relay](/how-it-works#agent-relay-model), reads manifest files and project structure, and drafts a complete milestone spec.
+
+```bash
+zombiectl spec init --describe "Add rate limiting per API key with Redis backend"
+```
+
+**What happens:**
+1. CLI sends your description + tool definitions to `zombied`
+2. Agent explores your repo via tool calls (read_file, list_dir, glob) — files are read locally, never uploaded
+3. Agent drafts a spec with the right language, gate commands, and acceptance criteria
+4. CLI writes the spec to `docs/spec/v1/pending/`
+
+```
+🧟 analyzing your repo...
+→ listed ./             (root structure)
+→ read go.mod           (Go 1.21, github.com/acme/api)
+→ read Makefile          (lint, test, build)
+→ listed src/            (4 dirs, 23 files)
+
+🧟 drafting spec...
+
+✓ wrote docs/spec/v1/pending/M5_001_RATE_LIMITING.md
+  4.8s | 4 reads | 15.6K tokens | $0.09
+```
+
+Requires authentication. The agent uses your workspace's configured LLM provider.
+
+### `zombiectl spec validate <file>`
+
+Validate a spec file locally before submission.
+
+```bash
+zombiectl spec validate specs/PENDING_checkout_flow.md
+```
+
+---
+
+## Runs
+
+### `zombiectl run --spec <file>`
+
+Submit a spec and start a run.
+
+```bash
+zombiectl run --spec specs/PENDING_checkout_flow.md
+```
+
+### `zombiectl run --spec <file> --preview`
+
+Preview the blast radius before executing. An agent reads your spec and explores the repo via the [agent relay](/how-it-works#agent-relay-model) to predict which files will be touched.
+
+```bash
+zombiectl run --spec specs/M5_001_RATE_LIMITING.md --preview
+```
+
+```
+🧟 analyzing your repo against spec...
+→ read M5_001_RATE_LIMITING.md
+→ listed src/http/       (middleware, handlers)
+→ read src/http/middleware.go
+→ listed src/redis/      (client)
+
+● src/http/middleware.go       high
+● src/redis/client.go          high
+◆ src/config/config.go         medium
+◆ docker-compose.yml           medium
+○ src/http/handler.go          low
+
+5 file(s) in blast radius
+  5.2s | 5 reads | 18.3K tokens | $0.11
+```
+
+Use `--preview-only` to preview without starting a run.
+
+### `zombiectl run --spec <file> --watch`
+
+Submit a spec and stream gate progress via SSE.
+
+```bash
+zombiectl run --spec specs/PENDING_checkout_flow.md --watch
+```
+
+<Note>The `--watch` flag is planned for a future release.</Note>
+
+### `zombiectl runs list`
+
+List runs with status and scores.
+
+```bash
+zombiectl runs list
+```
+
+### `zombiectl run status <id>`
+
+Fetch run detail with scorecard.
+
+```bash
+zombiectl run status run_abc123
+```
+
+### `zombiectl runs replay <id>`
+
+Structured failure narrative for a completed run.
+
+```bash
+zombiectl runs replay run_abc123
+```
+
+<Note>This command is planned for a future release.</Note>
+
+---
+
+## Diagnostics
+
+### `zombiectl doctor`
+
+Verify API connectivity, authentication, and local configuration. Does not require authentication.
+
+```bash
+zombiectl doctor
+```
+
+---
+
+## Operator commands
+
+### `zombiectl harness`
+
+Agent harness lifecycle management.
+
+```bash
+zombiectl harness source put [--workspace-id <id>]
+zombiectl harness compile [--workspace-id <id>]
+zombiectl harness activate [--workspace-id <id>]
+zombiectl harness active [--workspace-id <id>]
+```
+
+All subcommands accept `--workspace-id` or use the current workspace from context.
+
+### `zombiectl skill-secret`
+
+Manage agent skill secrets per workspace.
+
+```bash
+zombiectl skill-secret put --workspace-id <id> --skill-ref <ref> --key <key> --value <value> [--scope sandbox]
+zombiectl skill-secret delete --workspace-id <id> --skill-ref <ref> --key <key>
+```
+
+Required flags: `--workspace-id`, `--skill-ref`, `--key`. The `put` action also requires `--value`. The `--scope` flag defaults to `sandbox`.
+
+### `zombiectl agent`
+
+Agent introspection — view profiles, scores, proposals, and improvement reports.
+
+```bash
+zombiectl agent profile
+zombiectl agent scores
+zombiectl agent proposals
+zombiectl agent improvement-report
+```
+
+<Note>
+  Coming soon: `zombiectl agent dashboard` will show all agents in a workspace with ASCII sparklines, current tier, trust status, and pending proposals in a single command.
+</Note>
+
+### `zombiectl admin`
+
+Administrative workspace operations.
+
+```bash
+zombiectl admin <subcommand>
+```

@@ -1,0 +1,80 @@
+---
+title: "PR output"
+description: "What the generated pull request contains."
+---
+
+When a run completes successfully, UseZombie opens a pull request on the connected GitHub repository. Here is what that PR looks like and how it is constructed.
+
+## Branch naming
+
+Every run gets a dedicated branch:
+
+```
+zombie/<run_id_short>/<spec_slug>
+```
+
+For example:
+
+```
+zombie/01JQ7K/add-healthz-endpoint
+```
+
+The branch is created from the base branch HEAD at the time the run starts. The exact base commit SHA is recorded on the run row for traceability.
+
+## Isolated worktree
+
+Each run executes in an **isolated git worktree** checked out from the base branch HEAD. This means:
+
+- Runs cannot interfere with each other, even when running in parallel.
+- The worktree is cleaned up automatically after the run completes.
+- No leftover branches or temporary files persist on the worker.
+
+## PR body
+
+The PR body contains an **agent-generated plain-English explanation** of what changed and why. This is not a diff summary — the agent writes a narrative description of the implementation decisions it made, based on the spec it was given.
+
+Example:
+
+```markdown
+## What this PR does
+
+Adds a `GET /healthz` endpoint that returns the server status and package
+version. The version is read from `package.json` at startup and cached.
+
+A unit test covers the happy path — verifying the 200 status code and
+JSON body shape.
+```
+
+## Scorecard comment
+
+A separate PR comment is posted with the run's scorecard:
+
+| Field | Value |
+| --- | --- |
+| Score | 87 (Gold) |
+| Completion | 100 |
+| Error rate | 85 |
+| Latency | 72 |
+| Resource efficiency | 50 |
+| Wall time | 3m 12s |
+| Token consumption | 14,200 |
+
+The comment also includes a gate results table:
+
+| Gate | Result | Loops |
+| --- | --- | --- |
+| lint | PASS | 1 |
+| test | PASS | 2 |
+| build | PASS | 1 |
+
+## Human review required
+
+In v1, all PRs require human review. There is no auto-merge. You review the PR like any other — approve, request changes, or close it.
+
+<Note>
+  Coming soon: the PR description will include a quality badge showing the agent's tier and score, for example "This PR was produced by a Gold-tier agent (87/100)."
+</Note>
+
+<Info>
+  Score-gated auto-merge is planned for v2. When enabled, runs that exceed a configurable score threshold will be merged automatically.
+</Info>

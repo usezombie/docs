@@ -1,0 +1,89 @@
+---
+title: "Spec validation"
+description: "How UseZombie validates specs before execution."
+---
+
+## Validation before execution
+
+UseZombie validates every spec at submission time, before any agent tokens are spent. If validation fails, the run is rejected immediately with actionable error messages.
+
+## File reference checking
+
+When your spec mentions file paths like `src/routes/api/jobs.ts`, validation confirms that file exists in the repository at the specified base commit.
+
+```
+Error: File reference not found
+
+  spec line 12: src/routes/api/jbos.ts
+  closest match: src/routes/api/jobs.ts
+
+  Fix: correct the file path in your spec.
+```
+
+This catches typos and stale references before they waste agent time.
+
+## Structure validation
+
+Specs are checked for well-formed markdown sections. Validation looks for:
+
+- A top-level heading (the spec title)
+- At least one section with descriptive content
+- No empty sections (a heading with no content beneath it)
+
+```
+Error: Empty section
+
+  spec line 24: ## Acceptance criteria
+  (no content follows this heading)
+
+  Fix: add acceptance criteria or remove the empty section.
+```
+
+## Deduplication
+
+Every spec submission produces a composite key:
+
+```
+sha256(spec_markdown) + repo + base_commit_sha
+```
+
+This key determines uniqueness:
+
+| Scenario | Result |
+| --- | --- |
+| Same spec, same repo, same base commit | Returns the existing run ID |
+| Same spec, same repo, different base commit | New run (code changed) |
+| Modified spec, same repo, same base commit | New run (spec changed) |
+
+Deduplication prevents accidental re-runs when submitting the same spec multiple times. If you need to force a re-run on the same base, make any change to the spec content.
+
+## Local pre-flight validation
+
+Run validation locally before submitting:
+
+```bash
+zombiectl spec validate path/to/spec.md
+```
+
+This runs the same checks that the server performs at submission time: file references, structure, and deduplication lookup. Fix issues locally before they hit the server.
+
+<Tip>
+  Run `zombiectl spec validate` in CI as a pre-merge check to catch broken specs before they land on the default branch.
+</Tip>
+
+## Validation error reference
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| File reference not found | Spec mentions a path that does not exist in the repo | Correct the file path; check for typos |
+| Empty section | A heading has no content beneath it | Add content or remove the heading |
+| Missing title | No top-level heading found | Add a `# Title` as the first line |
+| Duplicate run | Same spec + repo + base commit already submitted | Change the spec or rebase to a new base commit |
+
+## Semantic validation
+
+<Note>
+  Validation catches structural issues. Semantic correctness — does the spec make sense? Is it implementable? Are the acceptance criteria testable? — is a known hard problem being addressed in v2.
+</Note>
+
+Structural validation ensures your spec is well-formed. Whether the spec describes something an agent can actually build is a separate, harder question. Today, that responsibility is on the spec author. Future versions will add semantic checks such as detecting contradictory acceptance criteria and flagging specs that reference APIs or libraries not present in the repository.

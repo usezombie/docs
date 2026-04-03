@@ -1,0 +1,58 @@
+---
+title: "Install"
+description: "Install the zombiectl CLI."
+---
+
+## Install
+
+<Steps>
+  <Step title="Install Node.js">
+    If you don't have Node.js installed yet, [download it here](https://nodejs.org).
+  </Step>
+
+  <Step title="Install with npm">
+    Run the following command in your terminal:
+
+    ```bash
+    npm install -g @usezombie/zombiectl
+    ```
+
+    Use `npx` to run without a global install:
+
+    ```bash
+    npx @usezombie/zombiectl --help
+    ```
+  </Step>
+</Steps>
+
+## Agent Skills
+
+If you are running an AI coding agent (Claude Code, Cursor, GitHub Copilot, etc.), register `zombiectl` as a skill so the agent can invoke it directly during a session:
+
+```bash
+npx skills add @usezombie/zombiectl
+```
+
+Once registered, the agent can call `zombiectl run`, `zombiectl workspace`, and other commands natively without manual invocation.
+
+## Verify installation
+
+```bash
+zombiectl --version
+```
+
+## Check connectivity
+
+Run the built-in diagnostics command to verify API connectivity, auth status, and local configuration:
+
+```bash
+zombiectl doctor
+```
+
+`doctor` checks:
+- CLI version
+- API reachability (`https://api.usezombie.com`)
+- Auth token validity
+- Detected AI agent integrations (Claude Code, Cursor, Copilot, etc.)
+
+It does not require authentication to run.

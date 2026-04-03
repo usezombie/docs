@@ -1,0 +1,35 @@
+---
+title: "Global flags"
+description: "Flags available on all zombiectl commands."
+---
+
+## Global flags
+
+These flags can be passed to any `zombiectl` command.
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--api <url>` | API base URL | `https://api.usezombie.com` |
+| `--json` | Machine-readable JSON output | `false` |
+| `--no-open` | Suppress browser auto-open (login) | `false` |
+| `--no-input` | Non-interactive mode | `false` |
+| `--help` | Show help text | |
+| `--version` | Show CLI version | |
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | General error (validation failure, API error) |
+
+When `--json` is enabled, error responses include structured error codes for programmatic consumption:
+
+```json
+{
+  "error": {
+    "code": "SPEC_VALIDATION_FAILED",
+    "message": "Spec file is missing required frontmatter fields."
+  }
+}
+```

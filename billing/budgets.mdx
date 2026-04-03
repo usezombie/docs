@@ -1,0 +1,44 @@
+---
+title: "Budgets and cost control"
+description: "Per-run and workspace-level cost controls."
+---
+
+UseZombie enforces budgets at multiple levels to prevent runaway costs.
+
+## Per-run limits
+
+Every run has built-in limits that cap resource consumption:
+
+| Control | Default | Configurable |
+|---------|---------|-------------|
+| Token budget | 100K tokens | Yes |
+| Wall time limit | 300 seconds | Yes |
+| Repair loop cap | 3 iterations | Yes |
+
+These limits are checked at submission time. If a run would exceed the workspace budget, it is **rejected before execution starts** -- no credit is consumed.
+
+## Workspace monthly budget
+
+Set a monthly spending cap on any workspace from the [dashboard](https://app.usezombie.com/billing).
+
+<Note>The `billing budget set` CLI command is planned for a future release.</Note>
+
+When the workspace reaches its monthly budget, new runs are rejected until the next billing cycle or the budget is increased.
+
+## Run cancellation
+
+Cancel a running job at any time via CLI or API:
+
+```bash
+zombiectl run cancel <run-id>
+```
+
+<Note>The `run cancel` command is planned for a future release. Currently, runs can be cancelled from the [dashboard](https://app.usezombie.com).</Note>
+
+Cancelled runs are billed only for resources consumed up to the point of cancellation.
+
+## Credit deduction timing
+
+On the Hobby (Free) plan, credit is deducted only **after a run completes successfully**. Failed runs and cancelled runs do not reduce your credit balance.
+
+On the Scale plan, usage-based billing follows the same principle: you pay for completed work, not failed attempts.
