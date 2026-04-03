@@ -4,21 +4,22 @@ description: Submit your first spec and get a validated PR in under 5 minutes.
 ---
 
 <Steps>
-  <Step title="Install zombiectl">
-    <CodeGroup>
-    ```bash cURL
-    curl https://usezombie.sh/install.sh | bash
-    ```
-    ```bash Node.js
+  <Step title="Install Node.js">
+    If you don't have Node.js installed yet, [download it here](https://nodejs.org).
+  </Step>
+
+  <Step title="Install with npm">
+    Run the following command in your terminal:
+
+    ```bash
     npm install -g @usezombie/zombiectl
     ```
-    ```bash PowerShell (Windows)
-    irm https://usezombie.com/install.ps1 | iex
-    ```
-    ```bash Agent Skills
+
+    Or register as an agent skill:
+
+    ```bash
     npx skills add @usezombie/zombiectl
     ```
-    </CodeGroup>
 
     Verify the installation:
 
