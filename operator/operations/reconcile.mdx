@@ -12,7 +12,7 @@ description: "Dead-letter reconciliation for stale runs."
 The reconciler scans for:
 
 - **Stale outbox rows** — Transactional outbox entries that were written to PostgreSQL but never picked up or acknowledged. These can occur when a worker crashes between writing the outbox row and completing the downstream action (webhook delivery, status update).
-- **Stuck runs** — Runs that remain in a non-terminal state (`PLANNED`, `RUNNING`) beyond the expected timeout window. These can occur when a worker crashes mid-execution and no other worker reclaims the work.
+- **Stuck runs** — Runs that remain in a non-terminal state (`QUEUED`, `RUNNING`) beyond the expected timeout window. These can occur when a worker crashes mid-execution and no other worker reclaims the work.
 
 For each stale item:
 

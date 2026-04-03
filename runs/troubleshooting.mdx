@@ -12,7 +12,7 @@ When a run fails or behaves unexpectedly, start here. The most common issues and
     **Cause:** The agent attempted to self-repair 3 times (the default limit) and could not produce code that passes the gate.
 
     **Fix:**
-    - Run `zombiectl runs status <id>` and inspect the stderr from the final loop attempt.
+    - Run `zombiectl run status <id>` and inspect the stderr from the final loop attempt.
     - Check whether the failing Make target (`make lint`, `make test`, or `make build`) works locally on a clean checkout.
     - Simplify the spec — smaller, more focused specs produce higher pass rates.
     - If your repo's Make targets have environment-specific dependencies, ensure they work in a clean Linux container.
@@ -62,14 +62,14 @@ When a run fails or behaves unexpectedly, start here. The most common issues and
     **Cause:** Your free plan $10 credit has been used up.
 
     **Fix:**
-    - Check your current balance in the dashboard or via `zombiectl billing status`.
+    - Check your current balance in the [dashboard](https://app.usezombie.com/billing).
     - Upgrade to the Scale plan for higher limits and per-run billing.
   </Accordion>
 
   <Accordion title="Duplicate spec">
     **Symptom:** Run submission is rejected with a duplicate error.
 
-    **Cause:** The same spec content, repository, and base commit SHA already has an active run (status `PLANNED` or `RUNNING`).
+    **Cause:** The same spec content, repository, and base commit SHA already has an active run (status `QUEUED` or `RUNNING`).
 
     **Fix:**
     - Wait for the existing run to complete or fail.

@@ -13,7 +13,7 @@ These are the building blocks of UseZombie. Understanding them will help you nav
   </Accordion>
 
   <Accordion title="Run">
-    A single execution of a spec. Each run has a lifecycle state: `PLANNED`, `RUNNING`, `COMPLETED`, or `FAILED`. A completed run produces artifacts (the implementation diff, gate logs) and a scorecard. Runs are immutable once finished — to retry, create a new run.
+    A single execution of a spec. Each run has a lifecycle state: `QUEUED`, `RUNNING`, `COMPLETED`, or `FAILED`. A completed run produces artifacts (the implementation diff, gate logs) and a scorecard. Runs are immutable once finished — to retry, create a new run.
   </Accordion>
 
   <Accordion title="Gate loop">

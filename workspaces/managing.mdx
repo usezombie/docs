@@ -6,14 +6,19 @@ description: "Create, list, and remove workspaces."
 ## Add a workspace
 
 ```bash
-zombiectl workspace add
+zombiectl workspace add <repo-url>
 ```
 
-This command walks you through connecting a GitHub repository:
+For example:
 
-1. Opens the UseZombie GitHub App installation flow in your browser.
-2. You select the repository to connect.
-3. The workspace is created and an initial spec sync runs automatically.
+```bash
+zombiectl workspace add https://github.com/your-org/your-repo
+```
+
+This connects the GitHub repository as a workspace:
+
+1. If the UseZombie GitHub App is not yet installed on the organization, opens the installation flow in your browser.
+2. Creates the workspace and runs an initial spec sync automatically.
 
 If the GitHub App is already installed on the target organization, the command skips the installation step and connects the repository directly.
 
