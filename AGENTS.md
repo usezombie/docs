@@ -42,10 +42,10 @@
 
 ## Design system colors
 
-<!-- SYNC SOURCE: ~/Projects/usezombie/ui/packages/design-system/src/tokens.css
+{/* SYNC SOURCE: ~/Projects/usezombie/ui/packages/design-system/src/tokens.css
      When touching colors in this repo (docs.json, logos, custom CSS), always
      verify values against the canonical design-system tokens first.
-     Run: grep -E "^  --z-(orange|bg|text|green|cyan|red|amber)" ~/Projects/usezombie/ui/packages/design-system/src/tokens.css -->
+     Run: grep -E "^  --z-(orange|bg|text|green|cyan|red|amber)" ~/Projects/usezombie/ui/packages/design-system/src/tokens.css */}
 
 Primary brand color: `#d96b2b` (`--z-orange`). Use this for emphasis and CTAs.
 Primary bright/hover: `#e78a3c` (`--z-orange-bright`).
