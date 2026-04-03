@@ -19,11 +19,9 @@ These limits are checked at submission time. If a run would exceed the workspace
 
 ## Workspace monthly budget
 
-Set a monthly spending cap on any workspace:
+Set a monthly spending cap on any workspace from the [dashboard](https://app.usezombie.com/billing).
 
-```bash
-zombiectl billing budget set --workspace <workspace-id> --monthly 50
-```
+<Note>The `billing budget set` CLI command is planned for a future release.</Note>
 
 When the workspace reaches its monthly budget, new runs are rejected until the next billing cycle or the budget is increased.
 
