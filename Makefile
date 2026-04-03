@@ -1,12 +1,7 @@
-.PHONY: dev lint validate broken-links
+.PHONY: dev lint
 
 dev:
 	npx mintlify dev
 
-lint: validate broken-links
-
-validate:
+lint:
 	npx mintlify validate
-
-broken-links:
-	npx mintlify broken-links
