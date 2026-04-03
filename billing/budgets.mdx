@@ -12,7 +12,7 @@ Every run has built-in limits that cap resource consumption:
 | Control | Default | Configurable |
 |---------|---------|-------------|
 | Token budget | 100K tokens | Yes |
-| Wall time limit | 600 seconds | Yes |
+| Wall time limit | 300 seconds | Yes |
 | Repair loop cap | 3 iterations | Yes |
 
 These limits are checked at submission time. If a run would exceed the workspace budget, it is **rejected before execution starts** -- no credit is consumed.
