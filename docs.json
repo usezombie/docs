@@ -107,14 +107,14 @@
     "global": {
       "anchors": [
         {
+          "anchor": "Website",
+          "href": "https://usezombie.com",
+          "icon": "globe"
+        },
+        {
           "anchor": "GitHub",
           "href": "https://github.com/usezombie/usezombie",
           "icon": "github"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://usezombie.com/blog",
-          "icon": "newspaper"
         }
       ]
     }
@@ -150,9 +150,8 @@
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/usezombie",
       "github": "https://github.com/usezombie",
-      "discord": "https://discord.gg/usezombie"
+      "discord": "https://discord.gg/H9hH2nqQjh"
     }
   }
 }
