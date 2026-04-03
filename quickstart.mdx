@@ -6,14 +6,17 @@ description: Submit your first spec and get a validated PR in under 5 minutes.
 <Steps>
   <Step title="Install zombiectl">
     <CodeGroup>
-    ```bash npm
-    npm install -g zombiectl
+    ```bash cURL
+    curl https://usezombie.sh/install.sh | bash
     ```
-    ```bash npx (no install)
-    npx zombiectl --help
+    ```bash Node.js
+    npm install -g @usezombie/zombiectl
     ```
-    ```bash curl
-    curl -fsSL https://usezombie.sh/install.sh | sh
+    ```bash PowerShell (Windows)
+    irm https://usezombie.com/install.ps1 | iex
+    ```
+    ```bash Agent Skills
+    npx skills add @usezombie/zombiectl
     ```
     </CodeGroup>
 
