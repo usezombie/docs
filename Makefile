@@ -5,3 +5,4 @@ dev:
 
 lint:
 	npx mintlify validate
+	npx mintlify broken-links
