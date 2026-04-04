@@ -14,7 +14,7 @@ The score is a weighted sum of four axes:
 | Completion | 40% | Did the agent finish the spec? |
 | Error rate | 30% | Ratio of passing stages to total stages |
 | Latency | 20% | Wall time compared to workspace rolling p50 baseline |
-| Resource efficiency | 10% | Compute and memory usage (stubbed until Firecracker) |
+| Resource efficiency | 10% | Memory and CPU usage relative to sandbox limits |
 
 ### Completion (40%)
 
@@ -36,8 +36,15 @@ The baseline is computed from the last 20 completed runs in the same workspace.
 
 ### Resource efficiency (10%)
 
+Measures how much memory and CPU the agent consumed during execution. An agent that does its job without hogging resources scores higher.
+
+- **Memory (70% of this axis)** — how much of the available memory the agent used. Using very little scores close to 100. Maxing out the limit scores 0.
+- **CPU (30% of this axis)** — how often the agent was slowed down by CPU limits. Running freely scores 100. Being constantly throttled scores 0.
+
+This gives you early visibility into resource-heavy agents before they become a cost problem.
+
 <Info>
-  Resource efficiency scoring is stubbed at a flat 50/100 until Firecracker-based sandboxing is available. Once sandboxing ships, this axis will measure actual CPU and memory consumption.
+  When resource data is not available (for example, during local development), this axis defaults to 50.
 </Info>
 
 ## Tier labels
@@ -78,13 +85,14 @@ curl https://api.usezombie.com/v1/runs/run_01JQ7K.../score \
 ```json
 {
   "run_id": "run_01JQ7K...",
-  "score": 87,
+  "score": 89,
   "tier": "Gold",
+  "formula_version": "2",
   "axes": {
     "completion": 100,
     "error_rate": 85,
     "latency": 72,
-    "resource_efficiency": 50
+    "resource_efficiency": 93
   }
 }
 ```
