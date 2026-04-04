@@ -1,0 +1,12 @@
+{
+  "ignorePatterns": [
+    { "pattern": "^/" },
+    { "pattern": "^https://discord.gg" },
+    { "pattern": "^https://usezombie.com" },
+    { "pattern": "^https://app.usezombie.com" },
+    { "pattern": "^mailto:" }
+  ],
+  "retryOn429": true,
+  "retryCount": 3,
+  "aliveStatusCodes": [200, 206]
+}
