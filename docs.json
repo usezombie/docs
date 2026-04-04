@@ -67,6 +67,7 @@
       },
       {
         "tab": "API reference",
+        "openapi": "https://raw.githubusercontent.com/usezombie/usezombie/main/public/openapi.json",
         "groups": [
           {
             "group": "Overview",
@@ -75,30 +76,106 @@
             ]
           },
           {
-            "group": "Runs",
+            "group": "Health",
             "pages": [
-              "api-reference/endpoint/create-run",
-              "api-reference/endpoint/get-run",
-              "api-reference/endpoint/retry-run"
+              "GET /healthz",
+              "GET /readyz",
+              "GET /metrics"
             ]
           },
           {
-            "group": "Agent relay",
+            "group": "Authentication",
             "pages": [
-              "api-reference/endpoint/agent-stream"
-            ]
-          },
-          {
-            "group": "Specs",
-            "pages": [
-              "api-reference/endpoint/list-specs"
+              "POST /v1/auth/sessions",
+              "GET /v1/auth/sessions/{session_id}",
+              "POST /v1/auth/sessions/{session_id}/complete",
+              "GET /v1/github/callback"
             ]
           },
           {
             "group": "Workspaces",
             "pages": [
-              "api-reference/endpoint/pause-workspace",
-              "api-reference/endpoint/sync-workspace"
+              "POST /v1/workspaces",
+              "POST /v1/workspaces/{workspace_id}:pause",
+              "POST /v1/workspaces/{workspace_id}:sync"
+            ]
+          },
+          {
+            "group": "Specs",
+            "pages": [
+              "GET /v1/specs"
+            ]
+          },
+          {
+            "group": "Runs",
+            "pages": [
+              "POST /v1/runs",
+              "GET /v1/runs",
+              "GET /v1/runs/{run_id}",
+              "POST /v1/runs/{run_id}:retry",
+              "GET /v1/runs/{run_id}:replay",
+              "GET /v1/runs/{run_id}:stream",
+              "POST /v1/runs/{run_id}:cancel"
+            ]
+          },
+          {
+            "group": "Agents",
+            "pages": [
+              "GET /v1/agents/{agent_id}",
+              "GET /v1/agents/{agent_id}/scores",
+              "GET /v1/agents/{agent_id}/improvement-report",
+              "GET /v1/agents/{agent_id}/proposals",
+              "POST /v1/agents/{agent_id}/proposals/{proposal_id}:approve",
+              "POST /v1/agents/{agent_id}/proposals/{proposal_id}:reject",
+              "POST /v1/agents/{agent_id}/proposals/{proposal_id}:veto",
+              "POST /v1/agents/{agent_id}/harness/changes/{change_id}:revert"
+            ]
+          },
+          {
+            "group": "Harness",
+            "pages": [
+              "PUT /v1/workspaces/{workspace_id}/harness/source",
+              "POST /v1/workspaces/{workspace_id}/harness/compile",
+              "POST /v1/workspaces/{workspace_id}/harness/activate",
+              "GET /v1/workspaces/{workspace_id}/harness/active"
+            ]
+          },
+          {
+            "group": "Credentials",
+            "pages": [
+              "PUT /v1/workspaces/{workspace_id}/credentials/llm",
+              "GET /v1/workspaces/{workspace_id}/credentials/llm",
+              "DELETE /v1/workspaces/{workspace_id}/credentials/llm"
+            ]
+          },
+          {
+            "group": "Skill Secrets",
+            "pages": [
+              "PUT /v1/workspaces/{workspace_id}/skills/{skill_ref}/secrets/{key_name}",
+              "DELETE /v1/workspaces/{workspace_id}/skills/{skill_ref}/secrets/{key_name}"
+            ]
+          },
+          {
+            "group": "Agent Relay",
+            "pages": [
+              "POST /v1/workspaces/{workspace_id}/spec/template",
+              "POST /v1/workspaces/{workspace_id}/spec/preview"
+            ]
+          },
+          {
+            "group": "Admin",
+            "pages": [
+              "GET /v1/admin/platform-keys",
+              "PUT /v1/admin/platform-keys",
+              "DELETE /v1/admin/platform-keys/{provider}"
+            ]
+          },
+          {
+            "group": "Billing",
+            "pages": [
+              "POST /v1/workspaces/{workspace_id}/billing/scale",
+              "POST /v1/workspaces/{workspace_id}/billing/events",
+              "POST /v1/workspaces/{workspace_id}/scoring/config"
             ]
           }
         ]
@@ -107,14 +184,14 @@
     "global": {
       "anchors": [
         {
+          "anchor": "Website",
+          "href": "https://usezombie.com",
+          "icon": "globe"
+        },
+        {
           "anchor": "GitHub",
           "href": "https://github.com/usezombie/usezombie",
           "icon": "github"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://usezombie.com/blog",
-          "icon": "newspaper"
         }
       ]
     }
@@ -150,9 +227,8 @@
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/usezombie",
       "github": "https://github.com/usezombie",
-      "discord": "https://discord.gg/usezombie"
+      "discord": "https://discord.gg/H9hH2nqQjh"
     }
   }
 }

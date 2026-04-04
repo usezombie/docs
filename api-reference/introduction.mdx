@@ -1,70 +1,60 @@
 ---
-title: API overview
-description: REST API for programmatic spec submission and run management.
+title: 'API Reference'
+description: 'UseZombie Control Plane API — spec-to-PR automation.'
 ---
-
-<Info>
-  This reference covers the public spec submission and run management API. Internal endpoints (authentication sessions, billing, harness management, agent profiles) are not documented here.
-</Info>
 
 ## Base URL
 
-| Environment | URL |
-|-------------|-----|
-| Production | `https://api.usezombie.com/v1` |
-| Development | `https://api-dev.usezombie.com/v1` |
+```
+https://api.usezombie.com
+```
 
 ## Authentication
 
-All API requests require a Bearer token in the `Authorization` header:
+All API endpoints require a Bearer token in the `Authorization` header, except health checks and the initial auth session creation.
 
 ```bash
-curl -H "Authorization: Bearer <token>" \
-  https://api.usezombie.com/v1/runs
+curl https://api.usezombie.com/v1/runs \
+  -H "Authorization: Bearer $ZOMBIE_TOKEN"
 ```
 
-Get a token via `zombiectl login` or the Clerk API.
+Obtain a token via the CLI login flow (`zombiectl login`) or by creating an auth session programmatically:
 
-## Content type
+1. `POST /v1/auth/sessions` — returns a `login_url` and `session_id`
+2. Complete the OAuth flow in the browser
+3. `GET /v1/auth/sessions/{session_id}` — poll until `status: "complete"`, then extract the `token`
 
-All requests and responses use `application/json`.
+## Errors
 
-## Error envelope
-
-Errors return a structured JSON envelope:
+All errors follow a consistent format:
 
 ```json
 {
   "error": {
-    "code": "SPEC_VALIDATION_FAILED",
-    "message": "File reference 'src/missing.ts' does not exist in repository."
-  }
+    "code": "WORKSPACE_NOT_FOUND",
+    "message": "No workspace with the given ID exists."
+  },
+  "request_id": "req_01JQ7K..."
 }
 ```
 
-### Error codes
+Every response includes a `request_id` for tracing.
 
-| Code | Meaning |
-|------|---------|
-| `WORKSPACE_PAUSED` | Workspace is paused, no new runs accepted |
-| `INVALID_STATE_TRANSITION` | Run is not in a valid state for this operation |
-| `SPEC_VALIDATION_FAILED` | Spec failed structural or file reference validation |
-| `DUPLICATE_RUN` | Active run with same spec hash + repo + base commit exists |
-| `CREDIT_EXHAUSTED` | Free plan credit depleted |
-| `BUDGET_EXCEEDED` | Workspace monthly budget exceeded |
-| `UNAUTHORIZED` | Missing or invalid auth token |
-| `FORBIDDEN` | Insufficient role for this operation |
+## Conventions
 
-## Agent route isolation
-
-The `/agents` path is isolated from the human pipeline with separate authentication and rate limits. External agents (Claude Code, Codex, OpenCode) submit specs via this route for agent-to-agent workflows.
-
-## Agent relay endpoint
-
-`POST /v1/agent/stream` is a stateless relay for lightweight agent interactions. The CLI sends tool definitions and messages, `zombied` adds the workspace's LLM API key and system prompt, forwards to the configured provider, and streams the response back as SSE.
-
-This endpoint powers `spec init` and `run --preview`. See the [agent relay model](/how-it-works#agent-relay-model) for the full architecture and the [endpoint reference](/api-reference/endpoint/agent-stream) for request/response details.
+- **IDs** are UUIDs.
+- **Timestamps** are Unix milliseconds.
+- **Action endpoints** use `:action` suffix (e.g., `/v1/runs/{run_id}:cancel`).
+- **Streaming endpoints** (replay, stream, agent relay) return Server-Sent Events.
 
 ## Rate limits
 
-Rate limits are applied per workspace. Specific limits vary by plan tier. Rate-limited responses return HTTP 429 with a `Retry-After` header.
+API rate limits are per-workspace. If you hit a rate limit, the response includes a `Retry-After` header.
+
+<Card
+  title="OpenAPI Spec"
+  icon="code"
+  href="https://api.usezombie.com/openapi.json"
+>
+  View the full OpenAPI 3.1 specification
+</Card>
