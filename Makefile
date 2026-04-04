@@ -6,4 +6,4 @@ dev:
 lint:
 	npx mintlify validate
 	npx mintlify broken-links
-	npx markdown-link-check --config .mlc-config.json **/*.mdx
+	find . -name "*.mdx" | xargs -I{} npx markdown-link-check --config .mlc-config.json {}
