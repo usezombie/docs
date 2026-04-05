@@ -18,13 +18,13 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 </Update>
 
 <Update label="March 30, 2026" tags={["New releases"]}>
-  ## Live run streaming
+  ## Live run streaming (API)
 
-  Follow agent runs in real time with `--watch`. Gate results stream to your terminal as the agent works.
+  The SSE stream endpoint is live: `GET /v1/runs/{id}:stream` emits gate results in real time as the agent works. CLI support (`--watch`) is coming in a future release.
 
-  ## Run replay
+  ## Run replay (API)
 
-  Replay any finished run step by step to see what happened at each gate. Available via the CLI and API.
+  Replay any finished run step by step via the API: `GET /v1/runs/{id}:replay` returns a structured gate narrative with exit codes, stdout/stderr, and wall time. CLI support (`zombiectl runs replay`) is coming in a future release.
 </Update>
 
 <Update label="March 28, 2026" tags={["New releases"]}>
