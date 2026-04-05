@@ -80,15 +80,9 @@ When a run fails or behaves unexpectedly, start here. The most common issues and
 
 ## Run replay
 
-Replay the complete event history of a finished run:
+<Note>`zombiectl runs replay` is planned for a future release. Use the API endpoint below in the meantime.</Note>
 
-```bash
-zombiectl runs replay <id>
-```
-
-The replay streams every gate result, loop iteration, and captured output as Server-Sent Events — useful for debugging failed runs or reviewing what happened at each step.
-
-You can also replay via the API:
+Replay the complete event history of a finished run via the API:
 
 ```bash
 curl https://api.usezombie.com/v1/runs/run_01JQ7K...:replay \
