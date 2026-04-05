@@ -78,10 +78,13 @@ When a run fails or behaves unexpectedly, start here. The most common issues and
   </Accordion>
 </AccordionGroup>
 
-## Run replay (future)
+## Run replay
 
-<Info>
-  Run replay is planned but not yet available.
-</Info>
+<Note>`zombiectl runs replay` is planned for a future release. Use the API endpoint below in the meantime.</Note>
 
-When shipped, `zombiectl runs replay <id>` will produce a structured narrative of everything that happened during a run — one section per gate, one entry per loop iteration, with the full captured output at each step.
+Replay the complete event history of a finished run via the API:
+
+```bash
+curl https://api.usezombie.com/v1/runs/run_01JQ7K...:replay \
+  -H "Authorization: Bearer $ZOMBIE_TOKEN"
+```

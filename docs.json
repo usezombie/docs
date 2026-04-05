@@ -62,6 +62,12 @@
               "cli/flags",
               "cli/configuration"
             ]
+          },
+          {
+            "group": "Updates",
+            "pages": [
+              "changelog"
+            ]
           }
         ]
       },
@@ -202,6 +208,10 @@
   },
   "navbar": {
     "links": [
+      {
+        "label": "Changelog",
+        "href": "/changelog"
+      },
       {
         "label": "Talk to us",
         "href": "https://usezombie.com/contact/sales"

@@ -1,0 +1,44 @@
+---
+title: "Changelog"
+description: "Stay up to date with UseZombie product updates, new features, and improvements."
+---
+
+<Tip>
+  UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
+</Tip>
+
+<Update label="April 5, 2026" tags={["New releases", "Improvements"]}>
+  ## Resource efficiency scoring
+
+  Agent runs are now scored on actual memory and CPU usage. Agents that stay within their resource limits score higher. Agents that max out memory or hit CPU caps score lower — giving you visibility into wasteful runs.
+
+  ## Score formula v2
+
+  The scoring formula has been updated to v2. The resource axis now uses real data instead of a fixed value. All other axes are unchanged and existing scores are preserved.
+</Update>
+
+<Update label="March 30, 2026" tags={["New releases"]}>
+  ## Live run streaming (API)
+
+  The SSE stream endpoint is live: `GET /v1/runs/{id}:stream` emits gate results in real time as the agent works. CLI support (`--watch`) is coming in a future release.
+
+  ## Run replay (API)
+
+  Replay any finished run step by step via the API: `GET /v1/runs/{id}:replay` returns a structured gate narrative with exit codes, stdout/stderr, and wall time. CLI support (`zombiectl runs replay`) is coming in a future release.
+</Update>
+
+<Update label="March 28, 2026" tags={["New releases"]}>
+  ## Per-run cost control
+
+  Set token budgets, wall-time limits, and repair loop caps on each run. Runs that exceed limits are cancelled automatically.
+</Update>
+
+<Update label="March 25, 2026" tags={["New releases"]}>
+  ## OpenAPI spec
+
+  A complete OpenAPI 3.1 specification covering all 43 API endpoints is now published.
+
+  ## `@usezombie/zombiectl` on npm
+
+  The CLI is now available as a scoped npm package.
+</Update>
