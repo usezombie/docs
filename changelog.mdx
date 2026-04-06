@@ -7,14 +7,34 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
-<Update label="April 5, 2026" tags={["New releases", "Improvements"]}>
+<Update label="v0.4.0 — April 6, 2026" tags={["New releases", "Improvements"]}>
+  ## Steer running agents mid-run
+
+  Interrupt a running agent without aborting it. Send a message via `zombiectl runs interrupt <run_id> <message>` or `POST /v1/runs/{id}:interrupt` — the agent picks it up at the next gate checkpoint. Two modes: **queued** (next checkpoint) and **instant** (IPC delivery).
+
+  ## Live run streaming (CLI)
+
+  `zombiectl run --spec <file> --watch` now streams gate results in real time. Reconnect with `Last-Event-ID` replays only missed events — no duplicate floods. Ctrl+C works cleanly.
+
+  ## Run replay (CLI)
+
+  `zombiectl runs replay <run_id>` prints a per-gate narrative for completed runs — exit codes, stdout/stderr, wall time, step by step.
+
+  ## Workspace billing breakdown
+
+  `zombiectl workspace billing --workspace-id <id>` shows completed, non-billable, and score-gated runs with optional `--period` and `--json` flags. Backed by `GET /v1/workspaces/{id}/billing/summary`.
+
+  ## Agent run observability
+
+  Every run now produces a full trace tree in Grafana Tempo — query `{run.id="<id>"}` for a waterfall of agent calls and gate checks. Per-workspace Prometheus metrics: token consumption, run outcomes, and gate repair loop distribution.
+
   ## Resource efficiency scoring
 
-  Agent runs are now scored on actual memory and CPU usage. Agents that stay within their resource limits score higher. Agents that max out memory or hit CPU caps score lower — giving you visibility into wasteful runs.
+  Agent runs are now scored on actual memory and CPU usage. Agents that stay within their resource limits score higher. Score formula updated to v2 with real resource data.
 
-  ## Score formula v2
+  ## Breaking change
 
-  The scoring formula has been updated to v2. The resource axis now uses real data instead of a fixed value. All other axes are unchanged and existing scores are preserved.
+  SSE `id:` field on live events changed from sequential counter to `created_at` Unix milliseconds. Clients parsing `Last-Event-ID` as a sequence number must update.
 </Update>
 
 <Update label="March 30, 2026" tags={["New releases"]}>
