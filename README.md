@@ -1,8 +1,14 @@
 <div align="center">
 
-# UseZombie Docs
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="logo/light.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="logo/dark.svg" />
+  <img src="logo/dark.svg" width="200" alt="usezombie" />
+</picture>
 
-**Documentation site for UseZombie — submit a spec, get a validated PR.**
+**Heroku for agents, but the agent never sees your keys.**
+
+**Run your agents 24/7. Walled, watched, killable.**
 
 [![Docs](https://img.shields.io/badge/UseZombie-Docs-blue?style=for-the-badge)](https://docs.usezombie.com)
 [![Try Free](https://img.shields.io/badge/UseZombie-Try_Free-brightgreen?style=for-the-badge)](https://usezombie.com)
