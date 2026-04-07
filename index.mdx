@@ -1,53 +1,65 @@
 ---
 title: Introduction
-description: Submit a spec. Get a validated PR.
+description: Run your agents 24/7. Walled, watched, killable.
 ---
 
 <Tip>
   🧟 **Early Access Preview** · Pre-release — revised release coming up by April 11. APIs, CLI, and behavior may change without notice before general availability.
-
-  UseZombie is in a product pivot. The focus is practical operator leverage, not tunnel-vision optimization around one narrow bottleneck that frontier models may erase soon.
-
-  Submit a spec. An agent implements it, self-repairs until quality gates pass, and opens a PR with a scorecard. You review one PR instead of babysitting ten agent sessions.
-
-  [Join the waitlist →](https://usezombie.com)
 </Tip>
 
-## Getting started
+## Why we pivoted
 
-UseZombie turns markdown specs into validated pull requests with self-repairing agents, run quality scoring, and evidence-backed scorecards so teams ship with confidence, not babysitting.
+We started by obsessing over one thing: making AI-generated code *correct*. Self-repair loops, quality scoring, scorecard evidence. Good problems — but narrow ones. Frontier models get better every quarter, and the gap we were optimizing for keeps shrinking on its own.
 
-<Card title="Start here" icon="rocket" href="/quickstart" horizontal>
-  Install the CLI and submit your first spec in under 5 minutes.
+The tempting move is to double down — we built it, so we stick with it. But code is cattle, not pets. You don't keep a solution alive just because you wrote it.
+
+So we killed the old approach and pivoted. UseZombie is now a runtime for always-on agents — you bring your agent, we handle the credentials (hidden from the sandbox, injected at the firewall), webhooks (wired automatically), audit logs (every action timestamped), and a kill switch. Your agent runs 24/7 without ever seeing a password.
+
+## What UseZombie does
+
+UseZombie is agent hosting infrastructure. Connect your agents, and we handle credentials, webhooks, and walls — your agents run 24/7 without ever seeing your keys.
+
+<Card title="Get started" icon="rocket" href="/quickstart" horizontal>
+  Connect your agent and have it running in minutes.
 </Card>
 
-## Make it yours
-
-Connect your GitHub repo, configure your workspace, and let agents ship validated PRs while you focus on specs and reviews.
+## What zombies do
 
 <Columns cols={2}>
-  <Card title="Install the CLI" icon="terminal" href="/cli/install">
-    Install zombiectl via npm, npx, or the install script.
+  <Card title="Always-on agents" icon="infinity">
+    Your agent runs continuously in a sandboxed process and restarts on crash. No babysitting.
   </Card>
-  <Card title="How it works" icon="diagram-project" href="/how-it-works">
-    Understand the spec-to-PR lifecycle with self-repair gate loops.
+  <Card title="Credentials hidden" icon="shield-halved">
+    Agents never see tokens. The firewall injects them per-request, outside the sandbox boundary.
   </Card>
-  <Card title="Write a spec" icon="file-lines" href="/specs/writing-specs">
-    Author specs in markdown. Any format works.
+  <Card title="Webhooks wired" icon="webhook">
+    Receive events from email, Slack, GitHub, and more — without ngrok or custom servers.
   </Card>
-  <Card title="Mission Control" icon="gauge" href="https://app.usezombie.com">
-    View runs, scorecards, and workspace settings in the dashboard.
+  <Card title="Observability" icon="chart-line">
+    See what your agent did, when, why, and how much it cost — before the invoice surprises you.
+  </Card>
+  <Card title="Spend ceiling" icon="gauge-high">
+    Per-run token budgets and wall time limits. One bad prompt never becomes an infinite burn.
+  </Card>
+  <Card title="Kill switch" icon="power-off">
+    Stop any agent mid-action from the CLI or web UI.
   </Card>
 </Columns>
 
 ## Explore the docs
 
 <Columns cols={2}>
+  <Card title="How it works" icon="diagram-project" href="/how-it-works">
+    Understand the agent hosting model and credential firewall.
+  </Card>
+  <Card title="Key concepts" icon="book" href="/concepts">
+    Agents, workspaces, credential walls, webhooks, and observability.
+  </Card>
   <Card title="CLI reference" icon="rectangle-terminal" href="/cli/zombiectl">
     Full command reference for zombiectl.
   </Card>
   <Card title="API reference" icon="code" href="/api-reference/introduction">
-    REST API for programmatic spec submission and run management.
+    REST API for agent management and event ingestion.
   </Card>
   <Card title="Operator guide" icon="server" href="/operator/deployment/architecture">
     Deploy and operate the UseZombie control plane.
