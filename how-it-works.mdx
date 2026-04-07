@@ -13,7 +13,7 @@ flowchart LR
     B --> C[Credential firewall]
     C --> D[External APIs / LLMs]
     E[Webhooks: GitHub, Slack, email] --> B
-    F[zombiectl / dashboard] --> B
+    F[zombiectl / Mission Control] --> B
 ```
 
 Your agent never sees raw credentials. It makes requests. The firewall intercepts them, injects the right token, and forwards. Audit logs record every action.
@@ -26,7 +26,7 @@ Your agent never sees raw credentials. It makes requests. The firewall intercept
   </Step>
 
   <Step title="Store credentials — once">
-    Add API keys, tokens, and secrets to the workspace credential store via `zombiectl secrets add` or the dashboard. Credentials are encrypted at rest and never passed into the sandbox.
+    Add API keys, tokens, and secrets to the workspace credential store via `zombiectl skill-secret put` or Mission Control. Credentials are encrypted at rest and never passed into the sandbox.
   </Step>
 
   <Step title="Firewall injects credentials per-request">
@@ -88,10 +88,10 @@ sequenceDiagram
 
 **Component responsibilities:**
 
-- **zombiectl** — CLI client. Deploys agents, checks status, manages secrets, streams logs.
-- **zombied API** — HTTP server. Manages agent lifecycle, credential store, webhook routing, billing.
+- **`zombiectl`** — CLI client. Deploys agents, checks status, manages secrets, streams logs.
+- **`zombied` API** — HTTP server. Manages agent lifecycle, credential store, webhook routing, billing.
 - **Redis Streams** — Work queue. Durable, ordered, with consumer group semantics for worker fleet scaling.
-- **zombied worker** — Owns the sandbox lifecycle. Spawns agents, enforces resource limits, handles restarts.
+- **`zombied` worker** — Owns the sandbox lifecycle. Spawns agents, enforces resource limits, handles restarts.
 - **Credential firewall** — Network-layer proxy. Intercepts outbound requests, injects credentials, records audit logs.
 
 ## Spend control
@@ -103,6 +103,6 @@ Every workspace has configurable limits that prevent runaway costs:
 | Token budget | Max tokens per agent execution window |
 | Wall time limit | Max wall-clock time before forced stop |
 | Cost ceiling | Max USD spend per billing period |
-| Kill switch | Manual stop from CLI or dashboard at any time |
+| Kill switch | Manual stop from CLI or Mission Control at any time |
 
 When a limit is hit, the agent receives a graceful shutdown signal. The audit log records the reason. No surprises on the invoice.
