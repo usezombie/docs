@@ -29,7 +29,7 @@ description: "Core terminology and mental model for UseZombie."
     skills:
       - agentmail
     credentials:
-      agentmail_api_key: op://ZMB_LOCAL_DEV/agentmail/api_key
+      agentmail_api_key: op://your-vault/agentmail/api_key
     budget:
       max_tokens_per_event: 4000
     ---
@@ -97,13 +97,13 @@ description: "Core terminology and mental model for UseZombie."
   <Accordion title="NullClaw">
     The embedded agent runtime that executes inside the sandbox. NullClaw receives the zombie's
     instructions, injected skill definitions, and events, then produces responses and skill
-    invocations. It operates within the bwrap+landlock sandbox and has no direct access to
+    invocations. It operates inside an isolated sandbox process and has no direct access to
     credentials or external networks — everything flows through the firewall.
   </Accordion>
 
   <Accordion title="Executor">
     The sidecar process (`zombied-executor`) that owns the sandbox lifecycle. The executor
-    spawns NullClaw agents inside bwrap+landlock containers, enforces resource limits (CPU,
+    spawns NullClaw agents inside isolated sandbox containers, enforces resource limits (CPU,
     memory, time), and reports execution results back to the event loop. The executor is also
     used for harness compilation and spec preview in legacy v1 workflows.
   </Accordion>
