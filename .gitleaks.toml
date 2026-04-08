@@ -1,0 +1,8 @@
+title = "Zombie Docs Gitleaks Config"
+
+[allowlist]
+  description = "Allow placeholder tokens used in documentation examples"
+  regexTarget = "secret"
+  regexes = [
+    '''your-webhook-token''',
+  ]
