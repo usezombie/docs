@@ -21,12 +21,12 @@ Your agent never sees raw credentials. It makes requests. The firewall intercept
 ## Step by step
 
 <Steps>
-  <Step title="Connect your agent">
-    Push your agent code to a workspace. UseZombie wraps it in a sandboxed process with resource limits (CPU, memory, wall time). The agent starts running immediately and restarts automatically on crash.
+  <Step title="Install a zombie">
+    Run `zombiectl install <template>` to create a zombie config file. Edit it to set your trigger, skills, and agent instructions. Run `zombiectl up` to deploy. UseZombie provisions a webhook endpoint, starts the event loop, and your agent is live in seconds.
   </Step>
 
   <Step title="Store credentials — once">
-    Add API keys, tokens, and secrets to the workspace credential store via `zombiectl skill-secret put` or Mission Control. Credentials are encrypted at rest and never passed into the sandbox.
+    Add API keys and tokens via `zombiectl credential add` or Mission Control. Credentials are encrypted at rest and never passed into the sandbox. Your agent invokes a skill by name; the firewall handles the rest.
   </Step>
 
   <Step title="Firewall injects credentials per-request">
@@ -38,7 +38,7 @@ Your agent never sees raw credentials. It makes requests. The firewall intercept
   </Step>
 
   <Step title="Webhooks arrive without ngrok">
-    Register webhook sources (GitHub, Slack, email, custom HTTP) on the workspace. UseZombie provides a stable inbound endpoint and routes matching events to your agent process. No tunneling, no port forwarding, no custom servers.
+    Every zombie gets a stable, unique webhook URL at `https://hooks.usezombie.com/v1/webhooks/{zombie_id}`. Point GitHub, Slack, email, or any HTTP source at it. Events are authenticated with a Bearer token and queued to the zombie's inbox. No tunneling, no port forwarding, no custom servers.
   </Step>
 
   <Step title="Observe and control">
@@ -72,27 +72,31 @@ The agent makes a plain HTTP request. The firewall resolves the right credential
 sequenceDiagram
     participant CLI as zombiectl
     participant API as zombied API
+    participant WH as Webhook endpoint
     participant Q as Redis Streams
-    participant W as zombied worker
-    participant S as Sandbox process
+    participant EL as Event loop (worker)
+    participant S as NullClaw sandbox
     participant F as Credential firewall
 
-    CLI->>API: POST /v1/agents (agent config)
-    API->>Q: enqueue agent_start
-    Q->>W: claim work
-    W->>S: spawn sandboxed process
-    S->>F: outbound requests (no credentials)
+    CLI->>API: POST /v1/webhooks/install (zombie config)
+    WH->>API: POST /v1/webhooks/{zombie_id} (inbound event)
+    API->>Q: XADD zombie:{id}:events
+    Q->>EL: XREADGROUP (claim event)
+    EL->>S: deliver event to NullClaw
+    S->>F: skill invocations (no raw credentials)
     F->>F: inject credentials + log
-    W->>CLI: SSE: status, logs, cost
+    EL->>API: checkpoint session state
+    EL->>Q: XACK (at-least-once)
 ```
 
 **Component responsibilities:**
 
-- **`zombiectl`** — CLI client. Deploys agents, checks status, manages secrets, streams logs.
-- **`zombied` API** — HTTP server. Manages agent lifecycle, credential store, webhook routing, billing.
-- **Redis Streams** — Work queue. Durable, ordered, with consumer group semantics for worker fleet scaling.
-- **`zombied` worker** — Owns the sandbox lifecycle. Spawns agents, enforces resource limits, handles restarts.
-- **Credential firewall** — Network-layer proxy. Intercepts outbound requests, injects credentials, records audit logs.
+- **`zombiectl`** — CLI client. Installs zombies, manages credentials, checks status, streams logs.
+- **`zombied` API** — HTTP server. Manages zombie lifecycle, webhook ingestion, credential store, billing.
+- **Redis Streams** — Per-zombie event inbox. Durable, ordered, consumer group semantics for at-least-once delivery.
+- **Event loop** — Worker thread that drives a zombie. Claims events, delivers to sandbox, checkpoints state, acks queue.
+- **NullClaw** — The embedded agent runtime inside the sandbox. Receives events and instructions, produces skill invocations and responses.
+- **Credential firewall** — Network-layer proxy. Intercepts outbound skill requests, injects credentials, records audit logs.
 
 ## Spend control
 

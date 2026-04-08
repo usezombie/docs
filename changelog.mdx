@@ -7,6 +7,53 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.5.0 — April 11, 2026" tags={["New releases", "Zombies"]}>
+  ## Lead Zombie — v2 core ships
+
+  UseZombie is now a runtime for always-on agents. Two commands, running agent:
+
+  ```bash
+  zombiectl install lead-collector
+  zombiectl up
+  ```
+
+  ## What's new
+
+  ### Zombie config format
+  YAML frontmatter (trigger, skills, credentials, budget) + markdown body (agent instructions).
+  The CLI compiles YAML → JSON before upload; the server only ever sees JSON.
+  Supports voice-transcribed instructions as the instruction body.
+
+  ### Webhook ingestion
+  Every zombie gets a stable inbound URL: `POST /v1/webhooks/{zombie_id}`.
+  Routing is by primary key — no source name collisions, no JSONB index.
+  Bearer token auth per zombie. Idempotency via Redis SET NX (24h TTL).
+  Returns 202 Accepted or 200 Duplicate.
+
+  ### Activity stream
+  Append-only audit log (`core.activity_events`). Every zombie action — event received,
+  skill invoked, response returned — is timestamped and queryable.
+  `zombiectl logs` streams the activity log. Cursor-based pagination for replay.
+
+  ### New CLI commands
+  `zombiectl install`, `zombiectl up`, `zombiectl status`, `zombiectl kill`,
+  `zombiectl logs`, `zombiectl credential add`, `zombiectl credential list`.
+
+  ### Schema additions
+  - `core.zombies` — zombie registry with JSONB config
+  - `core.zombie_sessions` — session checkpoint (context upserted after each event)
+  - `core.activity_events` — append-only audit log (UPDATE/DELETE blocked by trigger)
+
+  Applied automatically by `zombied migrate`. No changes to existing tables.
+
+  ### API reference updated
+  16 v1 endpoints removed from the OpenAPI spec (agents, harness, specs endpoints no longer in v2 path).
+  `POST /v1/webhooks/{zombie_id}` added. Mintlify sync required — see [API Reference](/api-reference/introduction).
+
+  ### Version tooling
+  `make sync-version` / `make check-version` prevent VERSION drift across `build.zig.zon` and `zombiectl/package.json`.
+</Update>
+
 <Update label="v0.4.0 — April 6, 2026" tags={["New releases", "Improvements"]}>
   ## Steer running agents mid-run
 

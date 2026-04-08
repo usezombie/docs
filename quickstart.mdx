@@ -1,29 +1,12 @@
 ---
 title: Quickstart
-description: Submit your first spec and get a validated PR in under 5 minutes.
+description: Install a Zombie and have your agent running in 2 minutes.
 ---
 
 <Steps>
-  <Step title="Install Node.js">
-    If you don't have Node.js installed yet, [download it here](https://nodejs.org).
-  </Step>
-
-  <Step title="Install with npm">
-    Run the following command in your terminal:
-
+  <Step title="Install zombiectl">
     ```bash
     npm install -g @usezombie/zombiectl
-    ```
-
-    Or register as an agent skill:
-
-    ```bash
-    npx skills add @usezombie/zombiectl
-    ```
-
-    Verify the installation:
-
-    ```bash
     zombiectl --version
     ```
   </Step>
@@ -33,63 +16,94 @@ description: Submit your first spec and get a validated PR in under 5 minutes.
     zombiectl login
     ```
 
-    This opens your browser for Clerk authentication. Once complete, your session token is stored locally.
+    Opens your browser for authentication. Your session is stored locally.
   </Step>
 
-  <Step title="Connect a repo">
+  <Step title="Install a zombie template">
     ```bash
-    zombiectl workspace add https://github.com/your-org/your-repo
+    zombiectl install lead-collector
     ```
 
-    This installs the UseZombie GitHub App on your repository and creates a workspace.
-  </Step>
+    This creates a `lead-collector.md` file in your current directory — a YAML + markdown config
+    that defines your zombie: its trigger (inbound webhook), skills (agentmail), and instructions
+    (what the agent should do when an event arrives).
 
-  <Step title="Write a spec">
-    Create a markdown file describing what you want built:
+    Open the file to see what's inside:
 
-    ```markdown docs/spec/add-health-endpoint.md
-    # Add health check endpoint
+    ```markdown lead-collector.md
+    ---
+    name: lead-collector
+    trigger:
+      type: webhook
+      source: email
+      token: your-webhook-token
+    skills:
+      - agentmail
+    credentials:
+      agentmail_api_key: op://ZMB_LOCAL_DEV/agentmail/api_key
+    budget:
+      max_tokens_per_event: 4000
+      max_wall_seconds: 60
+    ---
 
-    ## Goal
-
-    Add a `GET /healthz` endpoint that returns `{ "status": "ok" }` with a 200 status code.
-
-    ## Files to modify
-
-    - `src/http/routes.zig` — add route handler
-    - `src/http/handlers.zig` — implement handler function
-
-    ## Acceptance criteria
-
-    - Endpoint returns 200 with JSON body `{ "status": "ok" }`
-    - Response content-type is `application/json`
-    - Endpoint requires no authentication
+    You are a lead qualification agent. When an email arrives:
+    1. Read the sender and subject line.
+    2. If it looks like a real sales inquiry, reply with a short acknowledgement.
+    3. Log what you did in the activity stream.
     ```
   </Step>
 
-  <Step title="Submit the spec">
+  <Step title="Add credentials">
     ```bash
-    zombiectl run --spec docs/spec/add-health-endpoint.md
+    zombiectl credential add agentmail --key api_key
     ```
 
-    UseZombie validates the spec, enqueues the run, and assigns an agent.
+    Credentials are stored encrypted in the UseZombie vault — your agent never sees them.
+    The firewall injects them per-request, outside the sandbox boundary.
   </Step>
 
-  <Step title="Check status">
+  <Step title="Start the zombie">
     ```bash
-    zombiectl runs list
-    zombiectl run status <run_id>
+    zombiectl up
     ```
 
-    The agent implements your spec, runs `make lint`, `make test`, and `make build` with self-repair, then opens a PR with a scorecard.
+    This uploads your config, provisions a webhook endpoint, and starts the persistent agent
+    process in the UseZombie cloud. Within seconds your zombie is live and waiting for events.
+
+    You will see output like:
+
+    ```
+    ✓ zombie created  id=019abc12-8d3a-7f13-8abc-2b3e1e0a6f11
+    ✓ webhook live    POST https://hooks.usezombie.com/v1/webhooks/019abc12-8d3a-7f13-8abc-2b3e1e0a6f11
+    ✓ agent running   status=alive
+    ```
   </Step>
 
-  <Step title="Review the PR">
-    Open the PR on GitHub. You will find:
+  <Step title="Send a test event">
+    ```bash
+    curl -X POST https://hooks.usezombie.com/v1/webhooks/<your-zombie-id> \
+      -H "Authorization: Bearer your-webhook-token" \
+      -H "Content-Type: application/json" \
+      -d '{"event_id":"test-001","type":"email.received","data":{"from":"alice@example.com","subject":"Demo request"}}'
+    ```
+  </Step>
 
-    - An agent-generated explanation of what changed
-    - A scorecard comment with gate results, repair loop count, wall time, and token consumption
-    - The full diff ready for review
+  <Step title="Check status and logs">
+    ```bash
+    zombiectl status
+    zombiectl logs
+    ```
+
+    `zombiectl logs` streams the activity log — every event received, every action taken, every
+    credential used — with timestamps and token counts.
+  </Step>
+
+  <Step title="Kill it when you're done">
+    ```bash
+    zombiectl kill lead-collector
+    ```
+
+    The zombie stops immediately. No lingering processes, no billing after the kill.
   </Step>
 </Steps>
 
@@ -97,12 +111,12 @@ description: Submit your first spec and get a validated PR in under 5 minutes.
 
 <CardGroup cols={3}>
   <Card title="How it works" icon="diagram-project" href="/how-it-works">
-    Understand the full spec-to-PR lifecycle.
+    Understand the credential firewall and sandbox model.
   </Card>
-  <Card title="Writing specs" icon="file-lines" href="/specs/writing-specs">
-    Learn how to write effective specs for agents.
+  <Card title="Key concepts" icon="book" href="/concepts">
+    Zombies, triggers, skills, credentials, and the kill switch.
   </Card>
-  <Card title="Gate loop" icon="rotate" href="/runs/gate-loop">
-    See how agents self-repair through lint, test, and build gates.
+  <Card title="CLI reference" icon="rectangle-terminal" href="/cli/zombiectl">
+    Full command reference for zombiectl.
   </Card>
 </CardGroup>
