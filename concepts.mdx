@@ -5,67 +5,114 @@ description: "Core terminology and mental model for UseZombie."
 
 ## Core terminology
 
-These are the building blocks of UseZombie. Understanding them will help you navigate the docs, configure workspaces, and interpret run results.
-
 <AccordionGroup>
-  <Accordion title="Spec">
-    A markdown file describing what you want built. Specs are format-agnostic — structured sections, free-form prose, or bullet lists all work. The agent reads natural language and infers implementation intent from your codebase. A spec is the input to every run.
+  <Accordion title="Zombie">
+    A persistent, always-on agent process. A zombie has a config (YAML + markdown), a trigger
+    (how it receives events), a set of skills (what tools it can use), and a set of credentials
+    (secrets it needs — but never sees). Once started, a zombie runs continuously, restarts on
+    crash, and waits for events on its inbox queue.
   </Accordion>
 
-  <Accordion title="Run">
-    A single execution of a spec. Each run has a lifecycle state: `QUEUED`, `RUNNING`, `COMPLETED`, or `FAILED`. A completed run produces artifacts (the implementation diff, gate logs) and a scorecard. Runs are immutable once finished — to retry, create a new run.
+  <Accordion title="ZombieConfig">
+    The YAML + markdown file that defines a zombie. YAML frontmatter carries machine-readable
+    config (trigger, skills, credentials, budget); the markdown body carries agent instructions
+    in natural language. The CLI compiles this to JSON before uploading — the server only ever
+    sees JSON.
+
+    ```yaml
+    ---
+    name: lead-collector
+    trigger:
+      type: webhook
+      source: email
+      token: your-token
+    skills:
+      - agentmail
+    credentials:
+      agentmail_api_key: op://your-vault/agentmail/api_key
+    budget:
+      max_tokens_per_event: 4000
+    ---
+
+    You are a lead qualification agent...
+    ```
   </Accordion>
 
-  <Accordion title="Gate loop">
-    The sequential validation cycle that runs after the agent finishes implementing: `make lint`, then `make test`, then `make build`. If any gate fails, the agent reads the error output, self-repairs, and re-runs the full gate sequence. The loop runs up to 3 times by default. This is what makes UseZombie runs self-repairing.
+  <Accordion title="Trigger">
+    How a zombie receives events. Currently supported: `webhook`. The `source` field is a
+    human-readable label (e.g. "email", "github", "slack") — it appears in logs but is not used
+    for routing. Routing uses the zombie's unique ID. The `token` field is the Bearer token
+    callers must include.
   </Accordion>
 
-  <Accordion title="Scorecard">
-    Quality metrics attached to every completed run. Four weighted dimensions:
+  <Accordion title="Skill">
+    A named capability available to a zombie's agent. Skills are declared in the config and
+    resolved by the runtime — the agent calls a skill by name, the runtime injects the
+    credential and executes the API call outside the sandbox. Examples: `agentmail`, `github`,
+    `slack`. Skills are the only way agents interact with external services.
+  </Accordion>
 
-    - **Completion** (40%) — Did the agent implement everything the spec asked for?
-    - **Error rate** (30%) — How many gate failures occurred before passing?
-    - **Latency** (20%) — Wall-clock time from enqueue to PR.
-    - **Resource efficiency** (10%) — Token and compute usage relative to task complexity.
+  <Accordion title="Credential firewall">
+    The security boundary between your secrets and the agent. Credentials are stored encrypted
+    in the UseZombie vault. When an agent invokes a skill, the firewall retrieves the secret,
+    makes the outbound API call, and returns only the response. The agent process never receives
+    the raw credential — not as an environment variable, not as a function argument, not in any
+    log. If the agent is compromised, your keys are not.
+  </Accordion>
 
-    Scores map to tiers: **Bronze** (0--39), **Silver** (40--69), **Gold** (70--89), **Elite** (90--100).
+  <Accordion title="Activity stream">
+    An append-only audit log of every action a zombie takes. Every event received, every skill
+    invoked, every response returned — timestamped and queryable. `zombiectl logs` streams the
+    activity log in real time. The stream is stored in Postgres and paginated by cursor for
+    replay and debugging.
+  </Accordion>
+
+  <Accordion title="Session checkpoint">
+    The persisted state between event deliveries. After each event is processed, the zombie's
+    agent state (conversation history, working memory) is checkpointed to Postgres. If the
+    process crashes, the next event picks up from the last checkpoint. This is what makes
+    zombies stateful across runs — they remember context across events.
+  </Accordion>
+
+  <Accordion title="Kill switch">
+    Stop a zombie immediately from `zombiectl kill` or the web UI. The running agent process is
+    terminated mid-action — no new events are processed, no further billing. The zombie's state
+    is preserved so it can be restarted cleanly. Use the kill switch when an agent is misbehaving
+    or consuming unexpected resources.
+  </Accordion>
+
+  <Accordion title="Budget">
+    Per-event spending limits. `max_tokens_per_event` caps the LLM token budget per event
+    delivery. `max_wall_seconds` caps wall-clock time. If either limit is hit, the event is
+    terminated and a budget breach is logged to the activity stream. One bad prompt never
+    becomes an infinite burn.
   </Accordion>
 
   <Accordion title="Workspace">
-    A bound GitHub repository with associated entitlements, billing configuration, and agent settings. When you run `zombiectl workspace add`, you create a workspace. All runs, harnesses, and billing are scoped to a workspace.
-  </Accordion>
-
-  <Accordion title="Harness">
-    Workspace-scoped agent configuration. A harness defines how agents operate within a workspace: which source repositories to read, which compiler/runtime versions to use, and which agent profiles are available. Operators store source references, compile version constraints, and activate profiles through the harness.
-  </Accordion>
-
-  <Accordion title="Agent profile">
-    A named configuration within a harness that defines the model, repair strategy, and gate settings for runs. Each profile accumulates its own score history across runs, making it easy to compare configurations. Switch profiles to experiment with different agent behaviors without changing workspace settings.
-  </Accordion>
-
-  <Accordion title="Worktree">
-    An isolated git working directory created for each run. The agent implements the spec in a worktree branched from the workspace's default branch, ensuring no changes touch main until you approve the PR. Worktrees are cleaned up automatically after run completion.
+    A container for zombies, billing, and access control. All zombies, credentials, and billing
+    are scoped to a workspace. Multiple team members can share a workspace with role-based
+    access.
   </Accordion>
 
   <Accordion title="NullClaw">
-    The embedded agent runtime that executes specs inside the sandbox. NullClaw receives the spec, injected codebase context, and tool access, then produces an implementation. It operates within the worktree and has no access outside the sandbox boundary.
+    The embedded agent runtime that executes inside the sandbox. NullClaw receives the zombie's
+    instructions, injected skill definitions, and events, then produces responses and skill
+    invocations. It operates inside an isolated sandbox process and has no direct access to
+    credentials or external networks — everything flows through the firewall.
   </Accordion>
 
   <Accordion title="Executor">
-    The sidecar process (`zombied-executor`) that owns the sandbox lifecycle. The executor spawns NullClaw agents, manages worktree creation and cleanup, enforces resource limits (CPU, memory, time), and reports execution results back to the worker.
+    The sidecar process (`zombied-executor`) that owns the sandbox lifecycle. The executor
+    spawns NullClaw agents inside isolated sandbox containers, enforces resource limits (CPU,
+    memory, time), and reports execution results back to the event loop. The executor is also
+    used for harness compilation and spec preview in legacy v1 workflows.
   </Accordion>
 
-  <Accordion title="Context injection">
-    The process of providing relevant codebase context — file contents, module structure, dependency graphs — to agents alongside the spec. Good context injection is what separates accurate implementations from hallucinated ones. This is a key area of ongoing improvement in UseZombie.
-  </Accordion>
-
-  <Accordion title="Agent relay">
-    A stateless communication model where `zombied` acts as a pass-through between `zombiectl` and the workspace's LLM provider. The CLI sends tool definitions (read_file, list_dir, glob) with each request. The model decides which files to read via tool calls. The CLI executes tools locally on the developer's laptop and sends results back. Files never leave the machine unless the model explicitly asks for them.
-
-    Used by `spec init` and `run --preview` for lightweight, interactive agent sessions. The pipeline model (sandbox + worker) is used for full `run` execution.
-  </Accordion>
-
-  <Accordion title="Steering">
-    An agent-to-agent workflow where an external coding agent (Claude Code, Codex, OpenCode) submits specs to UseZombie. The external agent handles planning and spec authoring; UseZombie handles execution with verified gates. This lets you compose agent capabilities: one agent thinks, another builds with guardrails.
+  <Accordion title="Event loop">
+    The persistent process that drives a zombie. The event loop claims a zombie from the
+    dispatch queue, loads its config and session checkpoint, waits for events on its Redis
+    Streams inbox, delivers each event to NullClaw, checkpoints state after processing, and
+    acknowledges the Redis message (at-least-once delivery). Events are processed sequentially
+    — a zombie's mailbox is ordered.
   </Accordion>
 </AccordionGroup>
