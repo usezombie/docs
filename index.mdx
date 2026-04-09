@@ -1,48 +1,64 @@
 ---
 title: Introduction
-description: Run your agents 24/7. Walled, watched, killable.
+description: "Your agent is ready. You're not ready to trust it. We fix that."
 ---
 
 <Tip>
-  🧟 **Early Access Preview** · Pre-release — revised release coming up by April 11. APIs, CLI, and behavior may change without notice before general availability.
+  🧟 **Early Access Preview** · Pre-release — APIs, CLI, and behavior may change without notice before general availability.
 </Tip>
 
-## Why we pivoted
+## The problem
 
-We started by obsessing over one thing: making AI-generated code *correct*. Self-repair loops, quality scoring, scorecard evidence. Good problems — but narrow ones. Frontier models get better every quarter, and the gap we were optimizing for keeps shrinking on its own.
-
-The tempting move is to double down — we built it, so we stick with it. But code is cattle, not pets. You don't keep a solution alive just because you wrote it.
-
-So we killed the old approach and pivoted. UseZombie is now a runtime for always-on agents — you bring your agent, we handle the credentials (hidden from the sandbox, injected at the firewall), webhooks (wired automatically), audit logs (every action timestamped), and a kill switch. Your agent runs 24/7 without ever seeing a password.
+You have a working agent. It can reply to emails, fix bugs, process payments, review PRs. But you won't let it run unsupervised because it has your API keys, you can't see what it did, there's no spend ceiling, and there's no kill switch. So you babysit it. Or you don't run it at all.
 
 ## What UseZombie does
 
-UseZombie is agent hosting infrastructure. You bring your agent; we handle credentials (hidden from the sandbox), webhooks (wired automatically), audit logs (every action timestamped), and a kill switch. Your agent runs 24/7 without ever seeing a password.
+A **Zombie** is a preconfigured agent workflow that does one job and runs forever. You configure it: what tools it attaches, what credentials it uses, what budget it has, what triggers it. The agent intelligence is built in.
 
 <Card title="Get started in 2 minutes" icon="rocket" href="/quickstart" horizontal>
   Install a zombie, add credentials, run `zombiectl up`.
 </Card>
 
-## What zombies do
+## Use cases
 
 <Columns cols={2}>
-  <Card title="Always-on agents" icon="infinity">
-    Your agent runs continuously in a sandboxed process and restarts on crash. No babysitting.
+  <Card title="Lead Zombie" icon="envelope">
+    Handles inbound email, qualifies leads, replies with context, logs everything.
+  </Card>
+  <Card title="Slack Bug Fixer" icon="bug">
+    Monitors #bugs, finds the issue, opens a PR, replies in thread.
+  </Card>
+  <Card title="PR Zombie" icon="code-pull-request">
+    Reviews every PR, posts feedback, alerts on critical changes.
+  </Card>
+  <Card title="Ops Zombie" icon="server">
+    Watches infrastructure, alerts on incidents, runs diagnostics.
+  </Card>
+  <Card title="Hiring Zombie" icon="user-check">
+    Receives candidate profiles (resume PDF, GitHub PRs, Gmail), analyzes attachments for merit, sends a decision report on Discord.
+  </Card>
+</Columns>
+
+## How it works
+
+<Columns cols={2}>
+  <Card title="Sandboxed runtime" icon="lock">
+    bwrap + landlock isolation. Network deny-by-default. Only allowlisted domains reachable.
   </Card>
   <Card title="Credentials hidden" icon="shield-halved">
-    Agents never see tokens. The firewall injects them per-request, outside the sandbox boundary.
+    Agents never see API keys. The vault injects at the sandbox boundary. The agent makes a tool call, UseZombie makes the real API request.
   </Card>
   <Card title="Webhooks wired" icon="webhook">
-    Receive events from email, Slack, GitHub, and more — without ngrok or custom servers.
+    Receive events from email, Slack, GitHub without ngrok or custom servers.
   </Card>
-  <Card title="Observability" icon="chart-line">
-    See what your agent did, when, why, and how much it cost — before the invoice surprises you.
+  <Card title="Activity stream" icon="chart-line">
+    Every action timestamped and queryable. `zombiectl logs` shows what happened, when, and why.
   </Card>
   <Card title="Spend ceiling" icon="gauge-high">
-    Per-run token budgets and wall time limits. One bad prompt never becomes an infinite burn.
+    Per-day and per-month dollar budgets. One bad prompt never becomes an infinite burn.
   </Card>
   <Card title="Kill switch" icon="power-off">
-    Stop any agent mid-action from the CLI or Mission Control.
+    `zombiectl kill` stops any agent mid-action. Checkpoint saved, no data lost.
   </Card>
 </Columns>
 
