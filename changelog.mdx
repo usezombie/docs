@@ -7,6 +7,46 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.8.0 — April 11, 2026" tags={["New releases", "Zombies", "API"]}>
+  ## Zombie directory format, AI Firewall, error standardization, pipeline v1 removal
+
+  ### Zombie directory format
+  Zombies are now two-file directories (`SKILL.md` + `TRIGGER.md`) instead of a single `.md` file.
+  `SKILL.md` follows the ClaHub registry format — the same file you upload to the CLI is publishable to the skill registry.
+  `TRIGGER.md` carries deployment config: trigger, chain, budget, network policy, credentials.
+  `zombiectl install` scaffolds both files; `zombiectl up` sends them raw to the API.
+
+  ### Dynamic skills (no compiled Zig per skill)
+  Skills are now config-driven. The NullCraw executor reads `SKILL.md` instructions and uses
+  built-in tools (`shell`, `http`, `file_read`) to call external APIs. Adding a new skill requires
+  only a new directory — no rebuild of the server binary.
+
+  ### AI Firewall — 4-layer outbound inspection
+  Every outbound request from a Zombie now passes through an AI Firewall before reaching external APIs:
+  - **Domain allowlist** — only domains declared in `TRIGGER.md` `network.allow` can be reached
+  - **Endpoint policy** — per-endpoint rules in `TRIGGER.md` `firewall:` section (e.g., allow GET, deny POST)
+  - **Prompt injection detection** — scans outbound bodies for instruction override, role hijacking, and jailbreak patterns
+  - **Content scanning** — inspects response bodies for credential leakage and PII (credit cards, SSNs, API keys)
+  All firewall decisions are logged as activity events. Fails closed on errors.
+
+  ### API error format standardized (RFC 7807)
+  All error responses now use `application/problem+json` with `UZ-` prefixed error codes.
+  Every error code has a stable HTTP status — callers no longer need to parse HTTP status codes independently.
+
+  ### Pipeline v1 removed
+  The v1 GitHub PR-solver pipeline has been removed. All `/v1/runs/*` and `/v1/specs` endpoints
+  return **HTTP 410 Gone** with error code `ERR_PIPELINE_V1_REMOVED`. Use zombie-native SSE stream
+  and chat-inject API instead (see v0.5.0 release notes).
+
+  ### Webhook auth — URL-embedded secret
+  Preferred webhook URL format: `POST /v1/webhooks/{zombie_id}/{secret}`.
+  Bearer token remains supported as fallback.
+
+  ### Handler context layer (internal)
+  All HTTP handler boilerplate (arena setup, request ID, Bearer auth) is now handled by a shared
+  `hx.zig` wrapper. Handlers contain only business logic. No user-visible behavior change.
+</Update>
+
 <Update label="v0.5.0 — April 11, 2026" tags={["New releases", "Zombies"]}>
   ## Lead Zombie — v2 core ships
 
