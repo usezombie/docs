@@ -7,6 +7,222 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.14.0 — Apr 12, 2026" tags={["New", "Memory", "API"]}>
+  ## Persistent Zombie Memory (M14_001)
+
+  Zombies now remember facts across runs. Memory persists in Postgres even after a
+  workspace is destroyed, so a Lead-Collector zombie doesn't re-research every lead
+  and a Customer-Support zombie doesn't re-ask customers their plan.
+
+  **How it works:**
+  - NullClaw's `memory_store` / `memory_recall` / `memory_list` / `memory_forget` tools
+    route to a dedicated `memory` Postgres schema, isolated by the `memory_runtime` role.
+  - Each zombie's memory is row-scoped by `instance_id = "zmb:{zombie_uuid}"` — two
+    concurrent zombies cannot read each other's entries.
+  - `conversation` category remains ephemeral (workspace SQLite), as intended.
+  - The executor receives `memory_connection` + `memory_namespace` in the RPC payload
+    and bypasses NullClaw's instance_id propagation gap directly in `zombie_memory.zig`.
+
+  **External-agent memory API (Path B):**
+  - `POST /v1/memory/store` — store or upsert a key-value entry for a zombie
+  - `POST /v1/memory/recall` — keyword search across key and content
+  - `POST /v1/memory/list` — list entries, optionally filtered by category
+  - `POST /v1/memory/forget` — delete a specific entry by key (idempotent)
+  - All endpoints enforce workspace scope: a caller can only access zombies in their workspace.
+
+</Update>
+
+<Update label="v0.13.0 — Apr 12, 2026" tags={["New", "Integrations", "API"]}>
+  ## Integration Grant & Execute API — credentialed proxy with human approval (M9_001)
+
+  Zombies (both internal and external LangGraph/CrewAI agents) can now call external
+  services through UseZombie's credentialed proxy. The credential never leaves UseZombie —
+  it is injected server-side and stripped from any accidental echo in the response.
+
+  **Integration Grant system:**
+  - A zombie requests a grant for a service (`POST /v1/zombies/{id}/integration-requests`).
+    UseZombie fans out an Approve/Deny notification to Slack, Discord, and/or the dashboard
+    simultaneously. Human clicks Approve once — grant is durable; no per-call approval needed.
+  - High-risk endpoints still run through the existing M4 per-request approval gate independently.
+  - Revoke at any time via `DELETE /v1/zombies/{id}/integration-grants/{grant_id}` or
+    `zombiectl grant revoke`.
+
+  **`POST /v1/execute`** — the new proxy endpoint:
+  - Auth: zombie session (internal Path A) or `Authorization: Bearer zmb_xxx` (external Path B).
+  - Pipeline: grant check → firewall domain/endpoint/injection policy → approval gate → credential
+    inject → outbound HTTP → credential echo strip → activity log.
+  - Returns the service response with `X-UseZombie-Action-Id` and `X-UseZombie-Firewall-Decision` headers.
+
+  **External agent keys (`zmb_` prefix):**
+  - Create via `POST /v1/workspaces/{ws}/external-agents` (Clerk-protected). Raw key shown once; only
+    SHA-256 hash stored. Key resolves to a full zombie identity (workspace_id + zombie_id).
+  - CLI: `zombiectl agent create / list / delete`, `zombiectl grant list / revoke`.
+
+  **Services supported:** Slack, Gmail/AgentMail, Discord, Grafana.
+  **New error codes:** `UZ-APIKEY-001/002`, `UZ-GRANT-001/002/003`, `UZ-PROXY-001`.
+  **Schema:** `core.integration_grants` (slot 026), `core.external_agents` (slot 027).
+</Update>
+
+<Update label="v0.12.0 — Apr 12, 2026" tags={["New", "Observability"]}>
+  ## Zombie execution telemetry — per-delivery metrics store and dual API (M18_001)
+
+  UseZombie now records `token_count`, `time_to_first_token_ms`, `wall_seconds`, and
+  `credit_deducted_cents` for every zombie event delivery, with two query surfaces:
+
+  - **`GET /v1/workspaces/{ws}/zombies/{id}/telemetry?limit=50&cursor=`** — workspace-scoped
+    cursor-paginated list of the last N deliveries for a single zombie. Returns newest-first
+    with an opaque cursor for subsequent pages.
+  - **`GET /internal/v1/telemetry?workspace_id=&zombie_id=&after=&limit=100`** — operator
+    cross-workspace query. All params optional; `after` accepts epoch ms for time-window queries.
+
+  Writes are idempotent on `event_id` — crash-recovery redelivery of the same event does not
+  create duplicate rows. A write failure in the telemetry path is logged but does not affect
+  credit deduction or event acknowledgement.
+
+  Additionally, each delivery now emits an OTel span (`zombie.delivery`) with `zombie_id`,
+  `workspace_id`, `event_id`, `token_count`, and `plan_tier` attributes. The span uses the
+  actual wall-clock delivery window so it appears at the correct position in Grafana Tempo.
+</Update>
+
+<Update label="v0.11.0 — Apr 12, 2026" tags={["New", "Integrations"]}>
+  ## Slack plugin — OAuth install, event routing, and approval interactions (M8_001)
+
+  UseZombie workspaces can now connect Slack via the "Add to Slack" OAuth flow or
+  the `zombiectl credential add slack` CLI path:
+
+  - **`GET /v1/slack/install`** — redirects workspace owners to Slack OAuth with an
+    HMAC-signed CSRF state and a 10-minute Redis nonce for replay protection.
+  - **`GET /v1/slack/callback`** — exchanges the OAuth code for a bot token, stores it
+    in the zombie vault (`vault.secrets(workspace_id, "slack")`), creates a
+    `core.workspace_integrations` routing record, and posts a one-time confirmation
+    message to the workspace.
+  - **`POST /v1/slack/events`** — verifies Slack signing secret (HMAC-SHA256, RULE CTM),
+    filters bot-loop events, resolves the workspace via `workspace_integrations`, finds
+    the zombie configured with a `slack_event` trigger, and enqueues the event to Redis.
+  - **`POST /v1/slack/interactions`** — verifies signing, URL-decodes the Slack
+    `payload=` form field, parses `gate_*` action IDs, and relays approve/deny decisions
+    to the existing approval gate (`resolveApproval`).
+
+  The zombie vault holds the credential; `workspace_integrations` holds only routing
+  metadata (no credentials). OAuth and CLI paths converge at the same vault slot.
+  Schema: `core.workspace_integrations` (migration slot 028).
+</Update>
+
+<Update label="v0.10.1 — Apr 12, 2026" tags={["Internal"]}>
+  ## Harness & agent-profile scope removed (M17_001)
+
+  The legacy harness control plane — config compilation pipeline, `/v1/harness/*`
+  endpoints, `agent.agent_profiles` / `agent_config_versions` / `workspace_active_config` /
+  `config_compile_jobs` / `config_linkage_audit_artifacts` tables, and the
+  `agent_profile_version` audit linkage — had zero runtime consumers after the
+  zombie execution model replaced it. All of it is gone:
+
+  - Server handlers (`harness_http.zig`, `harness_control_plane/*`, `profile_linkage.zig`)
+    and the `src/harness/` module removed. `/v1/workspaces/{id}/harness/*` routes no
+    longer exist.
+  - Five agent-schema tables removed via full teardown (pre-v2.0 policy): SQL files
+    `schema/008_harness_control_plane.sql` and `schema/011_profile_linkage_audit.sql`
+    deleted outright; `schema/009_rls_tenant_isolation.sql` stripped of agent.*
+    RLS policies; canonical migration array shrunk from 21 to 19 entries.
+  - `zombiectl`: `harness`, `harness source`, `harness compile`, `harness activate`,
+    `harness active`, and `agent harness revert` subcommands removed. The CLI no
+    longer references dropped endpoints.
+  - `/v1/agents/{id}` handler was a dead client of `agent_profiles` and is removed.
+  - `workspace_entitlements.max_profiles` column dropped and `UZ-ENTL-002`
+    (Profile limit reached) error retired — both were harness-only.
+  - Website marketing copy no longer advertises "harness checks"; the step is
+    now described as "validation" in the flow.
+
+  ~4,200 lines of dead infrastructure removed. No behavior change for zombie
+  workflows. No API breaking changes visible to any live client.
+</Update>
+
+<Update label="v0.10.0 — Apr 12, 2026" tags={["New releases", "Observability"]}>
+  ## Zombie observability (M15_002)
+
+  Zombie triggers and event deliveries now emit PostHog events and increment
+  Prometheus counters, making zombie throughput visible in Grafana and product
+  analytics. Previously, `/metrics` contained no zombie counters and PostHog
+  dashboards showed no zombie activity.
+
+  - **Prometheus:** `zombies_triggered_total`, `zombies_completed_total`,
+    `zombies_failed_total`, `zombie_tokens_total`, and a `zombie_execution_seconds`
+    wall-time histogram.
+  - **PostHog:** `zombie_triggered` fired from the webhook receiver; `zombie_completed`
+    fired after each delivery attempt with tokens, wall-time, and exit status.
+  - Graceful no-ops when the PostHog client is unavailable — metrics always record.
+</Update>
+
+<Update label="v0.9.0 — Apr 12, 2026" tags={["New releases", "Billing"]}>
+  ## Zombie credit metering (M15_001)
+
+  Free-plan zombies now deduct from `consumed_credit_cents` after each successful event
+  delivery, at 1 cent per agent-second. Previously, the pre-execution credit gate blocked
+  exhausted workspaces but the balance never decremented — free-plan zombies effectively
+  consumed unlimited quota. Now:
+
+  - **Free plan:** Each delivery records a `CREDIT_DEDUCTED` audit row and updates
+    `consumed_credit_cents` / `remaining_credit_cents` atomically.
+  - **Scale plan:** Short-circuits with no DB write — Scale is unlimited.
+  - **Exhausted credit:** Still writes a zero-delta audit row for observability, so
+    operators can see post-exhaustion usage events.
+  - **Crash recovery:** Replay of the same `event_id` is idempotent — no double-charge.
+  - **DB failure:** Logged and the event is still acknowledged, so a transient Postgres
+    outage never causes message loss or redelivery storms.
+
+  No API changes.
+</Update>
+
+<Update label="v0.8.1 — Apr 11, 2026" tags={["Internal"]}>
+  ## Scoring infrastructure removed (M10_004)
+
+  The legacy agent scoring pipeline had no callers after the zombie execution model replaced
+  it. All dead code has been removed: scoring Prometheus gauges, PostHog scoring events,
+  scoring atomic counters, and the scoring duration histogram. The billing summary endpoint
+  (`GET /v1/workspaces/:id/billing/summary`) now returns zeros correctly instead of 500-ing
+  against dropped tables. No user-visible API changes.
+</Update>
+
+<Update label="v0.8.0 — April 11, 2026" tags={["New releases", "Zombies", "API"]}>
+  ## Zombie directory format, AI Firewall, error standardization, pipeline v1 removal
+
+  ### Zombie directory format
+  Zombies are now two-file directories (`SKILL.md` + `TRIGGER.md`) instead of a single `.md` file.
+  `SKILL.md` follows the ClaHub registry format — the same file you upload to the CLI is publishable to the skill registry.
+  `TRIGGER.md` carries deployment config: trigger, chain, budget, network policy, credentials.
+  `zombiectl install` scaffolds both files; `zombiectl up` sends them raw to the API.
+
+  ### Dynamic skills (no compiled Zig per skill)
+  Skills are now config-driven. The NullCraw executor reads `SKILL.md` instructions and uses
+  built-in tools (`shell`, `http`, `file_read`) to call external APIs. Adding a new skill requires
+  only a new directory — no rebuild of the server binary.
+
+  ### AI Firewall — 4-layer outbound inspection
+  Every outbound request from a Zombie now passes through an AI Firewall before reaching external APIs:
+  - **Domain allowlist** — only domains declared in `TRIGGER.md` `network.allow` can be reached
+  - **Endpoint policy** — per-endpoint rules in `TRIGGER.md` `firewall:` section (e.g., allow GET, deny POST)
+  - **Prompt injection detection** — scans outbound bodies for instruction override, role hijacking, and jailbreak patterns
+  - **Content scanning** — inspects response bodies for credential leakage and PII (credit cards, SSNs, API keys)
+  All firewall decisions are logged as activity events. Fails closed on errors.
+
+  ### API error format standardized (RFC 7807)
+  All error responses now use `application/problem+json` with `UZ-` prefixed error codes.
+  Every error code has a stable HTTP status — callers no longer need to parse HTTP status codes independently.
+
+  ### Pipeline v1 removed
+  The v1 GitHub PR-solver pipeline has been removed. All `/v1/runs/*` and `/v1/specs` endpoints
+  return **HTTP 410 Gone** with error code `ERR_PIPELINE_V1_REMOVED`. Use zombie-native SSE stream
+  and chat-inject API instead (see v0.5.0 release notes).
+
+  ### Webhook auth — URL-embedded secret
+  Preferred webhook URL format: `POST /v1/webhooks/{zombie_id}/{secret}`.
+  Bearer token remains supported as fallback.
+
+  ### Handler context layer (internal)
+  All HTTP handler boilerplate (arena setup, request ID, Bearer auth) is now handled by a shared
+  `hx.zig` wrapper. Handlers contain only business logic. No user-visible behavior change.
+</Update>
+
 <Update label="v0.5.0 — April 11, 2026" tags={["New releases", "Zombies"]}>
   ## Lead Zombie — v2 core ships
 
@@ -35,6 +251,14 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   skill invoked, response returned — is timestamped and queryable.
   `zombiectl logs` streams the activity log. Cursor-based pagination for replay.
 
+  ### Credential injection
+  Credentials are resolved from the vault at runtime and injected into the sandbox.
+  No credentials in config files. Add credentials with `zombiectl credential add`.
+
+  ### Session checkpoint
+  The zombie's conversation context is checkpointed to Postgres after each event.
+  On crash and restart, the zombie resumes from the last checkpoint — no lost context.
+
   ### New CLI commands
   `zombiectl install`, `zombiectl up`, `zombiectl status`, `zombiectl kill`,
   `zombiectl logs`, `zombiectl credential add`, `zombiectl credential list`.
@@ -52,6 +276,10 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   ### Version tooling
   `make sync-version` / `make check-version` prevent VERSION drift across `build.zig.zon` and `zombiectl/package.json`.
+
+  ### Bug fixes
+  - Fixed YAML parser silently dropping array items in CLI config upload
+  - Fixed UTF-8 truncation splitting multi-byte characters in session context
 </Update>
 
 <Update label="v0.4.0 — April 6, 2026" tags={["New releases", "Improvements"]}>
