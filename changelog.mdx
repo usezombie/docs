@@ -195,6 +195,14 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   skill invoked, response returned — is timestamped and queryable.
   `zombiectl logs` streams the activity log. Cursor-based pagination for replay.
 
+  ### Credential injection
+  Credentials are resolved from the vault at runtime and injected into the sandbox.
+  No credentials in config files. Add credentials with `zombiectl credential add`.
+
+  ### Session checkpoint
+  The zombie's conversation context is checkpointed to Postgres after each event.
+  On crash and restart, the zombie resumes from the last checkpoint — no lost context.
+
   ### New CLI commands
   `zombiectl install`, `zombiectl up`, `zombiectl status`, `zombiectl kill`,
   `zombiectl logs`, `zombiectl credential add`, `zombiectl credential list`.
@@ -212,6 +220,14 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   ### Version tooling
   `make sync-version` / `make check-version` prevent VERSION drift across `build.zig.zon` and `zombiectl/package.json`.
+
+  ### Bug fixes
+  - Fixed memory double-free on zombie claim failure path
+  - Fixed YAML parser silently dropping array items in CLI config upload
+  - Fixed migration runner failure when SQL comments contain semicolons
+  - Fixed UTF-8 truncation splitting multi-byte characters in session context
+  - Fixed UUID column reads returning binary on Linux CI (added `::text` cast)
+  - Fixed test runner treating expected error-path logs as failures
 </Update>
 
 <Update label="v0.4.0 — April 6, 2026" tags={["New releases", "Improvements"]}>
