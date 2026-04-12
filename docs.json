@@ -120,28 +120,6 @@
             ]
           },
           {
-            "group": "Agents",
-            "pages": [
-              "GET /v1/agents/{agent_id}",
-              "GET /v1/agents/{agent_id}/scores",
-              "GET /v1/agents/{agent_id}/improvement-report",
-              "GET /v1/agents/{agent_id}/proposals",
-              "POST /v1/agents/{agent_id}/proposals/{proposal_id}:approve",
-              "POST /v1/agents/{agent_id}/proposals/{proposal_id}:reject",
-              "POST /v1/agents/{agent_id}/proposals/{proposal_id}:veto",
-              "POST /v1/agents/{agent_id}/harness/changes/{change_id}:revert"
-            ]
-          },
-          {
-            "group": "Harness",
-            "pages": [
-              "PUT /v1/workspaces/{workspace_id}/harness/source",
-              "POST /v1/workspaces/{workspace_id}/harness/compile",
-              "POST /v1/workspaces/{workspace_id}/harness/activate",
-              "GET /v1/workspaces/{workspace_id}/harness/active"
-            ]
-          },
-          {
             "group": "Credentials",
             "pages": [
               "PUT /v1/workspaces/{workspace_id}/credentials/llm",
