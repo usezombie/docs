@@ -7,6 +7,36 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.9.0 — Apr 12, 2026" tags={["New releases", "Billing"]}>
+  ## Zombie credit metering (M15_001)
+
+  Free-plan zombies now deduct from `consumed_credit_cents` after each successful event
+  delivery, at 1 cent per agent-second. Previously, the pre-execution credit gate blocked
+  exhausted workspaces but the balance never decremented — free-plan zombies effectively
+  consumed unlimited quota. Now:
+
+  - **Free plan:** Each delivery records a `CREDIT_DEDUCTED` audit row and updates
+    `consumed_credit_cents` / `remaining_credit_cents` atomically.
+  - **Scale plan:** Short-circuits with no DB write — Scale is unlimited.
+  - **Exhausted credit:** Still writes a zero-delta audit row for observability, so
+    operators can see post-exhaustion usage events.
+  - **Crash recovery:** Replay of the same `event_id` is idempotent — no double-charge.
+  - **DB failure:** Logged and the event is still acknowledged, so a transient Postgres
+    outage never causes message loss or redelivery storms.
+
+  No API changes.
+</Update>
+
+<Update label="v0.8.1 — Apr 11, 2026" tags={["Internal"]}>
+  ## Scoring infrastructure removed (M10_004)
+
+  The legacy agent scoring pipeline had no callers after the zombie execution model replaced
+  it. All dead code has been removed: scoring Prometheus gauges, PostHog scoring events,
+  scoring atomic counters, and the scoring duration histogram. The billing summary endpoint
+  (`GET /v1/workspaces/:id/billing/summary`) now returns zeros correctly instead of 500-ing
+  against dropped tables. No user-visible API changes.
+</Update>
+
 <Update label="v0.8.0 — April 11, 2026" tags={["New releases", "Zombies", "API"]}>
   ## Zombie directory format, AI Firewall, error standardization, pipeline v1 removal
 
