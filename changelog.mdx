@@ -7,6 +7,51 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.12.0 — Apr 12, 2026" tags={["New", "Observability"]}>
+  ## Zombie execution telemetry — per-delivery metrics store and dual API (M18_001)
+
+  UseZombie now records `token_count`, `time_to_first_token_ms`, `wall_seconds`, and
+  `credit_deducted_cents` for every zombie event delivery, with two query surfaces:
+
+  - **`GET /v1/workspaces/{ws}/zombies/{id}/telemetry?limit=50&cursor=`** — workspace-scoped
+    cursor-paginated list of the last N deliveries for a single zombie. Returns newest-first
+    with an opaque cursor for subsequent pages.
+  - **`GET /internal/v1/telemetry?workspace_id=&zombie_id=&after=&limit=100`** — operator
+    cross-workspace query. All params optional; `after` accepts epoch ms for time-window queries.
+
+  Writes are idempotent on `event_id` — crash-recovery redelivery of the same event does not
+  create duplicate rows. A write failure in the telemetry path is logged but does not affect
+  credit deduction or event acknowledgement.
+
+  Additionally, each delivery now emits an OTel span (`zombie.delivery`) with `zombie_id`,
+  `workspace_id`, `event_id`, `token_count`, and `plan_tier` attributes. The span uses the
+  actual wall-clock delivery window so it appears at the correct position in Grafana Tempo.
+</Update>
+
+<Update label="v0.11.0 — Apr 12, 2026" tags={["New", "Integrations"]}>
+  ## Slack plugin — OAuth install, event routing, and approval interactions (M8_001)
+
+  UseZombie workspaces can now connect Slack via the "Add to Slack" OAuth flow or
+  the `zombiectl credential add slack` CLI path:
+
+  - **`GET /v1/slack/install`** — redirects workspace owners to Slack OAuth with an
+    HMAC-signed CSRF state and a 10-minute Redis nonce for replay protection.
+  - **`GET /v1/slack/callback`** — exchanges the OAuth code for a bot token, stores it
+    in the zombie vault (`vault.secrets(workspace_id, "slack")`), creates a
+    `core.workspace_integrations` routing record, and posts a one-time confirmation
+    message to the workspace.
+  - **`POST /v1/slack/events`** — verifies Slack signing secret (HMAC-SHA256, RULE CTM),
+    filters bot-loop events, resolves the workspace via `workspace_integrations`, finds
+    the zombie configured with a `slack_event` trigger, and enqueues the event to Redis.
+  - **`POST /v1/slack/interactions`** — verifies signing, URL-decodes the Slack
+    `payload=` form field, parses `gate_*` action IDs, and relays approve/deny decisions
+    to the existing approval gate (`resolveApproval`).
+
+  The zombie vault holds the credential; `workspace_integrations` holds only routing
+  metadata (no credentials). OAuth and CLI paths converge at the same vault slot.
+  Schema: `core.workspace_integrations` (migration slot 028).
+</Update>
+
 <Update label="v0.10.1 — Apr 12, 2026" tags={["Internal"]}>
   ## Harness & agent-profile scope removed (M17_001)
 
