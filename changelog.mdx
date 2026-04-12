@@ -7,6 +7,37 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.13.0 — Apr 12, 2026" tags={["New", "Integrations", "API"]}>
+  ## Integration Grant & Execute API — credentialed proxy with human approval (M9_001)
+
+  Zombies (both internal and external LangGraph/CrewAI agents) can now call external
+  services through UseZombie's credentialed proxy. The credential never leaves UseZombie —
+  it is injected server-side and stripped from any accidental echo in the response.
+
+  **Integration Grant system:**
+  - A zombie requests a grant for a service (`POST /v1/zombies/{id}/integration-requests`).
+    UseZombie fans out an Approve/Deny notification to Slack, Discord, and/or the dashboard
+    simultaneously. Human clicks Approve once — grant is durable; no per-call approval needed.
+  - High-risk endpoints still run through the existing M4 per-request approval gate independently.
+  - Revoke at any time via `DELETE /v1/zombies/{id}/integration-grants/{grant_id}` or
+    `zombiectl grant revoke`.
+
+  **`POST /v1/execute`** — the new proxy endpoint:
+  - Auth: zombie session (internal Path A) or `Authorization: Bearer zmb_xxx` (external Path B).
+  - Pipeline: grant check → firewall domain/endpoint/injection policy → approval gate → credential
+    inject → outbound HTTP → credential echo strip → activity log.
+  - Returns the service response with `X-UseZombie-Action-Id` and `X-UseZombie-Firewall-Decision` headers.
+
+  **External agent keys (`zmb_` prefix):**
+  - Create via `POST /v1/workspaces/{ws}/external-agents` (Clerk-protected). Raw key shown once; only
+    SHA-256 hash stored. Key resolves to a full zombie identity (workspace_id + zombie_id).
+  - CLI: `zombiectl agent create / list / delete`, `zombiectl grant list / revoke`.
+
+  **Services supported:** Slack, Gmail/AgentMail, Discord, Grafana.
+  **New error codes:** `UZ-APIKEY-001/002`, `UZ-GRANT-001/002/003`, `UZ-PROXY-001`.
+  **Schema:** `core.integration_grants` (slot 026), `core.external_agents` (slot 027).
+</Update>
+
 <Update label="v0.12.0 — Apr 12, 2026" tags={["New", "Observability"]}>
   ## Zombie execution telemetry — per-delivery metrics store and dual API (M18_001)
 
