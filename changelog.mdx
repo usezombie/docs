@@ -7,6 +7,31 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.14.0 — Apr 12, 2026" tags={["New", "Memory", "API"]}>
+  ## Persistent Zombie Memory (M14_001)
+
+  Zombies now remember facts across runs. Memory persists in Postgres even after a
+  workspace is destroyed, so a Lead-Collector zombie doesn't re-research every lead
+  and a Customer-Support zombie doesn't re-ask customers their plan.
+
+  **How it works:**
+  - NullClaw's `memory_store` / `memory_recall` / `memory_list` / `memory_forget` tools
+    route to a dedicated `memory` Postgres schema, isolated by the `memory_runtime` role.
+  - Each zombie's memory is row-scoped by `instance_id = "zmb:{zombie_uuid}"` — two
+    concurrent zombies cannot read each other's entries.
+  - `conversation` category remains ephemeral (workspace SQLite), as intended.
+  - The executor receives `memory_connection` + `memory_namespace` in the RPC payload
+    and bypasses NullClaw's instance_id propagation gap directly in `zombie_memory.zig`.
+
+  **External-agent memory API (Path B):**
+  - `POST /v1/memory/store` — store or upsert a key-value entry for a zombie
+  - `POST /v1/memory/recall` — keyword search across key and content
+  - `POST /v1/memory/list` — list entries, optionally filtered by category
+  - `POST /v1/memory/forget` — delete a specific entry by key (idempotent)
+  - All endpoints enforce workspace scope: a caller can only access zombies in their workspace.
+
+</Update>
+
 <Update label="v0.13.0 — Apr 12, 2026" tags={["New", "Integrations", "API"]}>
   ## Integration Grant & Execute API — credentialed proxy with human approval (M9_001)
 

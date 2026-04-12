@@ -1,0 +1,214 @@
+---
+title: 'Error Codes'
+description: 'All error responses from zombied use RFC 7807 (application/problem+json). This page lists every error code, its HTTP status, and common causes.'
+---
+
+## Response format
+
+Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
+
+```json
+{
+  "docs_uri": "https://docs.usezombie.com/api-reference/error-codes#UZ-ZMB-009",
+  "title": "Zombie not found",
+  "detail": "No zombie with id 'abc123' in this workspace.",
+  "error_code": "UZ-ZMB-009",
+  "request_id": "req_a1b2c3d4e5f6"
+}
+```
+
+| Field | Description |
+|---|---|
+| `docs_uri` | Stable link to this page for the specific code |
+| `title` | Short label — identical for every occurrence of a given code |
+| `detail` | Instance-specific context (varies per call) |
+| `error_code` | Machine-readable code. Use this for programmatic handling. |
+| `request_id` | Correlation ID for support and log tracing |
+
+---
+
+## UUID validation
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-UUIDV7-003` | 400 | Invalid UUID canonical format | ID passed is not a valid canonical UUIDv7 string |
+| `UZ-UUIDV7-005` | 500 | ID generation failed | Internal failure generating a new UUIDv7 |
+| `UZ-UUIDV7-009` | 400 | Invalid ID shape | Path or body ID does not match UUIDv7 format |
+| `UZ-UUIDV7-010` | 409 | UUID backfill conflict | Duplicate ID detected during backfill |
+| `UZ-UUIDV7-011` | 500 | Rollback blocked | Rollback cannot proceed due to existing state |
+| `UZ-UUIDV7-012` | 500 | Error response linking failed | Internal error linking error response to trace |
+
+## Internal errors
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-INTERNAL-001` | 503 | Database unavailable | Database server unreachable. Check `DATABASE_URL`. |
+| `UZ-INTERNAL-002` | 500 | Database error | Query failed. Check DB logs. |
+| `UZ-INTERNAL-003` | 500 | Internal operation failed | Unexpected internal failure. Check `err=` in logs. |
+
+## Request validation
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-REQ-001` | 400 | Invalid request | Missing or malformed field in request body or query |
+| `UZ-REQ-002` | 413 | Payload too large | Request body exceeds 2MB limit |
+
+## Authentication / authorization
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-AUTH-001` | 403 | Forbidden | Token valid but lacks permission for this resource |
+| `UZ-AUTH-002` | 401 | Unauthorized | Missing, invalid, or expired Bearer token |
+| `UZ-AUTH-003` | 401 | Token expired | JWT has passed its expiry time. Re-authenticate. |
+| `UZ-AUTH-004` | 503 | Authentication service unavailable | OIDC provider unreachable |
+| `UZ-AUTH-005` | 404 | Session not found | Auth session ID not found or already expired |
+| `UZ-AUTH-006` | 401 | Session expired | Auth session timed out before completion |
+| `UZ-AUTH-007` | 409 | Session already complete | Auth session was already resolved |
+| `UZ-AUTH-008` | 503 | Session limit reached | Too many concurrent auth sessions. Retry shortly. |
+| `UZ-AUTH-009` | 403 | Insufficient role | Token role is too low for this endpoint |
+| `UZ-AUTH-010` | 403 | Unsupported role | Token contains an unrecognized role claim |
+
+## API / queue
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-API-001` | 503 | API saturated | Too many in-flight requests. Back off and retry. |
+| `UZ-API-002` | 503 | Queue unavailable | Redis queue is unreachable |
+
+## Workspace
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-WORKSPACE-001` | 404 | Workspace not found | No workspace with this ID exists |
+| `UZ-WORKSPACE-002` | 402 | Workspace paused | Workspace billing is paused. Update payment. |
+| `UZ-WORKSPACE-003` | 402 | Workspace free limit reached | Free-tier execution limit reached. Upgrade plan. |
+
+## Billing
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-BILLING-001` | 400 | Invalid subscription ID | Subscription ID format is invalid |
+| `UZ-BILLING-002` | 500 | Billing state missing | Workspace has no billing record |
+| `UZ-BILLING-003` | 500 | Billing state invalid | Workspace billing record is in an inconsistent state |
+| `UZ-BILLING-004` | 400 | Invalid billing event | Billing webhook payload is malformed or unknown |
+| `UZ-BILLING-005` | 402 | Credit exhausted | Workspace has no remaining execution credit |
+
+## Entitlement
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-ENTL-001` | 503 | Entitlement service unavailable | Could not verify plan entitlements |
+| `UZ-ENTL-002` | 402 | Profile limit reached | Plan does not allow more agent profiles |
+| `UZ-ENTL-003` | 402 | Stage limit reached | Plan does not allow more pipeline stages |
+| `UZ-ENTL-004` | 403 | Skill not allowed | Plan does not include this skill |
+
+## Spec
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-SPEC-001` | 404 | Spec not found | No spec for this agent/run combination |
+| `UZ-SPEC-002` | 400 | Spec is empty | SKILL.md or TRIGGER.md has no content |
+| `UZ-SPEC-003` | 422 | Spec has no actionable content | Spec parsed but no runnable instructions found |
+| `UZ-SPEC-004` | 422 | Spec has unresolved file ref | Spec references a file that could not be fetched |
+
+## Run
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-RUN-001` | 404 | Run not found | No run with this ID in this workspace |
+| `UZ-RUN-002` | 409 | Invalid state transition | Run cannot move to requested state from current state |
+| `UZ-RUN-003` | 429 | Run token budget exceeded | Run hit `max_tokens` limit. Increase in agent profile. |
+| `UZ-RUN-004` | 408 | Run wall time exceeded | Run hit `max_wall_time_seconds`. Increase in profile. |
+| `UZ-RUN-005` | 429 | Workspace monthly budget exceeded | Monthly token budget exhausted. Resets next month. |
+| `UZ-RUN-006` | 409 | Run already in terminal state | Run is DONE/BLOCKED/CANCELLED; no further changes allowed |
+| `UZ-RUN-007` | 500 | Run cancel signal failed | Redis publish failed. Retry the cancel request. |
+| `UZ-RUN-008` | 500 | Run interrupt signal failed | Redis interrupt write failed. Check Redis. |
+| `UZ-RUN-009` | 409 | Run not interruptible | Run state does not support interrupts |
+
+## Agent
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-AGENT-001` | 404 | Agent not found | No agent profile with this ID |
+| `UZ-AGENT-002` | 503 | Agent scores unavailable | Score data not yet computed for this agent |
+
+## Proposal
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-PROPOSAL-001` | 400 | Invalid proposal JSON | Proposal body is not valid JSON |
+| `UZ-PROPOSAL-002` | 400 | Proposal not an array | Top-level proposal value must be a JSON array |
+| `UZ-PROPOSAL-003` | 400 | Proposal change not an object | Each change in the array must be a JSON object |
+| `UZ-PROPOSAL-004` | 400 | Missing target field | Change object lacks required `target` field |
+| `UZ-PROPOSAL-005` | 400 | Unsupported target field | `target` value is not a supported stage field |
+| `UZ-PROPOSAL-006` | 400 | Missing stage ID | Change object lacks required `stage_id` |
+| `UZ-PROPOSAL-007` | 400 | Missing role | Stage change lacks required `role` field |
+| `UZ-PROPOSAL-008` | 400 | Missing insert-before stage ID | Insert operation lacks `insert_before_stage_id` |
+| `UZ-PROPOSAL-009` | 400 | Disallowed field | Change contains a field not allowed in proposals |
+| `UZ-PROPOSAL-010` | 400 | Unregistered agent reference | Proposal references an unknown agent ID |
+| `UZ-PROPOSAL-011` | 400 | Invalid skill reference | Skill reference does not match registry format |
+| `UZ-PROPOSAL-012` | 400 | Unknown stage reference | Stage ID in proposal does not exist in pipeline |
+| `UZ-PROPOSAL-013` | 409 | Duplicate stage reference | Same stage ID appears twice in proposal |
+| `UZ-PROPOSAL-014` | 422 | Proposal would not compile | Applying proposal produces an invalid pipeline |
+| `UZ-PROPOSAL-015` | 422 | No valid proposal template | No template matches for AI proposal generation |
+| `UZ-PROPOSAL-016` | 500 | Proposal generation failed | AI proposal generation encountered an error |
+| `UZ-PROPOSAL-017` | 404 | Proposal not found | No pending proposal with this ID |
+
+## Webhook
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-WH-001` | 404 | Zombie not found for webhook | Webhook routing found no matching zombie |
+| `UZ-WH-002` | 400 | Malformed webhook | Webhook body is missing required fields |
+| `UZ-WH-003` | 403 | Zombie paused | Zombie exists but is not active |
+| `UZ-WH-010` | 401 | Invalid webhook signature | Slack signature verification failed |
+| `UZ-WH-011` | 401 | Stale webhook timestamp | Slack timestamp is >5 min old (replay protection) |
+
+## Tool
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-TOOL-001` | 424 | Tool credential missing | Required vault credential not found for skill |
+| `UZ-TOOL-002` | 502 | Tool API call failed | External API returned an error |
+| `UZ-TOOL-003` | 502 | Tool git operation failed | Git operation failed. Check repo URL and credentials. |
+| `UZ-TOOL-004` | 400 | Tool not attached | Tool name not in zombie's TRIGGER.md skills list |
+| `UZ-TOOL-005` | 400 | Unknown tool | Tool name not recognized |
+| `UZ-TOOL-006` | 504 | Tool call timed out | External tool did not respond within timeout |
+
+## Zombie
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-ZMB-001` | 402 | Zombie budget exceeded | Daily dollar budget hit. Raise via `zombiectl config set`. |
+| `UZ-ZMB-002` | 500 | Zombie agent timeout | Agent timed out processing an event. Check logs. |
+| `UZ-ZMB-003` | 424 | Zombie credential missing | Required vault credential absent. Use `zombiectl credential add`. |
+| `UZ-ZMB-004` | 500 | Zombie claim failed | Could not claim zombie from DB. Verify zombie status. |
+| `UZ-ZMB-005` | 500 | Zombie checkpoint failed | Session checkpoint write to Postgres failed |
+| `UZ-ZMB-006` | 409 | Zombie name already exists | Name taken. Kill existing zombie first. |
+| `UZ-ZMB-007` | 400 | Zombie credential value too long | Credential value exceeds 4KB limit |
+| `UZ-ZMB-008` | 400 | Invalid zombie config | TRIGGER.md config_json fails schema validation |
+| `UZ-ZMB-009` | 404 | Zombie not found | No zombie with this ID in the workspace |
+
+## Approval gate
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-APPROVAL-001` | 400 | Approval parse failed | `gates` in TRIGGER.md config_json has invalid JSON |
+| `UZ-APPROVAL-002` | 404 | Approval not found | Approval action not found or already resolved |
+| `UZ-APPROVAL-003` | 401 | Approval invalid signature | Slack signature or timestamp verification failed |
+| `UZ-APPROVAL-004` | 503 | Approval Redis unavailable | Gate service down; default-deny applied |
+| `UZ-APPROVAL-005` | 400 | Approval condition invalid | Gate condition expression is invalid |
+
+## Credentials
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-CRED-001` | 503 | Anthropic API key missing | Workspace `anthropic_api_key` not in vault. Set via credentials API. |
+| `UZ-CRED-002` | 503 | GitHub token failed | GitHub App token request failed. Check `GITHUB_APP_ID`. |
+| `UZ-CRED-003` | 503 | Platform LLM key missing | No active platform LLM key. Admin must set via platform-keys API. |
+
+## Relay
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-RELAY-001` | 400 | No LLM provider configured | Workspace has no LLM credentials configured |
