@@ -7,6 +7,35 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.10.1 — Apr 12, 2026" tags={["Internal"]}>
+  ## Harness & agent-profile scope removed (M17_001)
+
+  The legacy harness control plane — config compilation pipeline, `/v1/harness/*`
+  endpoints, `agent.agent_profiles` / `agent_config_versions` / `workspace_active_config` /
+  `config_compile_jobs` / `config_linkage_audit_artifacts` tables, and the
+  `agent_profile_version` audit linkage — had zero runtime consumers after the
+  zombie execution model replaced it. All of it is gone:
+
+  - Server handlers (`harness_http.zig`, `harness_control_plane/*`, `profile_linkage.zig`)
+    and the `src/harness/` module removed. `/v1/workspaces/{id}/harness/*` routes no
+    longer exist.
+  - Five agent-schema tables removed via full teardown (pre-v2.0 policy): SQL files
+    `schema/008_harness_control_plane.sql` and `schema/011_profile_linkage_audit.sql`
+    deleted outright; `schema/009_rls_tenant_isolation.sql` stripped of agent.*
+    RLS policies; canonical migration array shrunk from 21 to 19 entries.
+  - `zombiectl`: `harness`, `harness source`, `harness compile`, `harness activate`,
+    `harness active`, and `agent harness revert` subcommands removed. The CLI no
+    longer references dropped endpoints.
+  - `/v1/agents/{id}` handler was a dead client of `agent_profiles` and is removed.
+  - `workspace_entitlements.max_profiles` column dropped and `UZ-ENTL-002`
+    (Profile limit reached) error retired — both were harness-only.
+  - Website marketing copy no longer advertises "harness checks"; the step is
+    now described as "validation" in the flow.
+
+  ~4,200 lines of dead infrastructure removed. No behavior change for zombie
+  workflows. No API breaking changes visible to any live client.
+</Update>
+
 <Update label="v0.10.0 — Apr 12, 2026" tags={["New releases", "Observability"]}>
   ## Zombie observability (M15_002)
 
