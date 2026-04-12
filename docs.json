@@ -135,13 +135,6 @@
             ]
           },
           {
-            "group": "Agent Relay",
-            "pages": [
-              "POST /v1/workspaces/{workspace_id}/spec/template",
-              "POST /v1/workspaces/{workspace_id}/spec/preview"
-            ]
-          },
-          {
             "group": "Admin",
             "pages": [
               "GET /v1/admin/platform-keys",
@@ -153,8 +146,7 @@
             "group": "Billing",
             "pages": [
               "POST /v1/workspaces/{workspace_id}/billing/scale",
-              "POST /v1/workspaces/{workspace_id}/billing/events",
-              "POST /v1/workspaces/{workspace_id}/scoring/config"
+              "POST /v1/workspaces/{workspace_id}/billing/events"
             ]
           }
         ]
