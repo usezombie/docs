@@ -58,7 +58,7 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | Code | HTTP | Title | Common Causes |
 |---|---|---|---|
 | `UZ-AUTH-001` | 403 | Forbidden | Token valid but lacks permission for this resource |
-| `UZ-AUTH-002` | 401 | Unauthorized | Missing, invalid, or expired Bearer token |
+| `UZ-AUTH-002` | 401 | Unauthorized | Missing or invalid Bearer token |
 | `UZ-AUTH-003` | 401 | Token expired | JWT has passed its expiry time. Re-authenticate. |
 | `UZ-AUTH-004` | 503 | Authentication service unavailable | OIDC provider unreachable |
 | `UZ-AUTH-005` | 404 | Session not found | Auth session ID not found or already expired |
@@ -98,7 +98,6 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | Code | HTTP | Title | Common Causes |
 |---|---|---|---|
 | `UZ-ENTL-001` | 503 | Entitlement service unavailable | Could not verify plan entitlements |
-| `UZ-ENTL-002` | 402 | Profile limit reached | Plan does not allow more agent profiles |
 | `UZ-ENTL-003` | 402 | Stage limit reached | Plan does not allow more pipeline stages |
 | `UZ-ENTL-004` | 403 | Skill not allowed | Plan does not include this skill |
 
@@ -130,7 +129,6 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | Code | HTTP | Title | Common Causes |
 |---|---|---|---|
 | `UZ-AGENT-001` | 404 | Agent not found | No agent profile with this ID |
-| `UZ-AGENT-002` | 503 | Agent scores unavailable | Score data not yet computed for this agent |
 
 ## Proposal
 
