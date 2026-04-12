@@ -222,12 +222,8 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   `make sync-version` / `make check-version` prevent VERSION drift across `build.zig.zon` and `zombiectl/package.json`.
 
   ### Bug fixes
-  - Fixed memory double-free on zombie claim failure path
   - Fixed YAML parser silently dropping array items in CLI config upload
-  - Fixed migration runner failure when SQL comments contain semicolons
   - Fixed UTF-8 truncation splitting multi-byte characters in session context
-  - Fixed UUID column reads returning binary on Linux CI (added `::text` cast)
-  - Fixed test runner treating expected error-path logs as failures
 </Update>
 
 <Update label="v0.4.0 — April 6, 2026" tags={["New releases", "Improvements"]}>
