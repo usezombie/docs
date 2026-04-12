@@ -93,6 +93,12 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | `UZ-BILLING-004` | 400 | Invalid billing event | Billing webhook payload is malformed or unknown |
 | `UZ-BILLING-005` | 402 | Credit exhausted | Workspace has no remaining execution credit |
 
+## Scoring
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-SCORING-001` | 400 | Invalid scoring context | Scoring context tokens are invalid. Check the context_tokens field. |
+
 ## Entitlement
 
 | Code | HTTP | Title | Common Causes |
@@ -101,28 +107,11 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | `UZ-ENTL-003` | 402 | Stage limit reached | Plan does not allow more pipeline stages |
 | `UZ-ENTL-004` | 403 | Skill not allowed | Plan does not include this skill |
 
-## Spec
+## Pipeline v1 removed
 
 | Code | HTTP | Title | Common Causes |
 |---|---|---|---|
-| `UZ-SPEC-001` | 404 | Spec not found | No spec for this agent/run combination |
-| `UZ-SPEC-002` | 400 | Spec is empty | SKILL.md or TRIGGER.md has no content |
-| `UZ-SPEC-003` | 422 | Spec has no actionable content | Spec parsed but no runnable instructions found |
-| `UZ-SPEC-004` | 422 | Spec has unresolved file ref | Spec references a file that could not be fetched |
-
-## Run
-
-| Code | HTTP | Title | Common Causes |
-|---|---|---|---|
-| `UZ-RUN-001` | 404 | Run not found | No run with this ID in this workspace |
-| `UZ-RUN-002` | 409 | Invalid state transition | Run cannot move to requested state from current state |
-| `UZ-RUN-003` | 429 | Run token budget exceeded | Run hit `max_tokens` limit. Increase in agent profile. |
-| `UZ-RUN-004` | 408 | Run wall time exceeded | Run hit `max_wall_time_seconds`. Increase in profile. |
-| `UZ-RUN-005` | 429 | Workspace monthly budget exceeded | Monthly token budget exhausted. Resets next month. |
-| `UZ-RUN-006` | 409 | Run already in terminal state | Run is DONE/BLOCKED/CANCELLED; no further changes allowed |
-| `UZ-RUN-007` | 500 | Run cancel signal failed | Redis publish failed. Retry the cancel request. |
-| `UZ-RUN-008` | 500 | Run interrupt signal failed | Redis interrupt write failed. Check Redis. |
-| `UZ-RUN-009` | 409 | Run not interruptible | Run state does not support interrupts |
+| `UZ-RUNS-410` | 410 | Pipeline v1 permanently removed | Pipeline v1 has been permanently removed. All `/v1/runs/*` and `/v1/specs` endpoints return 410 Gone. Use the zombie event model instead. |
 
 ## Agent
 
@@ -130,27 +119,12 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 |---|---|---|---|
 | `UZ-AGENT-001` | 404 | Agent not found | No agent profile with this ID |
 
-## Proposal
+## Profile
 
 | Code | HTTP | Title | Common Causes |
 |---|---|---|---|
-| `UZ-PROPOSAL-001` | 400 | Invalid proposal JSON | Proposal body is not valid JSON |
-| `UZ-PROPOSAL-002` | 400 | Proposal not an array | Top-level proposal value must be a JSON array |
-| `UZ-PROPOSAL-003` | 400 | Proposal change not an object | Each change in the array must be a JSON object |
-| `UZ-PROPOSAL-004` | 400 | Missing target field | Change object lacks required `target` field |
-| `UZ-PROPOSAL-005` | 400 | Unsupported target field | `target` value is not a supported stage field |
-| `UZ-PROPOSAL-006` | 400 | Missing stage ID | Change object lacks required `stage_id` |
-| `UZ-PROPOSAL-007` | 400 | Missing role | Stage change lacks required `role` field |
-| `UZ-PROPOSAL-008` | 400 | Missing insert-before stage ID | Insert operation lacks `insert_before_stage_id` |
-| `UZ-PROPOSAL-009` | 400 | Disallowed field | Change contains a field not allowed in proposals |
-| `UZ-PROPOSAL-010` | 400 | Unregistered agent reference | Proposal references an unknown agent ID |
-| `UZ-PROPOSAL-011` | 400 | Invalid skill reference | Skill reference does not match registry format |
-| `UZ-PROPOSAL-012` | 400 | Unknown stage reference | Stage ID in proposal does not exist in pipeline |
-| `UZ-PROPOSAL-013` | 409 | Duplicate stage reference | Same stage ID appears twice in proposal |
-| `UZ-PROPOSAL-014` | 422 | Proposal would not compile | Applying proposal produces an invalid pipeline |
-| `UZ-PROPOSAL-015` | 422 | No valid proposal template | No template matches for AI proposal generation |
-| `UZ-PROPOSAL-016` | 500 | Proposal generation failed | AI proposal generation encountered an error |
-| `UZ-PROPOSAL-017` | 404 | Proposal not found | No pending proposal with this ID |
+| `UZ-PROFILE-001` | 404 | Profile not found | Profile not found. Verify the profile_id. |
+| `UZ-PROFILE-002` | 400 | Invalid profile | Profile data is invalid. Check required fields. |
 
 ## Webhook
 
@@ -187,6 +161,15 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | `UZ-ZMB-008` | 400 | Invalid zombie config | TRIGGER.md config_json fails schema validation |
 | `UZ-ZMB-009` | 404 | Zombie not found | No zombie with this ID in the workspace |
 
+## Gate
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-GATE-001` | 500 | Gate command failed | A gate command (make lint/test/build) failed. Check the gate results for stdout/stderr output. |
+| `UZ-GATE-002` | 504 | Gate command timed out | A gate command exceeded its timeout. Increase GATE_TOOL_TIMEOUT_MS or optimize the command. |
+| `UZ-GATE-003` | 500 | Gate repair attempts exhausted | Agent exhausted all repair attempts without passing gates. Review gate results for the repeated failure pattern. |
+| `UZ-GATE-004` | 500 | Gate persist failed | Gate results could not be written to the database. Check DB connectivity and that the gate_results table exists. |
+
 ## Approval gate
 
 | Code | HTTP | Title | Common Causes |
@@ -210,3 +193,50 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | Code | HTTP | Title | Common Causes |
 |---|---|---|---|
 | `UZ-RELAY-001` | 400 | No LLM provider configured | Workspace has no LLM credentials configured |
+
+## Startup
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-STARTUP-001` | 500 | Environment check failed | Required environment variables are missing. Run 'zombied doctor' to see which ones. |
+| `UZ-STARTUP-002` | 500 | Config load failed | Configuration failed to load. Check that all required env vars are set. |
+| `UZ-STARTUP-003` | 500 | Database connect failed | Database is unreachable. Check that DATABASE_URL is set and the database accepts connections. |
+| `UZ-STARTUP-004` | 500 | Redis connect failed | Redis is unreachable. Check that REDIS_URL_API and REDIS_URL_WORKER are set. |
+| `UZ-STARTUP-005` | 500 | Migration check failed | Database migration state could not be verified. Check DB connectivity. |
+| `UZ-STARTUP-006` | 500 | OIDC init failed | OIDC provider initialization failed. Check OIDC configuration. |
+| `UZ-STARTUP-007` | 500 | Redis group creation failed | Redis connected but consumer group creation failed. Check Redis ACL permissions. |
+
+## Sandbox
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-SANDBOX-001` | 503 | Sandbox backend unavailable | Sandbox backend is not available. Check that bubblewrap (bwrap) is installed. |
+| `UZ-SANDBOX-002` | 403 | Sandbox kill switch triggered | Sandbox kill switch has been triggered. Contact the administrator. |
+| `UZ-SANDBOX-003` | 403 | Sandbox command blocked | The command is blocked by sandbox policy. |
+
+## Executor
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-EXEC-001` | 500 | Execution session create failed | Execution session creation failed. Check runner availability. |
+| `UZ-EXEC-002` | 500 | Stage start failed | Stage failed to start. Check runner configuration. |
+| `UZ-EXEC-003` | 500 | Execution timeout kill | Execution exceeded the timeout limit and was killed. |
+| `UZ-EXEC-004` | 500 | Execution OOM kill | Execution exceeded memory limit and was killed. |
+| `UZ-EXEC-005` | 500 | Execution resource kill | Execution exceeded resource limits and was killed. |
+| `UZ-EXEC-006` | 500 | Execution transport loss | Connection to execution transport was lost. |
+| `UZ-EXEC-007` | 500 | Execution lease expired | Execution lease expired. The task took too long to complete. |
+| `UZ-EXEC-008` | 403 | Execution policy deny | Execution was denied by policy. Check firewall rules. |
+| `UZ-EXEC-009` | 500 | Execution startup posture failure | Execution startup posture check failed. Verify runner security config. |
+| `UZ-EXEC-010` | 500 | Execution crash | The execution process crashed. Check logs for details. |
+| `UZ-EXEC-011` | 403 | Landlock policy deny | Landlock policy denied the filesystem operation. |
+| `UZ-EXEC-012` | 500 | Runner agent init failed | Runner agent initialization failed. Check configuration. |
+| `UZ-EXEC-013` | 500 | Runner agent run failed | Runner agent execution failed. Check logs for details. |
+| `UZ-EXEC-014` | 400 | Runner invalid config | Runner configuration is invalid. Check config_json fields. |
+
+## Slack plugin
+
+| Code | HTTP | Title | Common Causes |
+|---|---|---|---|
+| `UZ-SLACK-001` | 403 | Slack OAuth state invalid | OAuth state parameter mismatch — possible CSRF attempt. |
+| `UZ-SLACK-002` | 502 | Slack token exchange failed | Could not exchange OAuth code for bot token. Verify SLACK_CLIENT_SECRET is set. |
+| `UZ-SLACK-003` | 401 | Slack bot token expired | The Slack bot token has been revoked or expired. Reinstall UseZombie to Slack. |
