@@ -7,6 +7,22 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.10.0 — Apr 12, 2026" tags={["New releases", "Observability"]}>
+  ## Zombie observability (M15_002)
+
+  Zombie triggers and event deliveries now emit PostHog events and increment
+  Prometheus counters, making zombie throughput visible in Grafana and product
+  analytics. Previously, `/metrics` contained no zombie counters and PostHog
+  dashboards showed no zombie activity.
+
+  - **Prometheus:** `zombies_triggered_total`, `zombies_completed_total`,
+    `zombies_failed_total`, `zombie_tokens_total`, and a `zombie_execution_seconds`
+    wall-time histogram.
+  - **PostHog:** `zombie_triggered` fired from the webhook receiver; `zombie_completed`
+    fired after each delivery attempt with tokens, wall-time, and exit status.
+  - Graceful no-ops when the PostHog client is unavailable — metrics always record.
+</Update>
+
 <Update label="v0.9.0 — Apr 12, 2026" tags={["New releases", "Billing"]}>
   ## Zombie credit metering (M15_001)
 
