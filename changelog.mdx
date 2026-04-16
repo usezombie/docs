@@ -7,6 +7,26 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.17.0 — Apr 16, 2026" tags={["Breaking", "API", "CLI"]}>
+  ## REST API conventions cleanup
+
+  List endpoints now return a standard `{ items, total }` envelope (plus `cursor` where paginated), so SDKs can share a single `Paginated<T>` across zombies, external agents, integration grants, and activity. The per-resource keys — `zombies`, `agents`, `grants`, `events` — are gone.
+
+  ## Memory reads are now GET
+
+  `GET /v1/memory/recall?zombie_id=&query=&limit=` and `GET /v1/memory/list?zombie_id=&category=&limit=` replace the previous `POST` forms. Response shape is also `items`/`total` (was `entries`/`count`). `store` and `forget` are unchanged.
+
+  ## Response cleanup
+
+  `DELETE` on external agents and integration grants now returns a proper `204 No Content` through the standard envelope instead of a hand-rolled status write.
+
+  `public/openapi.json` pruned: 8 stale paths removed (`/v1/runs/*` retired in v0.10, and an orphaned `skills/*/secrets/*`). SDKs generated from the spec no longer surface methods the server never had.
+
+  ## CLI in lockstep
+
+  `zombiectl` updated in the same release — `zombiectl status`, `zombiectl logs`, `zombiectl agent list`, and `zombiectl grant list` all consume the new envelope. Upgrade both sides together.
+</Update>
+
 <Update label="v0.16.1 — Apr 16, 2026" tags={["Internal", "Performance"]}>
   ## zBench Micro-Benchmark Catalog (M25_001)
 
