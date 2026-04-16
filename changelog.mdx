@@ -7,6 +7,37 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.18.0 — Apr 16, 2026" tags={["New", "API", "UI"]}>
+  ## Operator dashboard API + shared UI foundation (M12_001)
+
+  M12 narrows to the foundation that the operator dashboard will be built on: three new backend endpoints, a reusable UI component toolbox, and a proper token pyramid for theming. The dashboard pages themselves move to M27 (pending M26 design-system unification) so they build on a unified Button rather than rewriting it mid-flight.
+
+  ## New API endpoints
+
+  - `GET /v1/workspaces/{workspace_id}/activity?limit=&cursor=` — workspace-wide activity feed across every zombie, cursor-paginated newest-first. Powers the dashboard's Recent Activity panel.
+  - `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}:stop` — operator kill switch. Transitions `active` / `paused` → `stopped`, emits a `zombie_stopped` activity event. Returns `409 UZ-ZMB-010` on re-call, `404 UZ-ZMB-009` on cross-workspace (IDOR guard).
+  - `GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/billing/summary?period_days=7|30` — per-zombie slice of the workspace billing summary. Shares the exact response envelope with the workspace-scoped endpoint; SDKs get one `Paginated<BillingSummary>` shape.
+
+  ## Workspace billing summary upgraded
+
+  `GET /v1/workspaces/{workspace_id}/billing/summary` returned zeros since M10 dropped `usage_ledger`. It now aggregates real data from `zombie_execution_telemetry` through a shared `billing_summary_store` so workspace and per-zombie summaries can't drift. A new `total_cents` field on the response carries the sum of billable credits. Accepts both the legacy `?period=7d|30d|90d` and the new `?period_days=7|30|90` parameter.
+
+  ## Shared UI primitives (ui/packages/app)
+
+  Six React primitives land in `components/ui/` (+ `components/domain/ActivityFeed.tsx`), each with a colocated unit test and ARIA / mobile-responsive baked in: `StatusCard`, `EmptyState`, `Pagination` (cursor + page variants), `DataTable`, `ConfirmDialog`, `ActivityFeed`. 70/70 tests green.
+
+  ## Three-layer token pyramid
+
+  `app/globals.css` now hosts a proper shadcn-style `@theme inline` block bridging Layer-0 primitives (`--z-*` in `@usezombie/design-system/tokens.css`) through semantic names (`--primary`, `--success`, `--warning`, `--info`, `--destructive`, `--primary-glow[-strong]`) to Tailwind v4 utility classes (`bg-success`, `text-warning`, `border-info`). The existing `button.tsx` is refactored to drop every `var(--z-*)` arbitrary-value reference. `components.json` + `tw-animate-css` install unlocks `bunx shadcn@latest add <primitive>` for future upstream a11y fixes.
+
+  ## Deferred to follow-up milestones
+
+  - Operator dashboard pages (overview / zombies / zombie detail / firewall / settings) — **M27_001**, blocked on M26.
+  - `@usezombie/design-system` self-contained + framework-agnostic + shared between `ui/packages/app` (Next.js App Router) and `ui/packages/website` (Vite SPA) — **M26_001**.
+
+  Both spec files are in `docs/v2/pending/` and carry full execution plans.
+</Update>
+
 <Update label="v0.17.0 — Apr 16, 2026" tags={["Breaking", "API", "CLI"]}>
   ## REST API conventions cleanup
 
