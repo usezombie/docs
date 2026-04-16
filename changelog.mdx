@@ -20,7 +20,9 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   `DELETE` on external agents and integration grants now returns a proper `204 No Content` through the standard envelope instead of a hand-rolled status write.
 
-  `public/openapi.json` pruned: 8 stale paths removed (`/v1/runs/*` retired in v0.10, and an orphaned `skills/*/secrets/*`). SDKs generated from the spec no longer surface methods the server never had.
+  ## OpenAPI spec — full coverage
+
+  `public/openapi.json` now documents every route the server actually exposes. 8 stale paths removed (`/v1/runs/*` retired in v0.10, and an orphaned `skills/*/secrets/*`), and 26 previously-undocumented operations authored: workspace-scoped zombies, workspace credentials, memory, external agents, integration grants, execute, slack, approval + grant-approval webhooks, internal telemetry, spec relay, scoring config. SDK generators can now emit typed clients for the full surface.
 
   ## CLI in lockstep
 
