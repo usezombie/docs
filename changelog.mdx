@@ -7,6 +7,84 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.16.1 — Apr 16, 2026" tags={["Internal", "Performance"]}>
+  ## zBench Micro-Benchmark Catalog (M25_001)
+
+  Tier-1 of `make bench` now runs a catalog of micro-benchmarks on zombied's hot
+  paths instead of a single placeholder. Each benchmark has a regression gate
+  documented against a measured baseline so a code-level slowdown (JSON encoding,
+  route matching, cursor parsing, UUID minting, webhook signature verification,
+  error-registry lookup) trips a named alarm separately from the system-level
+  p95 that Tier-2 hey reports.
+
+  No user-visible surface change — internal tooling for operators and maintainers.
+</Update>
+
+<Update label="v0.16.0 — Apr 16, 2026" tags={["Breaking", "API", "CLI"]}>
+  ## REST Workspace-Scoped Route Refactor (M24_001)
+
+  Flat `/v1/zombies/*` endpoints have been replaced with workspace-scoped REST paths. Query
+  parameters are now reserved for pagination (`page`, `limit`, `cursor`) and search (`search`).
+  Identity — workspace, zombie, grant — is always in the URL path.
+
+  **Route migration:**
+
+  | Before | After |
+  | --- | --- |
+  | `GET    /v1/zombies/?workspace_id=X` | `GET    /v1/workspaces/{ws}/zombies` |
+  | `POST   /v1/zombies/` | `POST   /v1/workspaces/{ws}/zombies` |
+  | `DELETE /v1/zombies/{id}` | `DELETE /v1/workspaces/{ws}/zombies/{id}` |
+  | `GET    /v1/zombies/activity?zombie_id=X` | `GET    /v1/workspaces/{ws}/zombies/{id}/activity` |
+  | `GET    /v1/zombies/credentials?workspace_id=X` | `GET    /v1/workspaces/{ws}/credentials` |
+  | `POST   /v1/zombies/credentials` | `POST   /v1/workspaces/{ws}/credentials` |
+  | `POST   /v1/zombies/{id}/integration-requests` | `POST   /v1/workspaces/{ws}/zombies/{id}/integration-requests` |
+  | `GET    /v1/zombies/{id}/integration-grants` | `GET    /v1/workspaces/{ws}/zombies/{id}/integration-grants` |
+  | `DELETE /v1/zombies/{id}/integration-grants/{gid}` | `DELETE /v1/workspaces/{ws}/zombies/{id}/integration-grants/{gid}` |
+  | `POST   /v1/zombies/{id}:steer` | `POST   /v1/workspaces/{ws}/zombies/{id}:steer` |
+
+  **Breaking:** flat `/v1/zombies/*` paths now return bare 404. No 410 Gone stubs
+  (pre-v2.0 API teardown policy). Update clients before upgrading.
+
+  **Request-body changes:** `workspace_id` is no longer accepted in POST bodies for
+  `zombies` and `credentials` — the URL path is authoritative.
+
+  **Authorization:** every new workspace-scoped handler calls `authorizeWorkspace`
+  after authentication (RULE WAUTH). Cross-workspace zombie lookups return 404, not
+  403, to avoid leaking existence.
+
+  **`zombiectl` is already updated** — no user action needed if you're on the latest CLI.
+  Rolling back the CLI while the API is updated will break.
+
+  **OpenAPI:** `openapi.json` `:steer` path updated; broader workspace-scoped coverage
+  for CRUD/activity/grants endpoints will follow in a dedicated docs milestone.
+</Update>
+
+<Update label="v0.15.0 — Apr 15, 2026" tags={["New", "API", "Workers"]}>
+  ## Live Zombie Steering (M23_001)
+
+  Operators can now redirect a running zombie mid-execution without killing it.
+
+  **How it works:**
+  - `POST /v1/zombies/{id}:steer` writes a message to Redis key `zombie:{id}:steer` with a 300s TTL.
+  - The worker polls this key at the top of each event loop iteration. When found, the message
+    is injected as a synthetic `steer` event into the zombie's event stream and delivered normally.
+  - The response includes `execution_id` (null if zombie is idle) so callers know whether
+    the steer message lands mid-execution or is queued for the zombie's next event.
+
+  **Execution tracking:**
+  - `core.zombie_sessions` now records `execution_id` and `execution_started_at` when a
+    zombie begins executing. Both are cleared when execution ends or on worker restart
+    (crash recovery).
+
+  **Response shape:**
+  ```json
+  { "message_queued": true, "execution_active": true, "execution_id": "exec_..." }
+  ```
+
+  **Error contracts:** 401 missing auth · 404 cross-workspace zombie · 400 empty or >8192-byte message
+
+</Update>
+
 <Update label="v0.14.0 — Apr 12, 2026" tags={["New", "Memory", "API"]}>
   ## Persistent Zombie Memory (M14_001)
 
