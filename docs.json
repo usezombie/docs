@@ -103,20 +103,8 @@
             "group": "Workspaces",
             "pages": [
               "POST /v1/workspaces",
-              "POST /v1/workspaces/{workspace_id}:pause",
-              "POST /v1/workspaces/{workspace_id}:sync"
-            ]
-          },
-          {
-            "group": "Runs",
-            "pages": [
-              "POST /v1/runs",
-              "GET /v1/runs",
-              "GET /v1/runs/{run_id}",
-              "POST /v1/runs/{run_id}:retry",
-              "GET /v1/runs/{run_id}:replay",
-              "GET /v1/runs/{run_id}:stream",
-              "POST /v1/runs/{run_id}:cancel"
+              "POST /v1/workspaces/{workspace_id}/pause",
+              "POST /v1/workspaces/{workspace_id}/sync"
             ]
           },
           {
@@ -125,13 +113,6 @@
               "PUT /v1/workspaces/{workspace_id}/credentials/llm",
               "GET /v1/workspaces/{workspace_id}/credentials/llm",
               "DELETE /v1/workspaces/{workspace_id}/credentials/llm"
-            ]
-          },
-          {
-            "group": "Skill Secrets",
-            "pages": [
-              "PUT /v1/workspaces/{workspace_id}/skills/{skill_ref}/secrets/{key_name}",
-              "DELETE /v1/workspaces/{workspace_id}/skills/{skill_ref}/secrets/{key_name}"
             ]
           },
           {
