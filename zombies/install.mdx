@@ -69,20 +69,22 @@ A markdown file with YAML frontmatter that configures how the zombie receives ev
 name: lead-collector
 trigger:
   type: webhook
-  source: email
-skills:
-  - agentmail
+  source: agentmail
+  event: message.received
 credentials:
-  agentmail_api_key: op://workspace-vault/agentmail/api_key
+  - agentmail_api_key
 budget:
-  max_tokens_per_event: 4000
-  max_wall_seconds: 60
+  daily_dollars: 5.0
+  monthly_dollars: 29.0
+network:
+  allow:
+    - api.agentmail.to
 ---
 
 This zombie qualifies inbound sales email.
 ```
 
-The `name` field becomes the zombie's display name. The `trigger.source` field is a human-readable label that appears in logs — routing is always by zombie ID, so two zombies with `source: email` do not conflict.
+The `name` field becomes the zombie's display name. The `trigger.source` field identifies the upstream provider and determines the webhook signature scheme for first-class integrations (`agentmail`, `slack`, `github`, `linear`, `jira`, `grafana`, `clerk`). The `credentials:` list names the vault keys the zombie will read at event time — every entry must exist in the workspace vault before `zombiectl up` succeeds. The `network.allow:` list is an outbound hostname allowlist enforced by the credential firewall.
 
 See [Writing skills](/zombies/skills) for the full `TRIGGER.md` reference, and [Templates](/zombies/templates) for the anatomy of a bundled template.
 
@@ -105,8 +107,8 @@ Exit codes:
 
 You have two reasonable next moves:
 
-1. **Edit the files**, then `zombiectl up` to deploy as-is. The bundled templates reference credentials via `op://` placeholders; the platform resolves these against your workspace vault.
-2. **Add credentials first** via `zombiectl credential add`, then `zombiectl up`. Either order works — the zombie will not process events until every credential it references is present in the vault.
+1. **Edit the files**, then `zombiectl up` to deploy. The bundled templates declare the vault keys they expect under `credentials:` — the platform reads them from the workspace vault at event time.
+2. **Add credentials first** via `zombiectl credential add`, then `zombiectl up`. Either order works — but `zombiectl up` refuses to deploy until every key listed under `credentials:` is present in the vault.
 
 ```bash
 zombiectl credential add agentmail_api_key --value=$AGENTMAIL_KEY

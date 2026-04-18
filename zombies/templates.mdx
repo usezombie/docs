@@ -22,13 +22,14 @@ Receives inbound email via a webhook, classifies each message, and drafts a shor
 ```
 lead-collector/
 ├── SKILL.md         # "You are a lead qualification agent..."
-└── TRIGGER.md       # webhook trigger, source=email, skills=[agentmail]
+└── TRIGGER.md       # webhook trigger, source=agentmail, event=message.received
 ```
 
-- **Trigger:** webhook, `source: email`
-- **Skills:** `agentmail`
+- **Trigger:** webhook, `source: agentmail`, `event: message.received`
 - **Credentials it expects:** `agentmail_api_key`
-- **Approval gate:** optional — on `agentmail.reply`
+- **Budget:** `daily_dollars: 5.0`, `monthly_dollars: 29.0`
+- **Network allowlist:** `api.agentmail.to`
+- **Chain:** hands off to `lead-enricher` after each event
 
 Typical event shape:
 
@@ -59,13 +60,14 @@ Watches a Slack channel, identifies bug reports from messages, and opens a draft
 ```
 slack-bug-fixer/
 ├── SKILL.md         # "You are a bug triage agent..."
-└── TRIGGER.md       # webhook trigger, source=slack, skills=[slack, github]
+└── TRIGGER.md       # webhook trigger, source=slack, skills=[slack, git, github]
 ```
 
-- **Trigger:** webhook, `source: slack`
-- **Skills:** `slack`, `github`
-- **Credentials it expects:** `slack_bot_token`, `github_token`
-- **Approval gate:** recommended — on `github.open_pr`
+- **Trigger:** webhook, `source: slack`, `event: message`
+- **Skills:** `slack`, `git`, `github`
+- **Credentials it expects:** `slack_bot_token`, `slack_signing_secret`, `github_token`
+- **Budget:** `daily_dollars: 10.0`, `monthly_dollars: 50.0`
+- **Network allowlist:** `api.slack.com`, `api.github.com`, `github.com`
 
 Typical event shape:
 
@@ -85,8 +87,9 @@ Scaffold and deploy:
 
 ```bash
 zombiectl install slack-bug-fixer
-zombiectl credential add slack_bot_token --value=$SLACK_BOT_TOKEN
-zombiectl credential add github_token    --value=$GITHUB_TOKEN
+zombiectl credential add slack_bot_token       --value=$SLACK_BOT_TOKEN
+zombiectl credential add slack_signing_secret  --value=$SLACK_SIGNING_SECRET
+zombiectl credential add github_token          --value=$GITHUB_TOKEN
 zombiectl up
 ```
 
@@ -108,11 +111,12 @@ Minimal viable `TRIGGER.md`:
 name: my-zombie
 trigger:
   type: webhook
-  source: http
-skills:
-  - http
 budget:
-  max_tokens_per_event: 2000
+  daily_dollars: 1.0
+  monthly_dollars: 10.0
+network:
+  allow:
+    - httpbin.org
 ---
 
 Short human description of what this zombie does.
@@ -121,7 +125,7 @@ Short human description of what this zombie does.
 Minimal viable `SKILL.md`:
 
 ```markdown SKILL.md
-You are a simple HTTP echo agent. When an event arrives, log its `type` field
+You are a simple HTTP echo agent. When an event arrives, append its `type` field
 and body length to the activity stream. Do nothing else.
 ```
 

@@ -14,28 +14,36 @@ description: "Core terminology and mental model for UseZombie."
   </Accordion>
 
   <Accordion title="ZombieConfig">
-    The YAML + markdown file that defines a zombie. YAML frontmatter carries machine-readable
-    config (trigger, skills, credentials, budget); the markdown body carries agent instructions
-    in natural language. The CLI compiles this to JSON before uploading — the server only ever
-    sees JSON.
+    A zombie is defined by two files in a directory: `SKILL.md` (agent instructions, natural
+    language) and `TRIGGER.md` (machine-readable config, YAML frontmatter + optional human
+    description). The CLI uploads both files on `zombiectl up`; the server parses `TRIGGER.md`
+    and stores the `SKILL.md` body as the agent's system prompt.
 
-    ```yaml
+    ```markdown TRIGGER.md
     ---
     name: lead-collector
     trigger:
       type: webhook
-      source: email
-      token: your-token
-    skills:
-      - agentmail
+      source: agentmail
+      event: message.received
     credentials:
-      agentmail_api_key: op://your-vault/agentmail/api_key
+      - agentmail_api_key
     budget:
-      max_tokens_per_event: 4000
+      daily_dollars: 5.0
+      monthly_dollars: 29.0
+    network:
+      allow:
+        - api.agentmail.to
     ---
 
+    This zombie qualifies inbound sales email.
+    ```
+
+    ```markdown SKILL.md
     You are a lead qualification agent...
     ```
+
+    See [Authoring skills](/zombies/skills) for the full `TRIGGER.md` reference.
   </Accordion>
 
   <Accordion title="Trigger">
@@ -61,9 +69,9 @@ description: "Core terminology and mental model for UseZombie."
   </Accordion>
 
   <Accordion title="Activity stream">
-    An append-only audit log of every action a zombie takes. Every event received, every skill
+    An append-only record of every action a zombie takes. Every event received, every skill
     invoked, every response returned — timestamped and queryable. `zombiectl logs` streams the
-    activity log in real time. The stream is stored in Postgres and paginated by cursor for
+    activity stream in real time. The stream is stored in Postgres and paginated by cursor for
     replay and debugging.
   </Accordion>
 

@@ -82,7 +82,7 @@ zombiectl kill lead-collector
 
 ### `zombiectl logs --zombie <id>`
 
-Stream the activity log for one zombie.
+Stream the activity stream for one zombie.
 
 ```bash
 zombiectl logs --zombie zm_01JABC... --limit 50
@@ -234,7 +234,7 @@ zombiectl doctor
 
 ### `zombiectl skill-secret`
 
-Manage agent skill secrets per workspace.
+Manage **skill-scoped** secrets per workspace. Distinct from and unrelated to the standard zombie credential flow — standard zombies declare vault keys in `TRIGGER.md` under `credentials:` and the platform resolves them against the workspace vault written by `zombiectl credential add`. `skill-secret` writes to a separate, skill-ref–scoped table for operator scenarios where the same credential name needs different values per skill version.
 
 ```bash
 zombiectl skill-secret put --workspace-id <id> --skill-ref <ref> --key <key> --value <value> [--scope sandbox]

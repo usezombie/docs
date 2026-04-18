@@ -57,79 +57,77 @@ more than once per event.
 |-------|------|---------|
 | `name` | string | Display name; used as the kill target and in status output. |
 | `trigger.type` | string | Today only `webhook` is supported. |
-| `skills` | list of strings | Skills the agent is allowed to invoke. Unlisted skills are rejected by the firewall. |
+| `budget` | object | Daily and monthly dollar caps; see below. |
 
-### Common fields
+### Optional fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `trigger.source` | string | Upstream provider id — selects the webhook signature scheme for first-class providers (`agentmail`, `slack`, `github`, `linear`, `jira`, `grafana`, `clerk`). |
+| `trigger.event` | string | Provider-specific event filter (e.g. `message.received`). |
+| `trigger.signature.secret_ref` | string | Vault key name whose value verifies incoming webhook signatures (first-class providers). |
+| `credentials` | list of strings | Vault key names the zombie reads at event time. Must all exist in the workspace vault. |
+| `skills` | list of strings | Explicit skill allowlist. When present, the agent can only invoke operations on these skills. |
+| `chain` | list of strings | Names of zombies to hand off to after this zombie finishes an event. |
+| `network.allow` | list of strings | Outbound hostname allowlist enforced by the credential firewall. |
+
+### Full example
 
 ```yaml
 ---
 name: lead-collector
 trigger:
   type: webhook
-  source: email
-  signature:
-    secret_ref: agentmail_webhook_secret
-skills:
-  - agentmail
+  source: agentmail
+  event: message.received
+chain:
+  - lead-enricher
 credentials:
-  agentmail_api_key: op://workspace-vault/agentmail/api_key
+  - agentmail_api_key
 budget:
-  max_tokens_per_event: 4000
-  max_wall_seconds: 60
-approval:
-  # Require a human click before the agent can invoke agentmail.reply.
-  require_for:
-    - agentmail.reply
-  token_ref: lead_collector_approval_token
+  daily_dollars: 5.0
+  monthly_dollars: 29.0
+network:
+  allow:
+    - api.agentmail.to
 ---
 
-This zombie qualifies inbound sales email and sends acknowledgements after a
-human approves each draft reply.
+This zombie qualifies inbound sales email.
 ```
 
 ### Tool bindings
 
-The `skills:` list is the tool binding. The platform ships a catalog of skills (`agentmail`, `slack`, `github`, `linear`, `jira`, `grafana`, `clerk`, and a generic `http`). Each skill exposes named operations (`agentmail.reply`, `slack.post_message`, `github.open_pr`, ...) that the agent can invoke from `SKILL.md`.
+The `skills:` list is the tool binding when present. The platform ships a catalog of skills (`agentmail`, `slack`, `git`, `github`, `linear`, `jira`, `grafana`, `clerk`, and a generic `http`). Each skill exposes named operations (`agentmail.reply`, `slack.post_message`, `github.open_pr`, ...) that the agent can invoke from `SKILL.md`.
 
-An agent can only invoke operations that belong to a skill named in the list. A compromised or jailbroken agent cannot reach outside this allow-list.
+When `skills:` is declared, the agent can only invoke operations that belong to a skill named in the list; a compromised or jailbroken agent cannot reach outside this allow-list. When `skills:` is omitted, the platform binds skills implicitly from the `credentials:` list and the `network.allow` hostnames.
 
 ### Credential references
 
-Under `credentials:`, every value is a vault reference (`op://<vault>/<item>/<field>`). See [Credentials](/zombies/credentials). The firewall resolves the reference at the moment of the skill call; the agent sees the skill's response, never the resolved secret.
+Under `credentials:`, every entry is a **bare vault key name** — no URI scheme, no path. The firewall resolves each name against the workspace vault at the moment of the skill call; the agent sees the skill's response, never the resolved secret. See [Credentials](/zombies/credentials) for how to add, rotate, and list vault entries.
 
 ### Budgets
 
-Under `budget:`, you cap per-event cost:
+Under `budget:`, you cap spend with two dollar ceilings. Both are enforced by the billing subsystem; a breach terminates the event processing cleanly and records a `budget_breach` entry in the activity stream. Subsequent events in a later billing window are unaffected.
 
-| Field | Default | Purpose |
-|-------|---------|---------|
-| `max_tokens_per_event` | 4000 | LLM token ceiling for a single event. |
-| `max_wall_seconds` | 60 | Wall-clock ceiling for a single event. |
+| Field | Purpose |
+|-------|---------|
+| `daily_dollars` | Rolling 24-hour dollar ceiling for this zombie. |
+| `monthly_dollars` | Calendar-month dollar ceiling for this zombie. |
 
-A breach terminates the event processing cleanly and records a `budget_breach` entry in the activity stream. Subsequent events are unaffected. Workspace-level budgets (monthly dollar caps) are configured separately in [Billing](/billing/budgets).
+Workspace-level budgets (across all zombies in the workspace) are configured separately in [Billing](/billing/budgets).
 
-### Approvals
+### Network allowlist
 
-Under `approval:`, you gate specific skill operations behind a human click.
-
-```yaml
-approval:
-  require_for:
-    - agentmail.reply
-    - github.open_pr
-  token_ref: lead_collector_approval_token
-```
-
-When the agent attempts an approval-gated operation, the event is paused and a notification is emitted (dashboard + webhook). A human reviews the draft, approves or denies, and the event continues. See [Webhooks](/zombies/webhooks#approval-gate-webhooks) for the callback shape.
+Under `network.allow:`, list every hostname the zombie's skills are allowed to reach. Outbound requests to other hostnames are dropped by the firewall before they leave the sandbox. This is a belt-and-suspenders control layered on top of the skill allowlist — even if a skill is bound, it can only dial the hostnames you have approved here.
 
 ## Validation
 
 `zombiectl up` validates both files client-side before upload:
 
 - `TRIGGER.md` frontmatter must parse as YAML.
-- `name`, `trigger.type`, `skills` must be present.
-- Every `credentials` key must resolve against the current workspace vault.
-- Every skill name must exist in the platform catalog.
+- `name`, `trigger.type`, `budget` must be present.
+- Every name under `credentials:` must exist in the current workspace vault.
+- Every skill name under `skills:` (when declared) must exist in the platform catalog.
 
 Errors are reported with file + line where possible.
 
@@ -138,9 +136,10 @@ zombiectl up
 ```
 
 ```
-✗ TRIGGER.md: unknown skill 'email' — did you mean 'agentmail'?
-  at line 8: skills:
-              - email
+✗ TRIGGER.md: unknown credential 'agentmail' — is it in the workspace vault?
+  at line 6: credentials:
+              - agentmail
+  hint: run `zombiectl credential list` to see what is stored.
 ```
 
 ## Next

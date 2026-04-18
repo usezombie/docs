@@ -90,7 +90,7 @@ Some zombie actions — sending money, merging a PR, posting to a public channel
 POST https://hooks.usezombie.com/v1/webhooks/{zombie_id}/approval
 ```
 
-The approval webhook carries the approval decision back into the event loop. The zombie's declared approval token (in its `TRIGGER.md` under `approval.token_ref`) authenticates the call.
+The approval webhook carries the approval decision back into the event loop. The approval endpoint is authenticated by the same Bearer token the platform auto-provisions for the zombie on `zombiectl up`.
 
 ```bash
 curl -X POST https://hooks.usezombie.com/v1/webhooks/zm_01JABC.../approval \
@@ -99,7 +99,7 @@ curl -X POST https://hooks.usezombie.com/v1/webhooks/zm_01JABC.../approval \
   -d '{ "approval_id": "apr_01JQ...", "decision": "approve" }'
 ```
 
-A companion `/grant-approval` endpoint covers the grant-flow case where a zombie asks for permission to attach a new integration (for example, a new Slack workspace). See [Skills and approvals](/zombies/skills#approvals) for when to declare an approval gate.
+A companion `/grant-approval` endpoint covers the grant-flow case where a zombie asks for permission to attach a new integration (for example, a new Slack workspace) — see [Integration grants](/cli/zombiectl#integration-grants) for the CLI-side view.
 
 ## URL-embedded secret form
 

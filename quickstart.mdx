@@ -30,27 +30,29 @@ description: Install a zombie and have your agent running with two commands.
 
     Open the file to see what's inside:
 
-    ```markdown lead-collector.md
+    ```markdown TRIGGER.md
     ---
     name: lead-collector
     trigger:
       type: webhook
-      source: email
-      token: your-webhook-token
-    skills:
-      - agentmail
+      source: agentmail
+      event: message.received
     credentials:
-      agentmail_api_key: op://your-vault/agentmail/api_key
+      - agentmail_api_key
     budget:
-      max_tokens_per_event: 4000
-      max_wall_seconds: 60
+      daily_dollars: 5.0
+      monthly_dollars: 29.0
+    network:
+      allow:
+        - api.agentmail.to
     ---
 
-    You are a lead qualification agent. When an email arrives:
-    1. Read the sender and subject line.
-    2. If it looks like a real sales inquiry, reply with a short acknowledgement.
-    3. Log what you did in the activity stream.
+    This zombie qualifies inbound sales email.
     ```
+
+    The companion `SKILL.md` carries the agent instructions in natural language — who the
+    agent is, what events it receives, what to do with each.
+
   </Step>
 
   <Step title="Add credentials">
@@ -94,7 +96,7 @@ description: Install a zombie and have your agent running with two commands.
     zombiectl logs
     ```
 
-    `zombiectl logs` streams the activity log — every event received, every action taken, every
+    `zombiectl logs` streams the activity stream — every event received, every action taken, every
     credential used — with timestamps and token counts.
   </Step>
 
