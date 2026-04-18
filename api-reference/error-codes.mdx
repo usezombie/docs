@@ -130,6 +130,7 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | `UZ-ZMB-007` | 400 | Zombie credential value too long | Credential value exceeds 4KB limit |
 | `UZ-ZMB-008` | 400 | Invalid zombie config | TRIGGER.md config_json fails schema validation |
 | `UZ-ZMB-009` | 404 | Zombie not found | No zombie with this ID in the workspace |
+| `UZ-ZMB-010` | 409 | Zombie already stopped | Zombie is already in the `stopped` state. No-op — no action required. |
 
 ## Gate
 
