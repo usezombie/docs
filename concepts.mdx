@@ -71,7 +71,7 @@ description: "Core terminology and mental model for UseZombie."
     The persisted state between event deliveries. After each event is processed, the zombie's
     agent state (conversation history, working memory) is checkpointed to Postgres. If the
     process crashes, the next event picks up from the last checkpoint. This is what makes
-    zombies stateful across runs — they remember context across events.
+    zombies stateful between events — they remember context from one delivery to the next.
   </Accordion>
 
   <Accordion title="Kill switch">
@@ -104,8 +104,7 @@ description: "Core terminology and mental model for UseZombie."
   <Accordion title="Executor">
     The sidecar process (`zombied-executor`) that owns the sandbox lifecycle. The executor
     spawns NullClaw agents inside isolated sandbox containers, enforces resource limits (CPU,
-    memory, time), and reports execution results back to the event loop. The executor is also
-    used for harness compilation and spec preview in legacy v1 workflows.
+    memory, time), and reports execution results back to the event loop.
   </Accordion>
 
   <Accordion title="Event loop">
