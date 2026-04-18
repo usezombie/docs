@@ -7,6 +7,137 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.18.0 — Apr 16, 2026" tags={["New", "API", "UI"]}>
+  ## Operator dashboard API + shared UI foundation (M12_001)
+
+  M12 narrows to the foundation that the operator dashboard will be built on: three new backend endpoints, a reusable UI component toolbox, and a proper token pyramid for theming. The dashboard pages themselves move to M27 (pending M26 design-system unification) so they build on a unified Button rather than rewriting it mid-flight.
+
+  ## New API endpoints
+
+  - `GET /v1/workspaces/{workspace_id}/activity?limit=&cursor=` — workspace-wide activity feed across every zombie, cursor-paginated newest-first. Powers the dashboard's Recent Activity panel.
+  - `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}:stop` — operator kill switch. Transitions `active` / `paused` → `stopped`, emits a `zombie_stopped` activity event. Returns `409 UZ-ZMB-010` on re-call, `404 UZ-ZMB-009` on cross-workspace (IDOR guard).
+  - `GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/billing/summary?period_days=7|30` — per-zombie slice of the workspace billing summary. Shares the exact response envelope with the workspace-scoped endpoint; SDKs get one `Paginated<BillingSummary>` shape.
+
+  ## Workspace billing summary upgraded
+
+  `GET /v1/workspaces/{workspace_id}/billing/summary` returned zeros since M10 dropped `usage_ledger`. It now aggregates real data from `zombie_execution_telemetry` through a shared `billing_summary_store` so workspace and per-zombie summaries can't drift. A new `total_cents` field on the response carries the sum of billable credits. Accepts both the legacy `?period=7d|30d|90d` and the new `?period_days=7|30|90` parameter.
+
+  ## Shared UI primitives (ui/packages/app)
+
+  Six React primitives land in `components/ui/` (+ `components/domain/ActivityFeed.tsx`), each with a colocated unit test and ARIA / mobile-responsive baked in: `StatusCard`, `EmptyState`, `Pagination` (cursor + page variants), `DataTable`, `ConfirmDialog`, `ActivityFeed`. 70/70 tests green.
+
+  ## Three-layer token pyramid
+
+  `app/globals.css` now hosts a proper shadcn-style `@theme inline` block bridging Layer-0 primitives (`--z-*` in `@usezombie/design-system/tokens.css`) through semantic names (`--primary`, `--success`, `--warning`, `--info`, `--destructive`, `--primary-glow[-strong]`) to Tailwind v4 utility classes (`bg-success`, `text-warning`, `border-info`). The existing `button.tsx` is refactored to drop every `var(--z-*)` arbitrary-value reference. `components.json` + `tw-animate-css` install unlocks `bunx shadcn@latest add <primitive>` for future upstream a11y fixes.
+
+  ## Deferred to follow-up milestones
+
+  - Operator dashboard pages (overview / zombies / zombie detail / firewall / settings) — **M27_001**, blocked on M26.
+  - `@usezombie/design-system` self-contained + framework-agnostic + shared between `ui/packages/app` (Next.js App Router) and `ui/packages/website` (Vite SPA) — **M26_001**.
+
+  Both spec files are in `docs/v2/pending/` and carry full execution plans.
+</Update>
+
+<Update label="v0.17.0 — Apr 16, 2026" tags={["Breaking", "API", "CLI"]}>
+  ## REST API conventions cleanup
+
+  List endpoints now return a standard `{ items, total }` envelope (plus `cursor` where paginated), so SDKs can share a single `Paginated<T>` across zombies, external agents, integration grants, and activity. The per-resource keys — `zombies`, `agents`, `grants`, `events` — are gone.
+
+  ## Memory reads are now GET
+
+  `GET /v1/memory/recall?zombie_id=&query=&limit=` and `GET /v1/memory/list?zombie_id=&category=&limit=` replace the previous `POST` forms. Response shape is also `items`/`total` (was `entries`/`count`). `store` and `forget` are unchanged.
+
+  ## Response cleanup
+
+  `DELETE` on external agents and integration grants now returns a proper `204 No Content` through the standard envelope instead of a hand-rolled status write.
+
+  ## OpenAPI spec — full coverage
+
+  `public/openapi.json` now documents every route the server actually exposes. 8 stale paths removed (`/v1/runs/*` retired in v0.10, and an orphaned `skills/*/secrets/*`), and 26 previously-undocumented operations authored: workspace-scoped zombies, workspace credentials, memory, external agents, integration grants, execute, slack, approval + grant-approval webhooks, internal telemetry, spec relay, scoring config. SDK generators can now emit typed clients for the full surface.
+
+  ## CLI in lockstep
+
+  `zombiectl` updated in the same release — `zombiectl status`, `zombiectl logs`, `zombiectl agent list`, and `zombiectl grant list` all consume the new envelope. Upgrade both sides together.
+</Update>
+
+<Update label="v0.16.1 — Apr 16, 2026" tags={["Internal", "Performance"]}>
+  ## zBench Micro-Benchmark Catalog (M25_001)
+
+  Tier-1 of `make bench` now runs a catalog of micro-benchmarks on zombied's hot
+  paths instead of a single placeholder. Each benchmark has a regression gate
+  documented against a measured baseline so a code-level slowdown (JSON encoding,
+  route matching, cursor parsing, UUID minting, webhook signature verification,
+  error-registry lookup) trips a named alarm separately from the system-level
+  p95 that Tier-2 hey reports.
+
+  No user-visible surface change — internal tooling for operators and maintainers.
+</Update>
+
+<Update label="v0.16.0 — Apr 16, 2026" tags={["Breaking", "API", "CLI"]}>
+  ## REST Workspace-Scoped Route Refactor (M24_001)
+
+  Flat `/v1/zombies/*` endpoints have been replaced with workspace-scoped REST paths. Query
+  parameters are now reserved for pagination (`page`, `limit`, `cursor`) and search (`search`).
+  Identity — workspace, zombie, grant — is always in the URL path.
+
+  **Route migration:**
+
+  | Before | After |
+  | --- | --- |
+  | `GET    /v1/zombies/?workspace_id=X` | `GET    /v1/workspaces/{ws}/zombies` |
+  | `POST   /v1/zombies/` | `POST   /v1/workspaces/{ws}/zombies` |
+  | `DELETE /v1/zombies/{id}` | `DELETE /v1/workspaces/{ws}/zombies/{id}` |
+  | `GET    /v1/zombies/activity?zombie_id=X` | `GET    /v1/workspaces/{ws}/zombies/{id}/activity` |
+  | `GET    /v1/zombies/credentials?workspace_id=X` | `GET    /v1/workspaces/{ws}/credentials` |
+  | `POST   /v1/zombies/credentials` | `POST   /v1/workspaces/{ws}/credentials` |
+  | `POST   /v1/zombies/{id}/integration-requests` | `POST   /v1/workspaces/{ws}/zombies/{id}/integration-requests` |
+  | `GET    /v1/zombies/{id}/integration-grants` | `GET    /v1/workspaces/{ws}/zombies/{id}/integration-grants` |
+  | `DELETE /v1/zombies/{id}/integration-grants/{gid}` | `DELETE /v1/workspaces/{ws}/zombies/{id}/integration-grants/{gid}` |
+  | `POST   /v1/zombies/{id}:steer` | `POST   /v1/workspaces/{ws}/zombies/{id}:steer` |
+
+  **Breaking:** flat `/v1/zombies/*` paths now return bare 404. No 410 Gone stubs
+  (pre-v2.0 API teardown policy). Update clients before upgrading.
+
+  **Request-body changes:** `workspace_id` is no longer accepted in POST bodies for
+  `zombies` and `credentials` — the URL path is authoritative.
+
+  **Authorization:** every new workspace-scoped handler calls `authorizeWorkspace`
+  after authentication (RULE WAUTH). Cross-workspace zombie lookups return 404, not
+  403, to avoid leaking existence.
+
+  **`zombiectl` is already updated** — no user action needed if you're on the latest CLI.
+  Rolling back the CLI while the API is updated will break.
+
+  **OpenAPI:** `openapi.json` `:steer` path updated; broader workspace-scoped coverage
+  for CRUD/activity/grants endpoints will follow in a dedicated docs milestone.
+</Update>
+
+<Update label="v0.15.0 — Apr 15, 2026" tags={["New", "API", "Workers"]}>
+  ## Live Zombie Steering (M23_001)
+
+  Operators can now redirect a running zombie mid-execution without killing it.
+
+  **How it works:**
+  - `POST /v1/zombies/{id}:steer` writes a message to Redis key `zombie:{id}:steer` with a 300s TTL.
+  - The worker polls this key at the top of each event loop iteration. When found, the message
+    is injected as a synthetic `steer` event into the zombie's event stream and delivered normally.
+  - The response includes `execution_id` (null if zombie is idle) so callers know whether
+    the steer message lands mid-execution or is queued for the zombie's next event.
+
+  **Execution tracking:**
+  - `core.zombie_sessions` now records `execution_id` and `execution_started_at` when a
+    zombie begins executing. Both are cleared when execution ends or on worker restart
+    (crash recovery).
+
+  **Response shape:**
+  ```json
+  { "message_queued": true, "execution_active": true, "execution_id": "exec_..." }
+  ```
+
+  **Error contracts:** 401 missing auth · 404 cross-workspace zombie · 400 empty or >8192-byte message
+
+</Update>
+
 <Update label="v0.14.0 — Apr 12, 2026" tags={["New", "Memory", "API"]}>
   ## Persistent Zombie Memory (M14_001)
 

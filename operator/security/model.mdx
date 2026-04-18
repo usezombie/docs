@@ -36,15 +36,15 @@ The executor does **not** have access to credentials in its environment. The Ant
 
 If any sandbox prerequisite is missing at startup, the executor refuses to start:
 
-- Landlock not supported by the kernel: executor exits with `UZ-SANDBOX-001`.
-- cgroups v2 not available: executor exits with `UZ-SANDBOX-001`.
+- Landlock not supported by the kernel: executor exits with a diagnostic error.
+- cgroups v2 not available: executor exits with a diagnostic error.
 - Unix socket path not writable: executor exits with a diagnostic error.
 
 There is no degraded mode in production. Either the full sandbox is enforced, or the executor does not run.
 
 ## Lease-based liveness
 
-Each run has a lease — a bounded time window during which the worker holds exclusive ownership. If the worker crashes or becomes unresponsive, the lease eventually expires, and the reconciler marks the run as failed (`UZ-EXEC-014`).
+Each run has a lease — a bounded time window during which the worker holds exclusive ownership. If the worker crashes or becomes unresponsive, the lease eventually expires, and the reconciler marks the run as failed.
 
 Leases prevent zombie runs from consuming resources indefinitely. They also prevent two workers from accidentally working on the same run.
 

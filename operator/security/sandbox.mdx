@@ -47,7 +47,7 @@ Each agent execution runs in its own cgroups v2 scope with memory and CPU limits
 - Default limit: 512 MB (`EXECUTOR_MEMORY_LIMIT_MB`).
 - Enforcement: kernel OOM killer terminates the process if the limit is exceeded.
 - Detection: executor reads cgroup OOM events after execution completes.
-- Error code: `UZ-EXEC-009`.
+- Metric: `oom_kills_total`.
 
 ### CPU
 
@@ -83,9 +83,9 @@ When an agent execution fails due to sandbox enforcement, the failure is classif
 
 | Failure class | Error code | Metric | Description |
 |---------------|------------|--------|-------------|
-| OOM kill | `UZ-EXEC-009` | `oom_kills_total` | Memory limit exceeded, process killed by kernel OOM. |
-| Timeout | `UZ-EXEC-008` | `timeout_kills_total` | Execution exceeded `RUN_TIMEOUT_MS`. |
-| Filesystem denial | `UZ-EXEC-011` | `landlock_denials_total` | Agent tried to access a denied path. |
-| Network denial | `UZ-EXEC-010` | — | Agent tried to make a blocked network connection. |
+| Timeout | `UZ-EXEC-003` | `timeout_kills_total` | Execution exceeded its timeout and was killed. |
+| Posture failure | `UZ-EXEC-009` | — | Per-run sandbox posture check failed at executor startup. |
+| OOM kill | — | `oom_kills_total` | Memory limit exceeded, process killed by kernel OOM. |
+| Filesystem denial | — | `landlock_denials_total` | Agent tried to access a denied path. |
+| Network denial | — | — | Agent tried to make a blocked network connection. |
 | Resource kill | — | `resource_kills_total` | Aggregate: any resource-based kill (OOM, timeout, CPU). |
-| Lease expired | `UZ-EXEC-014` | `lease_expired_total` | Worker lost the run lease before completion. |

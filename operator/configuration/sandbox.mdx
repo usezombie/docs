@@ -13,7 +13,7 @@ Every agent execution runs inside a sandbox that enforces resource limits and is
 |---------|----------|---------|
 | Memory cap | `EXECUTOR_MEMORY_LIMIT_MB` | `512` |
 
-The executor creates a cgroups v2 memory scope for each agent execution. If the agent exceeds the memory limit, the kernel OOM-kills the process. The executor detects OOM events and records them as `UZ-EXEC-009` failures.
+The executor creates a cgroups v2 memory scope for each agent execution. If the agent exceeds the memory limit, the kernel OOM-kills the process. The executor detects OOM events and records them via the `oom_kills_total` metric.
 
 Setting this too low causes frequent OOM kills on compilation-heavy workloads. Setting it too high risks one runaway agent starving others on multi-concurrency workers.
 
