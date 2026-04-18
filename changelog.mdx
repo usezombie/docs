@@ -11,6 +11,40 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Each release follows a standard format: **What's new** for new capabilities, **API reference** for endpoint additions and shape changes, **Bug fixes** for user-visible fixes, and **Upgrading** whenever a release contains a breaking change. Versions follow semver — minor bumps add features, patches fix bugs, and anything breaking is called out under Upgrading.
 </Note>
 
+<Update label="v0.21.0 — Apr 19, 2026" tags={["Breaking", "API", "CLI"]}>
+  ## Legacy spec/run commands and endpoints removed
+
+  The v1 spec→run flow is gone. Zombies are the product model now — long-lived agents you install, steer, and kill — and the old "submit a spec YAML, wait for a run" surface has been removed from both `zombied` and `zombiectl`. Leaving it around was confusing the CLI help, the API surface, and reviewers.
+
+  ## Upgrading
+
+  The following commands and endpoints no longer exist. Migrate to the zombie-centric equivalents (see the Zombies section of the docs) before upgrading:
+
+  - **`zombied` subcommand removed:**
+    - `zombied run <spec>` (including `--watch`). The pre-flight `spec-validate` helper is gone with it.
+  - **`zombiectl` commands removed:**
+    - `zombiectl run` (queue a run) and `zombiectl run status <run_id>`
+    - `zombiectl run --spec <file> --preview` / `--preview-only`
+    - `zombiectl run --watch`
+    - `zombiectl runs list`, `zombiectl runs cancel`, `zombiectl runs replay`, `zombiectl runs interrupt`
+    - `zombiectl spec init`
+  - **HTTP endpoints removed (return 404):**
+    - `POST /v1/workspaces/{workspace_id}/spec/template`
+    - `POST /v1/workspaces/{workspace_id}/spec/preview`
+
+  Invoking any removed CLI command now exits non-zero with `unknown command: …`. Clients that still POST to the removed endpoints receive 404 with the standard `application/problem+json` body — no 410 gone stub is provided on pre-v1.0 releases. CLI and server can upgrade independently; both sides of the v1 flow are removed in this release.
+
+  ## API reference
+
+  - Removed `POST /v1/workspaces/{workspace_id}/spec/template` — spec generation via LLM relay.
+  - Removed `POST /v1/workspaces/{workspace_id}/spec/preview` — blast-radius preview via LLM relay.
+  - All other workspace routes, including `/credentials/llm`, `/zombies`, `/activity`, agent-keys, and tenant API keys, are unchanged.
+
+  ## CLI
+
+  `zombiectl --help` now lists only the commands that map to the zombie-centric model: `login`, `logout`, `workspace`, `specs sync`, `doctor`, `skill-secret`, `admin`, plus the `zombie install|up|status|kill|logs|credential` family. The help banner is five lines shorter.
+</Update>
+
 <Update label="v0.20.0 — Apr 18, 2026" tags={["What's new", "API", "Security"]}>
   ## Tenant API keys — multi-key, rotatable, self-service admin auth
 
