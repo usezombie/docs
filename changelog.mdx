@@ -11,12 +11,27 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Each release follows a standard format: **What's new** for new capabilities, **API reference** for endpoint additions and shape changes, **Bug fixes** for user-visible fixes, and **Upgrading** whenever a release contains a breaking change. Versions follow semver — minor bumps add features, patches fix bugs, and anything breaking is called out under Upgrading.
 </Note>
 
-<Update label="v0.19.0 — Apr 18, 2026" tags={["What's new", "API", "Security", "Integrations"]}>
+<Update label="v0.19.0 — Apr 18, 2026" tags={["Breaking", "What's new", "API", "CLI", "Security", "Integrations"]}>
   ## Unified webhook authentication — seven first-class providers
 
   Every per-zombie webhook now flows through a single authentication middleware before your handler sees the request. URL-embedded secrets, Bearer tokens, HMAC signatures, and Svix multi-signature rotation are all verified in one place, with constant-time comparisons throughout and a fail-closed default.
 
   Seven first-class providers ship in this release: **agentmail**, **Grafana**, **Slack**, **GitHub**, **Linear**, **Jira**, and **Clerk** (via Svix). Each authenticates through the middleware that fits its model — no per-provider branches in handler code, and no env reads on the hot path.
+
+  ## Upgrading
+
+  - **Custom-method endpoints (`:action`) moved to subpath form (`/action`).** Google-style `:action` URL syntax (e.g. `/v1/workspaces/{ws}/zombies/{id}:steer`) has been replaced with a direct subpath (`/v1/workspaces/{ws}/zombies/{id}/steer`) so the public OpenAPI spec validates cleanly and standard documentation tooling can parameterize it. Affected endpoints: `:steer`, `:stop`, `:approval`, `:grant-approval`, `:pause`, `:sync`. **Upgrade `zombiectl` and the server together** — rolling back the CLI against the new server will break. If you construct these URLs directly (e.g. from a script or SDK), update them to the new form.
+
+    | Before | After |
+    | --- | --- |
+    | `POST /v1/webhooks/{zombie_id}:approval` | `POST /v1/webhooks/{zombie_id}/approval` |
+    | `POST /v1/webhooks/{zombie_id}:grant-approval` | `POST /v1/webhooks/{zombie_id}/grant-approval` |
+    | `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}:steer` | `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/steer` |
+    | `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}:stop` | `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/stop` |
+    | `POST /v1/workspaces/{workspace_id}:pause` | `POST /v1/workspaces/{workspace_id}/pause` |
+    | `POST /v1/workspaces/{workspace_id}:sync` | `POST /v1/workspaces/{workspace_id}/sync` |
+
+    Reserved path segments: the webhook action endpoints (`approval`, `grant-approval`) and the Svix route prefix (`svix`) now occupy the URL-secret slot on `/v1/webhooks/{zombie_id}/...`. Webhook URL secrets cannot use those literal values.
 
   ## What's new
 
