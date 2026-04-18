@@ -11,30 +11,61 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Each release follows a standard format: **What's new** for new capabilities, **API reference** for endpoint additions and shape changes, **Bug fixes** for user-visible fixes, and **Upgrading** whenever a release contains a breaking change. Versions follow semver — minor bumps add features, patches fix bugs, and anything breaking is called out under Upgrading.
 </Note>
 
-<Update label="v0.19.0 — Apr 18, 2026" tags={["What's new", "API", "Security"]}>
-  ## Unified webhook authentication
+<Update label="v0.19.0 — Apr 18, 2026" tags={["What's new", "API", "Security", "Integrations"]}>
+  ## Unified webhook authentication — seven first-class providers
 
-  Webhook authentication now runs through a single middleware before your handler sees the request. URL-embedded secrets, Bearer tokens, and HMAC signatures are all verified in one place, with constant-time comparisons throughout and a fail-closed default.
+  Every per-zombie webhook now flows through a single authentication middleware before your handler sees the request. URL-embedded secrets, Bearer tokens, HMAC signatures, and Svix multi-signature rotation are all verified in one place, with constant-time comparisons throughout and a fail-closed default.
+
+  Seven first-class providers ship in this release: **agentmail**, **Grafana**, **Slack**, **GitHub**, **Linear**, **Jira**, and **Clerk** (via Svix). Each authenticates through the middleware that fits its model — no per-provider branches in handler code, and no env reads on the hot path.
 
   ## What's new
 
-  - **Config-driven HMAC providers.** Adding a new HMAC-SHA256 provider (Jira, Asana, Stripe, or any future integration) no longer requires a code change — declare the signature scheme in your `TRIGGER.md` frontmatter:
+  - **One-line onboarding for registry providers.** GitHub, Linear, and Clerk webhooks each require one field in your `TRIGGER.md` — the middleware picks up the correct signature scheme automatically:
 
     ```yaml
-    webhook:
+    # GitHub — one field
+    trigger:
+      type: webhook
+      source: "github"
       signature:
-        header: "x-jira-hook-signature"
-        prefix: "sha256="
-        ts_header: "x-jira-timestamp"  # optional
+        secret_ref: "github_webhook_secret"
+
+    # Linear — identical shape
+    trigger:
+      type: webhook
+      source: "linear"
+      signature:
+        secret_ref: "linear_webhook_secret"
+
+    # Clerk — one field; route path /v1/webhooks/svix/{zombie_id} selects the Svix middleware
+    trigger:
+      type: webhook
+      source: "clerk"
+      signature:
+        secret_ref: "clerk_webhook_secret"
     ```
 
-  - **Built-in provider registry** covers Slack, GitHub, and Linear. Invariants (unique signature headers, non-empty header names) are enforced at build time.
-  - **Slack signing secret** is now loaded once at server boot instead of being re-read from the environment on every request.
+  - **Custom HMAC providers stay configuration-only.** Providers outside the registry (Jira today, Asana and Stripe tomorrow) declare the scheme explicitly in `TRIGGER.md` — no code change required:
+
+    ```yaml
+    trigger:
+      type: webhook
+      source: "jira"
+      signature:
+        secret_ref: "jira_webhook_secret"
+        header: "x-jira-hook-signature"
+        prefix: "sha256="
+    ```
+
+  - **Clerk via Svix is supported end-to-end.** A dedicated middleware handles Svix v1 multi-signature HMAC, including key rotation: the middleware iterates every space-delimited entry in the `svix-signature` header and accepts the first constant-time match. Timestamp freshness (5-minute window) and tampered-body detection are enforced automatically.
+  - **Per-zombie webhook secrets are vault-backed.** You declare a `secret_ref`; the secret itself is stored encrypted per workspace and loaded only at verification time. Rotating a secret is a vault update — no zombie reconfigure.
 
   ## API reference
 
-  - Error codes are preserved: `UZ-AUTH-001` (URL secret or Bearer mismatch), `UZ-WH-010` (invalid HMAC signature), `UZ-WH-011` (stale timestamp, older than 5 minutes).
-  - Failure behavior is fail-closed across every strategy.
+  - **New route:** `POST /v1/webhooks/svix/{zombie_id}` — entry point for Clerk (and any future Svix-signed sender). Returns `202` on valid signature; `401 UZ-WH-010` on tamper/bad signature; `401 UZ-WH-011` on stale `svix-timestamp`.
+  - **Existing route:** `POST /v1/webhooks/{zombie_id}` continues to serve agentmail, Grafana, GitHub, Linear, and Jira — the middleware dispatches to URL-secret, Bearer, or HMAC verification based on what the zombie declares.
+  - **Error codes** are preserved and now apply consistently across every provider: `UZ-AUTH-002` (URL secret or Bearer mismatch), `UZ-WH-010` (invalid HMAC / Svix signature), `UZ-WH-011` (stale timestamp, older than 5 minutes).
+  - **Fail-closed** is the default across every strategy. An unreachable vault or missing secret returns 401 — the handler never sees an unauthenticated request.
 </Update>
 
 <Update label="v0.18.0 — Apr 16, 2026" tags={["What's new", "API", "UI"]}>
