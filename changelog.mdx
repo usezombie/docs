@@ -7,6 +7,36 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
+<Update label="v0.19.0 — Apr 18, 2026" tags={["New", "API", "Security"]}>
+  ## Unified webhook authentication middleware (M28_001)
+
+  Webhook authentication has been consolidated into a single middleware that runs before your handler sees the request. All three paths — URL-embedded secret, Bearer token, and HMAC signature — are now verified in one place, with constant-time comparisons throughout.
+
+  ## Zero-code scaling for new HMAC providers
+
+  Adding a new HMAC-SHA256 provider (Jira, Asana, Stripe, or any future integration) no longer requires a code change. Declare the signature scheme in your `TRIGGER.md` frontmatter and the middleware builds the verifier at request time:
+
+  ```yaml
+  webhook:
+    signature:
+      header: "x-jira-hook-signature"
+      prefix: "sha256="
+      ts_header: "x-jira-timestamp"  # optional
+  ```
+
+  Slack, GitHub, and Linear remain in the built-in provider registry with comptime-enforced invariants (unique signature headers, non-empty header names).
+
+  ## Behavior that no longer happens
+
+  - Slack signing secret is no longer read from the environment on every request — it's loaded once at server boot.
+  - `webhooks.zig` contains zero authentication logic. Handlers are now pure dispatch-and-respond.
+  - Three copies of constant-time comparison logic (one per handler) have been removed in favor of the single middleware path.
+
+  ## Error codes
+
+  Existing error codes are preserved: `UZ-AUTH-001` for URL secret / Bearer mismatch, `UZ-WH-010` for invalid HMAC, `UZ-WH-011` for stale timestamps (>5 min). Failure behavior is fail-closed throughout.
+</Update>
+
 <Update label="v0.18.0 — Apr 16, 2026" tags={["New", "API", "UI"]}>
   ## Operator dashboard API + shared UI foundation (M12_001)
 
