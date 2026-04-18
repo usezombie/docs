@@ -211,7 +211,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   ## API reference
 
-  - `POST /v1/zombies/{id}:steer` — writes a message to Redis key `zombie:{id}:steer` with a 300-second TTL.
+  - `POST /v1/zombies/{id}:steer` — writes a message to Redis key `zombie:{id}:steer` with a 300-second TTL. *(Moved to workspace-scoped path and renamed to `/steer` in later releases — see v0.16.0 and v0.19.0 Upgrading.)*
 
     Response:
 
