@@ -38,8 +38,8 @@ Errors that prevent the API or worker from starting. These surface in systemd lo
 
 | Code | Meaning | Remediation |
 |------|---------|-------------|
-| `UZ-STARTUP-001` | Bootstrap failed | Generic startup failure. Check the preceding log lines for the underlying cause (sandbox prerequisites, config, etc.). |
-| `UZ-STARTUP-002` | Config load failed | Required environment variables are missing or invalid. |
+| `UZ-STARTUP-001` | Environment check failed | Required environment variables are missing. Run `zombied doctor` to see which ones. |
+| `UZ-STARTUP-002` | Config load failed | Configuration failed to load. Check that all required env vars are set. |
 | `UZ-STARTUP-003` | Database connect failed | The database is unreachable. Verify `DATABASE_URL` and that the database accepts connections. |
 | `UZ-STARTUP-004` | Redis connect failed | Redis is unreachable. Verify `REDIS_URL_API` and `REDIS_URL_WORKER`. |
 | `UZ-STARTUP-005` | Migration check failed | Database migration state could not be verified. Check DB connectivity. |
