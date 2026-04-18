@@ -11,6 +11,30 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Each release follows a standard format: **What's new** for new capabilities, **API reference** for endpoint additions and shape changes, **Bug fixes** for user-visible fixes, and **Upgrading** whenever a release contains a breaking change. Versions follow semver — minor bumps add features, patches fix bugs, and anything breaking is called out under Upgrading.
 </Note>
 
+<Update label="v0.20.0 — Apr 18, 2026" tags={["What's new", "API", "Security"]}>
+  ## Tenant API keys — multi-key, rotatable, self-service admin auth
+
+  Admin auth is no longer tied to a single process-wide env var. Tenant admins now mint named API keys via the API, each scoped to their tenant, revocable on demand, and identifiable in audit logs. The legacy `API_KEY` environment variable still works as a bootstrap fallback, but it is no longer the primary admin auth path — new installs and production tenants should migrate to tenant API keys.
+
+  Keys are `zmb_t_`-prefixed (6-char prefix + 64 hex chars, 70 total) and are **returned exactly once on creation** — only the SHA-256 hex digest is persisted. The raw key cannot be retrieved again; if lost, revoke it and mint a new one.
+
+  ## What's new
+
+  - **Mint, list, revoke, and delete tenant keys** through the new `/v1/api-keys` endpoint family. Every query is tenant-scoped; no CRUD call can read or mutate another tenant's keys.
+  - **Per-request principal carries `user_id` and `tenant_id`** when authenticated with a tenant key — enabling per-tenant isolation, per-key revocation, and audit identity without server restarts.
+  - **Bootstrap warning on startup.** When the server boots with only the legacy `API_KEY` env var set, a warning is emitted to nudge operators toward tenant keys (no behavior change; fallback still works).
+  - **Workspace-scoped "external agent" keys renamed to "agent keys"** for consistency. The underlying table is now `core.agent_keys`; the public endpoints moved from `/v1/workspaces/{ws}/external-agents` to `/v1/workspaces/{ws}/agent-keys`. Operation IDs renamed from `list_external_agents` / `create_external_agent` / `delete_external_agent` to `list_agent_keys` / `create_agent_key` / `delete_agent_key`. Agent keys (per-zombie) and API keys (per-tenant) are now clearly distinct surfaces.
+
+  ## API reference
+
+  - `POST /v1/api-keys` — mint a new tenant API key. Body: `{ "key_name": "ci-pipeline", "description": "GH Actions deploys" }`. Response: `{ id, key_name, key: "zmb_t_…", created_at }`. Raw `key` shown once only.
+  - `GET /v1/api-keys` — paginated list (`page`, `page_size` ≤ 100, `sort` in `created_at`/`-created_at`/`key_name`/`-key_name`). Returns metadata only; `last_used_at` is always `null` in this release and will populate in a future async-stamping update.
+  - `PATCH /v1/api-keys/{id}` — revoke a key. Body must be exactly `{ "active": false }`; re-activation is not supported (mint a new key instead).
+  - `DELETE /v1/api-keys/{id}` — hard-delete a revoked key. Returns `409 UZ-APIKEY-008` if the key is still active — revoke first.
+  - New error codes: `UZ-APIKEY-003` (not found), `UZ-APIKEY-004` (revoked, auth path), `UZ-APIKEY-005` (name taken — 409), `UZ-APIKEY-006` (already revoked), `UZ-APIKEY-007` (attempt to set `active: true`), `UZ-APIKEY-008` (active key must be revoked before deletion).
+  - Public OpenAPI (`public/openapi.json`) adds the `API Keys` tag, schema `TenantApiKey`, and the four paths above. The `External Agents` tag and `ExternalAgent` schema were renamed to `Agent Keys` / `AgentKey` with no functional change to workspace-agent behavior.
+</Update>
+
 <Update label="v0.19.0 — Apr 18, 2026" tags={["Breaking", "What's new", "API", "CLI", "Security", "Integrations"]}>
   ## Unified webhook authentication — seven first-class providers
 
