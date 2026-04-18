@@ -7,78 +7,171 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview**. Features below are live in the current release. APIs and agent behavior may evolve before GA.
 </Tip>
 
-<Update label="v0.18.0 — Apr 16, 2026" tags={["New", "API", "UI"]}>
-  ## Operator dashboard API + shared UI foundation (M12_001)
+<Note>
+  Each release follows a standard format: **What's new** for new capabilities, **API reference** for endpoint additions and shape changes, **Bug fixes** for user-visible fixes, and **Upgrading** whenever a release contains a breaking change. Versions follow semver — minor bumps add features, patches fix bugs, and anything breaking is called out under Upgrading.
+</Note>
 
-  M12 narrows to the foundation that the operator dashboard will be built on: three new backend endpoints, a reusable UI component toolbox, and a proper token pyramid for theming. The dashboard pages themselves move to M27 (pending M26 design-system unification) so they build on a unified Button rather than rewriting it mid-flight.
+<Update label="v0.20.0 — Apr 18, 2026" tags={["What's new", "API", "Security"]}>
+  ## Tenant API keys — multi-key, rotatable, self-service admin auth
 
-  ## New API endpoints
+  Admin auth is no longer tied to a single process-wide env var. Tenant admins now mint named API keys via the API, each scoped to their tenant, revocable on demand, and identifiable in audit logs. The legacy `API_KEY` environment variable still works as a bootstrap fallback, but it is no longer the primary admin auth path — new installs and production tenants should migrate to tenant API keys.
+
+  Keys are `zmb_t_`-prefixed (6-char prefix + 64 hex chars, 70 total) and are **returned exactly once on creation** — only the SHA-256 hex digest is persisted. The raw key cannot be retrieved again; if lost, revoke it and mint a new one.
+
+  ## What's new
+
+  - **Mint, list, revoke, and delete tenant keys** through the new `/v1/api-keys` endpoint family. Every query is tenant-scoped; no CRUD call can read or mutate another tenant's keys.
+  - **Per-request principal carries `user_id` and `tenant_id`** when authenticated with a tenant key — enabling per-tenant isolation, per-key revocation, and audit identity without server restarts.
+  - **Bootstrap warning on startup.** When the server boots with only the legacy `API_KEY` env var set, a warning is emitted to nudge operators toward tenant keys (no behavior change; fallback still works).
+  - **Workspace-scoped "external agent" keys renamed to "agent keys"** for consistency. The underlying table is now `core.agent_keys`; the public endpoints moved from `/v1/workspaces/{ws}/external-agents` to `/v1/workspaces/{ws}/agent-keys`. Operation IDs renamed from `list_external_agents` / `create_external_agent` / `delete_external_agent` to `list_agent_keys` / `create_agent_key` / `delete_agent_key`. Agent keys (per-zombie) and API keys (per-tenant) are now clearly distinct surfaces.
+
+  ## API reference
+
+  - `POST /v1/api-keys` — mint a new tenant API key. Body: `{ "key_name": "ci-pipeline", "description": "GH Actions deploys" }`. Response: `{ id, key_name, key: "zmb_t_…", created_at }`. Raw `key` shown once only.
+  - `GET /v1/api-keys` — paginated list (`page`, `page_size` ≤ 100, `sort` in `created_at`/`-created_at`/`key_name`/`-key_name`). Returns metadata only; `last_used_at` is always `null` in this release and will populate in a future async-stamping update.
+  - `PATCH /v1/api-keys/{id}` — revoke a key. Body must be exactly `{ "active": false }`; re-activation is not supported (mint a new key instead).
+  - `DELETE /v1/api-keys/{id}` — hard-delete a revoked key. Returns `409 UZ-APIKEY-008` if the key is still active — revoke first.
+  - New error codes: `UZ-APIKEY-003` (not found), `UZ-APIKEY-004` (revoked, auth path), `UZ-APIKEY-005` (name taken — 409), `UZ-APIKEY-006` (already revoked), `UZ-APIKEY-007` (attempt to set `active: true`), `UZ-APIKEY-008` (active key must be revoked before deletion).
+  - Public OpenAPI (`public/openapi.json`) adds the `API Keys` tag, schema `TenantApiKey`, and the four paths above. The `External Agents` tag and `ExternalAgent` schema were renamed to `Agent Keys` / `AgentKey` with no functional change to workspace-agent behavior.
+</Update>
+
+<Update label="v0.19.0 — Apr 18, 2026" tags={["Breaking", "What's new", "API", "CLI", "Security", "Integrations"]}>
+  ## Unified webhook authentication — seven first-class providers
+
+  Every per-zombie webhook now flows through a single authentication middleware before your handler sees the request. URL-embedded secrets, Bearer tokens, HMAC signatures, and Svix multi-signature rotation are all verified in one place, with constant-time comparisons throughout and a fail-closed default.
+
+  Seven first-class providers ship in this release: **agentmail**, **Grafana**, **Slack**, **GitHub**, **Linear**, **Jira**, and **Clerk** (via Svix). Each authenticates through the middleware that fits its model — no per-provider branches in handler code, and no env reads on the hot path.
+
+  ## Upgrading
+
+  - **Custom-method endpoints (`:action`) moved to subpath form (`/action`).** Google-style `:action` URL syntax (e.g. `/v1/workspaces/{ws}/zombies/{id}:steer`) has been replaced with a direct subpath (`/v1/workspaces/{ws}/zombies/{id}/steer`) so the public OpenAPI spec validates cleanly and standard documentation tooling can parameterize it. Affected endpoints: `:steer`, `:stop`, `:approval`, `:grant-approval`, `:pause`, `:sync`. **Upgrade `zombiectl` and the server together** — rolling back the CLI against the new server will break. If you construct these URLs directly (e.g. from a script or SDK), update them to the new form.
+
+    | Before | After |
+    | --- | --- |
+    | `POST /v1/webhooks/{zombie_id}:approval` | `POST /v1/webhooks/{zombie_id}/approval` |
+    | `POST /v1/webhooks/{zombie_id}:grant-approval` | `POST /v1/webhooks/{zombie_id}/grant-approval` |
+    | `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}:steer` | `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/steer` |
+    | `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}:stop` | `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/stop` |
+    | `POST /v1/workspaces/{workspace_id}:pause` | `POST /v1/workspaces/{workspace_id}/pause` |
+    | `POST /v1/workspaces/{workspace_id}:sync` | `POST /v1/workspaces/{workspace_id}/sync` |
+
+    Reserved path segments: the webhook action endpoints (`approval`, `grant-approval`) and the Svix route prefix (`svix`) now occupy the URL-secret slot on `/v1/webhooks/{zombie_id}/...`. Webhook URL secrets cannot use those literal values.
+
+  ## What's new
+
+  - **One-line onboarding for registry providers.** GitHub, Linear, and Clerk webhooks each require one field in your `TRIGGER.md` — the middleware picks up the correct signature scheme automatically:
+
+    ```yaml
+    # GitHub — one field
+    trigger:
+      type: webhook
+      source: "github"
+      signature:
+        secret_ref: "github_webhook_secret"
+
+    # Linear — identical shape
+    trigger:
+      type: webhook
+      source: "linear"
+      signature:
+        secret_ref: "linear_webhook_secret"
+
+    # Clerk — one field; route path /v1/webhooks/svix/{zombie_id} selects the Svix middleware
+    trigger:
+      type: webhook
+      source: "clerk"
+      signature:
+        secret_ref: "clerk_webhook_secret"
+    ```
+
+  - **Custom HMAC providers stay configuration-only.** Providers outside the registry (Jira today, Asana and Stripe tomorrow) declare the scheme explicitly in `TRIGGER.md` — no code change required:
+
+    ```yaml
+    trigger:
+      type: webhook
+      source: "jira"
+      signature:
+        secret_ref: "jira_webhook_secret"
+        header: "x-jira-hook-signature"
+        prefix: "sha256="
+    ```
+
+  - **Clerk via Svix is supported end-to-end.** A dedicated middleware handles Svix v1 multi-signature HMAC, including key rotation: the middleware iterates every space-delimited entry in the `svix-signature` header and accepts the first constant-time match. Timestamp freshness (5-minute window) and tampered-body detection are enforced automatically.
+  - **Per-zombie webhook secrets are vault-backed.** You declare a `secret_ref`; the secret itself is stored encrypted per workspace and loaded only at verification time. Rotating a secret is a vault update — no zombie reconfigure.
+
+  ## API reference
+
+  - **New route:** `POST /v1/webhooks/svix/{zombie_id}` — entry point for Clerk (and any future Svix-signed sender). Returns `202` on valid signature; `401 UZ-WH-010` on tamper/bad signature; `401 UZ-WH-011` on stale `svix-timestamp`.
+  - **Existing route:** `POST /v1/webhooks/{zombie_id}` continues to serve agentmail, Grafana, GitHub, Linear, and Jira — the middleware dispatches to URL-secret, Bearer, or HMAC verification based on what the zombie declares.
+  - **Error codes** are preserved and now apply consistently across every provider: `UZ-AUTH-002` (URL secret or Bearer mismatch), `UZ-WH-010` (invalid HMAC / Svix signature), `UZ-WH-011` (stale timestamp, older than 5 minutes).
+  - **Fail-closed** is the default across every strategy. An unreachable vault or missing secret returns 401 — the handler never sees an unauthenticated request.
+</Update>
+
+<Update label="v0.18.0 — Apr 16, 2026" tags={["What's new", "API", "UI"]}>
+  ## Operator dashboard foundation
+
+  The backbone of the operator dashboard is live: a workspace-wide activity feed, an operator kill switch for runaway zombies, aligned billing summaries for workspaces and individual zombies, and a reusable set of accessible React primitives the dashboard pages will build on.
+
+  ## What's new
+
+  - **Six shared React primitives** with colocated unit tests, ARIA support, and mobile-responsive defaults: `StatusCard`, `EmptyState`, `Pagination` (cursor and page variants), `DataTable`, `ConfirmDialog`, `ActivityFeed`.
+  - **Three-layer design tokens** — primitive values → semantic names (`--primary`, `--success`, `--warning`, `--info`, `--destructive`) → Tailwind v4 utility classes (`bg-success`, `text-warning`, `border-info`). Unlocks `bunx shadcn@latest add <primitive>` for future upstream fixes.
+
+  ## API reference
 
   - `GET /v1/workspaces/{workspace_id}/activity?limit=&cursor=` — workspace-wide activity feed across every zombie, cursor-paginated newest-first. Powers the dashboard's Recent Activity panel.
-  - `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}:stop` — operator kill switch. Transitions `active` / `paused` → `stopped`, emits a `zombie_stopped` activity event. Returns `409 UZ-ZMB-010` on re-call, `404 UZ-ZMB-009` on cross-workspace (IDOR guard).
-  - `GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/billing/summary?period_days=7|30` — per-zombie slice of the workspace billing summary. Shares the exact response envelope with the workspace-scoped endpoint; SDKs get one `Paginated<BillingSummary>` shape.
+  - `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}:stop` — operator kill switch. Transitions `active` or `paused` → `stopped`, emits a `zombie_stopped` activity event. Returns `409 UZ-ZMB-010` on a second call, `404 UZ-ZMB-009` on cross-workspace access.
+  - `GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/billing/summary?period_days=7|30` — per-zombie slice of the workspace billing summary. Shares the exact response envelope with the workspace-scoped endpoint.
+  - `GET /v1/workspaces/{workspace_id}/billing/summary` now accepts both the legacy `?period=7d|30d|90d` and the new `?period_days=7|30|90`. Response adds a `total_cents` field carrying the sum of billable credits.
 
-  ## Workspace billing summary upgraded
+  ## Bug fixes
 
-  `GET /v1/workspaces/{workspace_id}/billing/summary` returned zeros since M10 dropped `usage_ledger`. It now aggregates real data from `zombie_execution_telemetry` through a shared `billing_summary_store` so workspace and per-zombie summaries can't drift. A new `total_cents` field on the response carries the sum of billable credits. Accepts both the legacy `?period=7d|30d|90d` and the new `?period_days=7|30|90` parameter.
-
-  ## Shared UI primitives (ui/packages/app)
-
-  Six React primitives land in `components/ui/` (+ `components/domain/ActivityFeed.tsx`), each with a colocated unit test and ARIA / mobile-responsive baked in: `StatusCard`, `EmptyState`, `Pagination` (cursor + page variants), `DataTable`, `ConfirmDialog`, `ActivityFeed`. 70/70 tests green.
-
-  ## Three-layer token pyramid
-
-  `app/globals.css` now hosts a proper shadcn-style `@theme inline` block bridging Layer-0 primitives (`--z-*` in `@usezombie/design-system/tokens.css`) through semantic names (`--primary`, `--success`, `--warning`, `--info`, `--destructive`, `--primary-glow[-strong]`) to Tailwind v4 utility classes (`bg-success`, `text-warning`, `border-info`). The existing `button.tsx` is refactored to drop every `var(--z-*)` arbitrary-value reference. `components.json` + `tw-animate-css` install unlocks `bunx shadcn@latest add <primitive>` for future upstream a11y fixes.
-
-  ## Deferred to follow-up milestones
-
-  - Operator dashboard pages (overview / zombies / zombie detail / firewall / settings) — **M27_001**, blocked on M26.
-  - `@usezombie/design-system` self-contained + framework-agnostic + shared between `ui/packages/app` (Next.js App Router) and `ui/packages/website` (Vite SPA) — **M26_001**.
-
-  Both spec files are in `docs/v2/pending/` and carry full execution plans.
+  - `GET /v1/workspaces/{workspace_id}/billing/summary` had been returning zeros since v0.10 (when `usage_ledger` was dropped). It now aggregates real data from execution telemetry through a shared summary store, so workspace and per-zombie summaries can no longer drift.
 </Update>
 
 <Update label="v0.17.0 — Apr 16, 2026" tags={["Breaking", "API", "CLI"]}>
-  ## REST API conventions cleanup
+  ## REST conventions cleanup + full OpenAPI coverage
 
-  List endpoints now return a standard `{ items, total }` envelope (plus `cursor` where paginated), so SDKs can share a single `Paginated<T>` across zombies, external agents, integration grants, and activity. The per-resource keys — `zombies`, `agents`, `grants`, `events` — are gone.
+  List endpoints now share one pagination envelope across every resource, memory reads moved to `GET`, and `openapi.json` covers every live route the server exposes.
 
-  ## Memory reads are now GET
+  ## Upgrading
 
-  `GET /v1/memory/recall?zombie_id=&query=&limit=` and `GET /v1/memory/list?zombie_id=&category=&limit=` replace the previous `POST` forms. Response shape is also `items`/`total` (was `entries`/`count`). `store` and `forget` are unchanged.
+  - **List response shape changed** to `{ items, total }` (plus `cursor` where paginated). The per-resource keys — `zombies`, `agents`, `grants`, `events` — are gone.
+  - **Memory read endpoints moved from `POST` to `GET`:**
+    - `GET /v1/memory/recall?zombie_id=&query=&limit=` (was `POST /v1/memory/recall`)
+    - `GET /v1/memory/list?zombie_id=&category=&limit=` (was `POST /v1/memory/list`)
+    - Response field rename: `entries`/`count` → `items`/`total`.
+    - `memory/store` and `memory/forget` are unchanged.
+  - **Upgrade `zombiectl` and the server together.** The CLI has already been updated; rolling back the CLI against the new server will break.
 
-  ## Response cleanup
+  ## What's new
 
-  `DELETE` on external agents and integration grants now returns a proper `204 No Content` through the standard envelope instead of a hand-rolled status write.
+  - SDK generators can emit a single `Paginated<T>` type across zombies, external agents, integration grants, activity, memory, and telemetry.
+  - `DELETE` on external agents and integration grants returns a proper `204 No Content` through the standard envelope instead of a hand-rolled status write.
 
-  ## OpenAPI spec — full coverage
+  ## API reference
 
-  `public/openapi.json` now documents every route the server actually exposes. 8 stale paths removed (`/v1/runs/*` retired in v0.10, and an orphaned `skills/*/secrets/*`), and 26 previously-undocumented operations authored: workspace-scoped zombies, workspace credentials, memory, external agents, integration grants, execute, slack, approval + grant-approval webhooks, internal telemetry, spec relay, scoring config. SDK generators can now emit typed clients for the full surface.
-
-  ## CLI in lockstep
-
-  `zombiectl` updated in the same release — `zombiectl status`, `zombiectl logs`, `zombiectl agent list`, and `zombiectl grant list` all consume the new envelope. Upgrade both sides together.
+  - `public/openapi.json` now documents every route the server exposes. 8 stale paths were removed (`/v1/runs/*` retired in v0.10 and an orphaned `skills/*/secrets/*`), and 26 previously undocumented operations were authored: workspace-scoped zombies, workspace credentials, memory, external agents, integration grants, execute, slack, approval and grant-approval webhooks, internal telemetry, spec relay, and scoring config.
 </Update>
 
 <Update label="v0.16.1 — Apr 16, 2026" tags={["Internal", "Performance"]}>
-  ## zBench Micro-Benchmark Catalog (M25_001)
+  ## Internal benchmark catalog
 
-  Tier-1 of `make bench` now runs a catalog of micro-benchmarks on zombied's hot
-  paths instead of a single placeholder. Each benchmark has a regression gate
-  documented against a measured baseline so a code-level slowdown (JSON encoding,
-  route matching, cursor parsing, UUID minting, webhook signature verification,
-  error-registry lookup) trips a named alarm separately from the system-level
-  p95 that Tier-2 hey reports.
+  `make bench` Tier-1 now runs a catalog of micro-benchmarks on hot paths — JSON encoding, route matching, cursor parsing, UUID minting, webhook signature verification, and error-registry lookup — each with its own regression gate against a measured baseline. A code-level slowdown trips a named alarm separately from the system-level p95 that Tier-2 reports.
 
   No user-visible surface change — internal tooling for operators and maintainers.
 </Update>
 
 <Update label="v0.16.0 — Apr 16, 2026" tags={["Breaking", "API", "CLI"]}>
-  ## REST Workspace-Scoped Route Refactor (M24_001)
+  ## Workspace-scoped REST paths
 
-  Flat `/v1/zombies/*` endpoints have been replaced with workspace-scoped REST paths. Query
-  parameters are now reserved for pagination (`page`, `limit`, `cursor`) and search (`search`).
-  Identity — workspace, zombie, grant — is always in the URL path.
+  Flat `/v1/zombies/*` endpoints have been replaced with workspace-scoped REST paths. Identity — workspace, zombie, grant — is now always in the URL path, and query parameters are reserved for pagination (`page`, `limit`, `cursor`) and search (`search`).
+
+  ## Upgrading
+
+  - **Flat `/v1/zombies/*` paths return bare `404`.** There are no `410 Gone` stubs (per the pre-v2.0 API teardown policy). Update clients before upgrading the server.
+  - **`workspace_id` is no longer accepted in `POST` request bodies** for `zombies` and `credentials` — the URL path is authoritative.
+  - **`zombiectl` has already been updated.** Upgrade CLI and server together; rolling back the CLI against the new API will break.
 
   **Route migration:**
 
@@ -95,177 +188,137 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   | `DELETE /v1/zombies/{id}/integration-grants/{gid}` | `DELETE /v1/workspaces/{ws}/zombies/{id}/integration-grants/{gid}` |
   | `POST   /v1/zombies/{id}:steer` | `POST   /v1/workspaces/{ws}/zombies/{id}:steer` |
 
-  **Breaking:** flat `/v1/zombies/*` paths now return bare 404. No 410 Gone stubs
-  (pre-v2.0 API teardown policy). Update clients before upgrading.
+  ## What's new
 
-  **Request-body changes:** `workspace_id` is no longer accepted in POST bodies for
-  `zombies` and `credentials` — the URL path is authoritative.
+  - Every workspace-scoped handler authorizes workspace membership after authentication.
+  - Cross-workspace zombie lookups return `404`, not `403`, so the API does not leak the existence of resources you cannot see.
 
-  **Authorization:** every new workspace-scoped handler calls `authorizeWorkspace`
-  after authentication (RULE WAUTH). Cross-workspace zombie lookups return 404, not
-  403, to avoid leaking existence.
+  ## API reference
 
-  **`zombiectl` is already updated** — no user action needed if you're on the latest CLI.
-  Rolling back the CLI while the API is updated will break.
-
-  **OpenAPI:** `openapi.json` `:steer` path updated; broader workspace-scoped coverage
-  for CRUD/activity/grants endpoints will follow in a dedicated docs milestone.
+  - `openapi.json` reflects the `:steer` path update. Broader workspace-scoped coverage for CRUD, activity, and grants endpoints arrived in v0.17.0.
 </Update>
 
-<Update label="v0.15.0 — Apr 15, 2026" tags={["New", "API", "Workers"]}>
-  ## Live Zombie Steering (M23_001)
+<Update label="v0.15.0 — Apr 15, 2026" tags={["What's new", "API"]}>
+  ## Live zombie steering
 
-  Operators can now redirect a running zombie mid-execution without killing it.
+  Redirect a running zombie mid-execution without killing it. Steer messages are delivered at the next event-loop iteration and injected as synthetic events into the zombie's stream.
 
-  **How it works:**
-  - `POST /v1/zombies/{id}:steer` writes a message to Redis key `zombie:{id}:steer` with a 300s TTL.
-  - The worker polls this key at the top of each event loop iteration. When found, the message
-    is injected as a synthetic `steer` event into the zombie's event stream and delivered normally.
-  - The response includes `execution_id` (null if zombie is idle) so callers know whether
-    the steer message lands mid-execution or is queued for the zombie's next event.
+  ## What's new
 
-  **Execution tracking:**
-  - `core.zombie_sessions` now records `execution_id` and `execution_started_at` when a
-    zombie begins executing. Both are cleared when execution ends or on worker restart
-    (crash recovery).
+  - Worker polls the steer key at the top of each event loop iteration; messages are queued with a 300-second TTL so they either land mid-execution or wait for the next event.
+  - The response body includes `execution_id` so callers can distinguish a mid-execution land from a queued wait.
+  - Execution tracking: zombie sessions now record `execution_id` and `execution_started_at` when execution begins, and both clear when execution ends or on worker crash recovery.
 
-  **Response shape:**
-  ```json
-  { "message_queued": true, "execution_active": true, "execution_id": "exec_..." }
-  ```
+  ## API reference
 
-  **Error contracts:** 401 missing auth · 404 cross-workspace zombie · 400 empty or >8192-byte message
+  - `POST /v1/zombies/{id}:steer` — writes a message to Redis key `zombie:{id}:steer` with a 300-second TTL. *(Moved to workspace-scoped path and renamed to `/steer` in later releases — see v0.16.0 and v0.19.0 Upgrading.)*
 
+    Response:
+
+    ```json
+    { "message_queued": true, "execution_active": true, "execution_id": "exec_..." }
+    ```
+
+  - Error contracts: `401` missing auth · `404` cross-workspace zombie · `400` empty or >8192-byte message.
 </Update>
 
-<Update label="v0.14.0 — Apr 12, 2026" tags={["New", "Memory", "API"]}>
-  ## Persistent Zombie Memory (M14_001)
+<Update label="v0.14.0 — Apr 12, 2026" tags={["What's new", "Memory", "API"]}>
+  ## Persistent zombie memory
 
-  Zombies now remember facts across runs. Memory persists in Postgres even after a
-  workspace is destroyed, so a Lead-Collector zombie doesn't re-research every lead
-  and a Customer-Support zombie doesn't re-ask customers their plan.
+  Zombies now remember facts across runs. Memory persists in Postgres even after a workspace is destroyed, so a lead-collector zombie does not re-research every lead and a customer-support zombie does not re-ask customers their plan.
 
-  **How it works:**
-  - NullClaw's `memory_store` / `memory_recall` / `memory_list` / `memory_forget` tools
-    route to a dedicated `memory` Postgres schema, isolated by the `memory_runtime` role.
-  - Each zombie's memory is row-scoped by `instance_id = "zmb:{zombie_uuid}"` — two
-    concurrent zombies cannot read each other's entries.
-  - `conversation` category remains ephemeral (workspace SQLite), as intended.
-  - The executor receives `memory_connection` + `memory_namespace` in the RPC payload
-    and bypasses NullClaw's instance_id propagation gap directly in `zombie_memory.zig`.
+  ## What's new
 
-  **External-agent memory API (Path B):**
-  - `POST /v1/memory/store` — store or upsert a key-value entry for a zombie
-  - `POST /v1/memory/recall` — keyword search across key and content
-  - `POST /v1/memory/list` — list entries, optionally filtered by category
-  - `POST /v1/memory/forget` — delete a specific entry by key (idempotent)
-  - All endpoints enforce workspace scope: a caller can only access zombies in their workspace.
+  - Each zombie's memory is row-scoped by zombie ID — two concurrent zombies cannot read each other's entries.
+  - The `memory_store`, `memory_recall`, `memory_list`, and `memory_forget` tools route to a dedicated Postgres schema isolated by a least-privilege role.
+  - The `conversation` category remains ephemeral (workspace SQLite) as intended.
 
+  ## API reference
+
+  - `POST /v1/memory/store` — store or upsert a key-value entry for a zombie.
+  - `POST /v1/memory/recall` — keyword search across key and content. *(Moved to `GET` in v0.17.0.)*
+  - `POST /v1/memory/list` — list entries, optionally filtered by category. *(Moved to `GET` in v0.17.0.)*
+  - `POST /v1/memory/forget` — delete a specific entry by key (idempotent).
+  - All endpoints enforce workspace scope: a caller can only access zombies in their own workspace.
 </Update>
 
-<Update label="v0.13.0 — Apr 12, 2026" tags={["New", "Integrations", "API"]}>
-  ## Integration Grant & Execute API — credentialed proxy with human approval (M9_001)
+<Update label="v0.13.0 — Apr 12, 2026" tags={["What's new", "Integrations", "API"]}>
+  ## Integration grants and credentialed proxy
 
-  Zombies (both internal and external LangGraph/CrewAI agents) can now call external
-  services through UseZombie's credentialed proxy. The credential never leaves UseZombie —
-  it is injected server-side and stripped from any accidental echo in the response.
+  Zombies — both internal and external LangGraph or CrewAI agents — can now call external services through UseZombie's credentialed proxy. The credential never leaves UseZombie; it is injected server-side and stripped from any accidental echo in the response.
 
-  **Integration Grant system:**
-  - A zombie requests a grant for a service (`POST /v1/zombies/{id}/integration-requests`).
-    UseZombie fans out an Approve/Deny notification to Slack, Discord, and/or the dashboard
-    simultaneously. Human clicks Approve once — grant is durable; no per-call approval needed.
-  - High-risk endpoints still run through the existing M4 per-request approval gate independently.
-  - Revoke at any time via `DELETE /v1/zombies/{id}/integration-grants/{grant_id}` or
-    `zombiectl grant revoke`.
+  ## What's new
 
-  **`POST /v1/execute`** — the new proxy endpoint:
-  - Auth: zombie session (internal Path A) or `Authorization: Bearer zmb_xxx` (external Path B).
-  - Pipeline: grant check → firewall domain/endpoint/injection policy → approval gate → credential
-    inject → outbound HTTP → credential echo strip → activity log.
-  - Returns the service response with `X-UseZombie-Action-Id` and `X-UseZombie-Firewall-Decision` headers.
+  - **Integration grants.** A zombie requests a grant for a service; UseZombie fans out an Approve/Deny notification to Slack, Discord, and the dashboard simultaneously. One human click creates a durable grant — no per-call approval needed.
+  - **Per-request approval gate** still runs independently for high-risk endpoints.
+  - **Revoke at any time** via the API or `zombiectl grant revoke`.
+  - **External agent keys** (prefix `zmb_`) are created workspace-scoped under Clerk auth; the raw key is shown once and only a SHA-256 hash is stored. Each key resolves to a full zombie identity.
+  - **Services supported:** Slack, Gmail / AgentMail, Discord, Grafana.
 
-  **External agent keys (`zmb_` prefix):**
-  - Create via `POST /v1/workspaces/{ws}/external-agents` (Clerk-protected). Raw key shown once; only
-    SHA-256 hash stored. Key resolves to a full zombie identity (workspace_id + zombie_id).
-  - CLI: `zombiectl agent create / list / delete`, `zombiectl grant list / revoke`.
+  ## API reference
 
-  **Services supported:** Slack, Gmail/AgentMail, Discord, Grafana.
-  **New error codes:** `UZ-APIKEY-001/002`, `UZ-GRANT-001/002/003`, `UZ-PROXY-001`.
-  **Schema:** `core.integration_grants` (slot 026), `core.external_agents` (slot 027).
+  - `POST /v1/zombies/{id}/integration-requests` — request a grant for a service.
+  - `DELETE /v1/zombies/{id}/integration-grants/{grant_id}` — revoke a grant.
+  - `POST /v1/execute` — credentialed proxy call. Pipeline: grant check → firewall (domain, endpoint, injection) → approval gate → credential inject → outbound HTTP → credential echo strip → activity log. Returns the service response plus `X-UseZombie-Action-Id` and `X-UseZombie-Firewall-Decision` headers.
+  - Authentication: zombie session (internal) or `Authorization: Bearer zmb_xxx` (external agent).
+  - New error codes: `UZ-APIKEY-001`, `UZ-APIKEY-002`, `UZ-GRANT-001`, `UZ-GRANT-002`, `UZ-GRANT-003`, `UZ-PROXY-001`.
+
+  ## CLI
+
+  - `zombiectl agent create / list / delete`
+  - `zombiectl grant list / revoke`
 </Update>
 
-<Update label="v0.12.0 — Apr 12, 2026" tags={["New", "Observability"]}>
-  ## Zombie execution telemetry — per-delivery metrics store and dual API (M18_001)
+<Update label="v0.12.0 — Apr 12, 2026" tags={["What's new", "Observability", "API"]}>
+  ## Zombie execution telemetry
 
-  UseZombie now records `token_count`, `time_to_first_token_ms`, `wall_seconds`, and
-  `credit_deducted_cents` for every zombie event delivery, with two query surfaces:
+  Every zombie event delivery now records `token_count`, `time_to_first_token_ms`, `wall_seconds`, and `credit_deducted_cents`, with two query surfaces — one workspace-scoped, one cross-workspace for operators.
 
-  - **`GET /v1/workspaces/{ws}/zombies/{id}/telemetry?limit=50&cursor=`** — workspace-scoped
-    cursor-paginated list of the last N deliveries for a single zombie. Returns newest-first
-    with an opaque cursor for subsequent pages.
-  - **`GET /internal/v1/telemetry?workspace_id=&zombie_id=&after=&limit=100`** — operator
-    cross-workspace query. All params optional; `after` accepts epoch ms for time-window queries.
+  ## What's new
 
-  Writes are idempotent on `event_id` — crash-recovery redelivery of the same event does not
-  create duplicate rows. A write failure in the telemetry path is logged but does not affect
-  credit deduction or event acknowledgement.
+  - Writes are idempotent on `event_id` — crash-recovery redelivery of the same event never creates duplicate rows.
+  - Telemetry write failures are logged but never affect credit deduction or event acknowledgement.
+  - Each delivery also emits an OpenTelemetry span (`zombie.delivery`) with `zombie_id`, `workspace_id`, `event_id`, `token_count`, and `plan_tier` attributes. The span uses the real wall-clock delivery window, so it appears at the correct position in Grafana Tempo.
 
-  Additionally, each delivery now emits an OTel span (`zombie.delivery`) with `zombie_id`,
-  `workspace_id`, `event_id`, `token_count`, and `plan_tier` attributes. The span uses the
-  actual wall-clock delivery window so it appears at the correct position in Grafana Tempo.
+  ## API reference
+
+  - `GET /v1/workspaces/{ws}/zombies/{id}/telemetry?limit=50&cursor=` — workspace-scoped, cursor-paginated, newest-first.
+  - `GET /internal/v1/telemetry?workspace_id=&zombie_id=&after=&limit=100` — operator cross-workspace query. All parameters are optional; `after` accepts epoch milliseconds for time-window queries.
 </Update>
 
-<Update label="v0.11.0 — Apr 12, 2026" tags={["New", "Integrations"]}>
-  ## Slack plugin — OAuth install, event routing, and approval interactions (M8_001)
+<Update label="v0.11.0 — Apr 12, 2026" tags={["What's new", "Integrations"]}>
+  ## Slack plugin
 
-  UseZombie workspaces can now connect Slack via the "Add to Slack" OAuth flow or
-  the `zombiectl credential add slack` CLI path:
+  Workspaces can now connect Slack via the "Add to Slack" OAuth flow or the `zombiectl credential add slack` CLI path. The bot token is stored in the zombie vault; the workspace integrations table holds only routing metadata — credentials and routing never commingle.
 
-  - **`GET /v1/slack/install`** — redirects workspace owners to Slack OAuth with an
-    HMAC-signed CSRF state and a 10-minute Redis nonce for replay protection.
-  - **`GET /v1/slack/callback`** — exchanges the OAuth code for a bot token, stores it
-    in the zombie vault (`vault.secrets(workspace_id, "slack")`), creates a
-    `core.workspace_integrations` routing record, and posts a one-time confirmation
-    message to the workspace.
-  - **`POST /v1/slack/events`** — verifies Slack signing secret (HMAC-SHA256, RULE CTM),
-    filters bot-loop events, resolves the workspace via `workspace_integrations`, finds
-    the zombie configured with a `slack_event` trigger, and enqueues the event to Redis.
-  - **`POST /v1/slack/interactions`** — verifies signing, URL-decodes the Slack
-    `payload=` form field, parses `gate_*` action IDs, and relays approve/deny decisions
-    to the existing approval gate (`resolveApproval`).
+  ## What's new
 
-  The zombie vault holds the credential; `workspace_integrations` holds only routing
-  metadata (no credentials). OAuth and CLI paths converge at the same vault slot.
-  Schema: `core.workspace_integrations` (migration slot 028).
+  - OAuth state is HMAC-signed and the one-time nonce has a 10-minute replay-protection TTL in Redis.
+  - Event and interaction signatures are verified with constant-time HMAC-SHA256.
+  - Bot-loop events are filtered; the workspace is resolved via the integrations table and the event is enqueued to the zombie configured with a `slack_event` trigger.
+
+  ## API reference
+
+  - `GET /v1/slack/install` — redirects workspace owners to Slack OAuth with an HMAC-signed CSRF state and a 10-minute Redis replay-protection nonce.
+  - `GET /v1/slack/callback` — exchanges the OAuth code, stores the bot token in the vault, creates the routing record, and posts a one-time confirmation message.
+  - `POST /v1/slack/events` — signature-verified, bot-loop-filtered event ingestion.
+  - `POST /v1/slack/interactions` — signature-verified; URL-decodes the Slack `payload=` form field and relays `gate_*` approve/deny actions to the approval gate.
 </Update>
 
-<Update label="v0.10.1 — Apr 12, 2026" tags={["Internal"]}>
-  ## Harness & agent-profile scope removed (M17_001)
+<Update label="v0.10.1 — Apr 12, 2026" tags={["Breaking", "API", "CLI"]}>
+  ## Harness and agent-profile scope removed
 
-  The legacy harness control plane — config compilation pipeline, `/v1/harness/*`
-  endpoints, `agent.agent_profiles` / `agent_config_versions` / `workspace_active_config` /
-  `config_compile_jobs` / `config_linkage_audit_artifacts` tables, and the
-  `agent_profile_version` audit linkage — had zero runtime consumers after the
-  zombie execution model replaced it. All of it is gone:
+  The legacy harness control plane had no runtime consumers after the zombie execution model replaced it. All of it is gone — about 4,200 lines of dead infrastructure removed with no behavior change for zombie workflows.
 
-  - Server handlers (`harness_http.zig`, `harness_control_plane/*`, `profile_linkage.zig`)
-    and the `src/harness/` module removed. `/v1/workspaces/{id}/harness/*` routes no
-    longer exist.
-  - Five agent-schema tables removed via full teardown (pre-v2.0 policy): SQL files
-    `schema/008_harness_control_plane.sql` and `schema/011_profile_linkage_audit.sql`
-    deleted outright; `schema/009_rls_tenant_isolation.sql` stripped of agent.*
-    RLS policies; canonical migration array shrunk from 21 to 19 entries.
-  - `zombiectl`: `harness`, `harness source`, `harness compile`, `harness activate`,
-    `harness active`, and `agent harness revert` subcommands removed. The CLI no
-    longer references dropped endpoints.
-  - `/v1/agents/{id}` handler was a dead client of `agent_profiles` and is removed.
-  - `workspace_entitlements.max_profiles` column dropped and `UZ-ENTL-002`
-    (Profile limit reached) error retired — both were harness-only.
-  - Website marketing copy no longer advertises "harness checks"; the step is
-    now described as "validation" in the flow.
+  ## Upgrading
 
-  ~4,200 lines of dead infrastructure removed. No behavior change for zombie
-  workflows. No API breaking changes visible to any live client.
+  - **Routes removed:** `/v1/workspaces/{id}/harness/*` and `/v1/agents/{id}` now return `404`.
+  - **`zombiectl` subcommands removed:** `harness`, `harness source`, `harness compile`, `harness activate`, `harness active`, and `agent harness revert`.
+  - **Error code retired:** `UZ-ENTL-002` (Profile limit reached) — the underlying `max_profiles` workspace entitlement has been dropped.
+
+  ## What's new
+
+  - Website copy no longer advertises "harness checks"; the step is now described as "validation."
 </Update>
 
 <Update label="v0.10.0 — Apr 12, 2026" tags={["New releases", "Observability"]}>

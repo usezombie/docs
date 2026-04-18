@@ -108,8 +108,8 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | `UZ-WH-001` | 404 | Zombie not found for webhook | Webhook routing found no matching zombie |
 | `UZ-WH-002` | 400 | Malformed webhook | Webhook body is missing required fields |
 | `UZ-WH-003` | 403 | Zombie paused | Zombie exists but is not active |
-| `UZ-WH-010` | 401 | Invalid webhook signature | Slack signature verification failed |
-| `UZ-WH-011` | 401 | Stale webhook timestamp | Slack timestamp is >5 min old (replay protection) |
+| `UZ-WH-010` | 401 | Invalid webhook signature | HMAC or Svix signature verification failed. Verify the `secret_ref` vault entry matches the signing secret configured with the provider. |
+| `UZ-WH-011` | 401 | Stale webhook timestamp | Webhook timestamp is older than 5 minutes (replay protection). Ensure the sender clock is not skewed. |
 
 ## Tool
 
@@ -130,6 +130,7 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | `UZ-ZMB-007` | 400 | Zombie credential value too long | Credential value exceeds 4KB limit |
 | `UZ-ZMB-008` | 400 | Invalid zombie config | TRIGGER.md config_json fails schema validation |
 | `UZ-ZMB-009` | 404 | Zombie not found | No zombie with this ID in the workspace |
+| `UZ-ZMB-010` | 409 | Zombie already stopped | Zombie is already in the `stopped` state. No-op — no action required. |
 
 ## Gate
 
