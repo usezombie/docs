@@ -32,7 +32,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
     - `POST /v1/workspaces/{workspace_id}/spec/template`
     - `POST /v1/workspaces/{workspace_id}/spec/preview`
 
-  Invoking any removed CLI command now exits non-zero with `unknown command: …`. Clients that still POST to the removed endpoints receive 404 with the standard `application/problem+json` body — no 410 gone stub is provided on pre-v1.0 releases. CLI and server can upgrade independently; both sides of the v1 flow are removed in this release.
+  Invoking any removed CLI command now exits non-zero with `unknown command: …`. Clients that still POST to the removed endpoints receive 404 with the standard `application/problem+json` body — no 410 gone stub is provided on pre-v2.0 releases (consistent with the v0.16.0 teardown policy). CLI and server can upgrade independently; both sides of the v1 flow are removed in this release.
 
   ## API reference
 
