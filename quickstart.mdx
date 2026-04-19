@@ -93,10 +93,10 @@ description: Install a zombie and have your agent running with two commands.
   <Step title="Check status and logs">
     ```bash
     zombiectl status
-    zombiectl logs
+    zombiectl logs --zombie <your-zombie-id>
     ```
 
-    `zombiectl logs` streams the activity stream — every event received, every action taken, every
+    The zombie ID appears in the `zombiectl up` output (`zm_01…`). `zombiectl logs` streams the activity stream — every event received, every action taken, every
     credential used — with timestamps and token counts.
   </Step>
 
