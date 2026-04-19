@@ -11,6 +11,31 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Each release follows a standard format: **What's new** for new capabilities, **API reference** for endpoint additions and shape changes, **Bug fixes** for user-visible fixes, and **Upgrading** whenever a release contains a breaking change. Versions follow semver — minor bumps add features, patches fix bugs, and anything breaking is called out under Upgrading.
 </Note>
 
+<Update label="v0.23.0 — Apr 19, 2026" tags={["Breaking", "CLI", "API"]}>
+  ## `skill-secret` command and per-skill secret endpoints removed
+
+  The `zombiectl skill-secret` command and its HTTP surface are gone. The per-skill credential table (`vault.workspace_skill_secrets`) and its `PUT`/`DELETE /v1/workspaces/{workspace_id}/skills/{skill_ref}/secrets/{key}` endpoints existed in parallel to the standard zombie credential flow, but no zombie flow ever read from them. Two overlapping credential surfaces made it ambiguous which one operators should use; we're keeping the one zombies actually read.
+
+  ## Upgrading
+
+  Any credentials you stored through `zombiectl skill-secret put` are gone — the backing table is removed in this release and there is no migration. If you depended on this surface, re-store the value as a workspace credential via `zombiectl credential add` (that writes to `vault.secrets`, which is what the zombie runtime reads).
+
+  - Invoking `zombiectl skill-secret put|delete …` now exits non-zero with `unknown command: skill-secret`.
+  - Clients hitting `PUT` or `DELETE /v1/workspaces/{workspace_id}/skills/{skill_ref}/secrets/{key}` receive `404 Not Found`. No 410 gone stub is provided — consistent with the pre-v2.0 teardown policy.
+  - CLI and server can upgrade independently; both sides of the flow are removed in the same release.
+
+  ## API reference
+
+  - Removed `PUT /v1/workspaces/{workspace_id}/skills/{skill_ref}/secrets/{key}`.
+  - Removed `DELETE /v1/workspaces/{workspace_id}/skills/{skill_ref}/secrets/{key}`.
+  - The `Skill Secrets` tag has been removed from the OpenAPI spec.
+  - `POST /v1/workspaces/{workspace_id}/credentials` (the standard zombie credential vault, backed by `vault.secrets`) is unchanged and remains the single credential surface for zombies.
+
+  ## CLI
+
+  `zombiectl --help` under `ZOMBIE_OPERATOR=1` no longer lists `skill-secret put` or `skill-secret delete`. The operator command table drops the `skill-secret` entry; the remaining operator surface is `harness`, `agent`, and `admin`.
+</Update>
+
 <Update label="v0.22.0 — Apr 19, 2026" tags={["Breaking", "API", "CLI"]}>
   ## Legacy spec/run commands and endpoints removed
 
@@ -42,7 +67,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   ## CLI
 
-  `zombiectl --help` now lists only the commands that map to the zombie-centric model: `login`, `logout`, `workspace`, `specs sync`, `doctor`, `skill-secret`, `admin`, plus the `zombie install|up|status|kill|logs|credential` family. The help banner is five lines shorter.
+  `zombiectl --help` now lists only the commands that map to the zombie-centric model: `login`, `logout`, `workspace`, `specs sync`, `doctor`, `skill-secret`, `admin`, `agent create|list|delete` (external-agent keys, renamed from `external-agents` in v0.20.0), `grant list|revoke`, plus the `zombie install|up|status|kill|logs|credential` family. The help banner is five lines shorter. (The older v1 `agent profile|scores|proposals|improvement-report` introspection was removed in a prior milestone and is unrelated to this release.)
 </Update>
 
 <Update label="v0.21.0 — Apr 18, 2026" tags={["Breaking", "Docs"]}>

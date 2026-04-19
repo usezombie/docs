@@ -14,7 +14,7 @@ description: "Complete zombiectl command reference."
 | External agents | `agent create`, `agent list`, `agent delete` |
 | Integration grants | `grant list`, `grant revoke` |
 | Diagnostics | `doctor` |
-| Operator | `skill-secret`, `admin` |
+| Operator | `admin` |
 
 Every command accepts the [global flags](/cli/flags). Every command that returns structured data supports `--json` for machine-readable output.
 
@@ -231,17 +231,6 @@ zombiectl doctor
 ---
 
 ## Operator commands
-
-### `zombiectl skill-secret`
-
-Manage **skill-scoped** secrets per workspace. Distinct from and unrelated to the standard zombie credential flow — standard zombies declare vault keys in `TRIGGER.md` under `credentials:` and the platform resolves them against the workspace vault written by `zombiectl credential add`. `skill-secret` writes to a separate, skill-ref–scoped table for operator scenarios where the same credential name needs different values per skill version.
-
-```bash
-zombiectl skill-secret put --workspace-id <id> --skill-ref <ref> --key <key> --value <value> [--scope sandbox]
-zombiectl skill-secret delete --workspace-id <id> --skill-ref <ref> --key <key>
-```
-
-Required flags: `--workspace-id`, `--skill-ref`, `--key`. The `put` action also requires `--value`. The `--scope` flag defaults to `sandbox`.
 
 ### `zombiectl admin`
 
