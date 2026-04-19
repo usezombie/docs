@@ -24,11 +24,11 @@ description: Install a zombie and have your agent running with two commands.
     zombiectl install lead-collector
     ```
 
-    This creates a `lead-collector.md` file in your current directory — a YAML + markdown config
-    that defines your zombie: its trigger (inbound webhook), skills (agentmail), and instructions
-    (what the agent should do when an event arrives).
+    This creates a `lead-collector/` directory in your current directory containing two files:
+    `SKILL.md` (agent instructions) and `TRIGGER.md` (deployment config — trigger, skills,
+    credentials, budget, network allowlist).
 
-    Open the file to see what's inside:
+    Open `TRIGGER.md` to see what's inside:
 
     ```markdown TRIGGER.md
     ---
@@ -57,7 +57,7 @@ description: Install a zombie and have your agent running with two commands.
 
   <Step title="Add credentials">
     ```bash
-    zombiectl credential add agentmail --key api_key
+    zombiectl credential add agentmail_api_key --value=$AGENTMAIL_KEY
     ```
 
     Credentials are stored encrypted in the UseZombie vault — your agent never sees them.

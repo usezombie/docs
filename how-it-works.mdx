@@ -61,7 +61,7 @@ sequenceDiagram
     F->>E: GET api.openai.com/v1/chat/completions<br/>Authorization: Bearer sk-...
     E-->>F: 200 OK
     F-->>A: 200 OK
-    Note over F: audit_log.append(action, ts, cost_tokens)
+    Note over F: activity_stream.append(action, ts, cost_tokens)
 ```
 
 The agent makes a plain HTTP request. The firewall resolves the right credential from the store, injects it, and forwards. The agent receives the response. The credential value never crosses the sandbox boundary.

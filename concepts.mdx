@@ -48,9 +48,10 @@ description: "Core terminology and mental model for UseZombie."
 
   <Accordion title="Trigger">
     How a zombie receives events. Currently supported: `webhook`. The `source` field is a
-    human-readable label (e.g. "email", "github", "slack") — it appears in logs but is not used
-    for routing. Routing uses the zombie's unique ID. The `token` field is the Bearer token
-    callers must include.
+    human-readable label (e.g. "email", "github", "slack") — it appears in the activity stream
+    but is not used for routing. Routing uses the zombie's unique ID. The `signature` block
+    declares how inbound requests are authenticated — pointing at vault keys via
+    `signature.bearer_ref` or `signature.secret_ref`.
   </Accordion>
 
   <Accordion title="Skill">
@@ -90,10 +91,11 @@ description: "Core terminology and mental model for UseZombie."
   </Accordion>
 
   <Accordion title="Budget">
-    Per-event spending limits. `max_tokens_per_event` caps the LLM token budget per event
-    delivery. `max_wall_seconds` caps wall-clock time. If either limit is hit, the event is
-    terminated and a budget breach is logged to the activity stream. One bad prompt never
-    becomes an infinite burn.
+    Dollar ceilings declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour
+    window; `monthly_dollars` caps spend over the calendar month. If either ceiling is hit, the
+    zombie stops processing new events and a budget breach is recorded in the activity stream.
+    One bad prompt never becomes an infinite burn. (Per-event token and wall-clock caps are
+    internal runtime controls and are not user-configurable in `TRIGGER.md`.)
   </Accordion>
 
   <Accordion title="Workspace">
