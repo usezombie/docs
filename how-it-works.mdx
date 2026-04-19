@@ -16,7 +16,7 @@ flowchart LR
     F[zombiectl / Mission Control] --> B
 ```
 
-Your agent never sees raw credentials. It makes requests. The firewall intercepts them, injects the right token, and forwards. Audit logs record every action.
+Your agent never sees raw credentials. It makes requests. The firewall intercepts them, injects the right token, and forwards. The activity stream records every action.
 
 ## Step by step
 
@@ -42,7 +42,7 @@ Your agent never sees raw credentials. It makes requests. The firewall intercept
   </Step>
 
   <Step title="Observe and control">
-    Every agent action is timestamped in the audit log: what ran, when, what it called, and what it cost. Budget alerts fire before you hit limits. The kill switch stops any agent mid-action from the CLI or dashboard.
+    Every agent action is timestamped in the activity stream: what ran, when, what it called, and what it cost. Budget alerts fire before you hit limits. The kill switch stops any agent mid-action from the CLI or dashboard.
   </Step>
 </Steps>
 
@@ -61,7 +61,7 @@ sequenceDiagram
     F->>E: GET api.openai.com/v1/chat/completions<br/>Authorization: Bearer sk-...
     E-->>F: 200 OK
     F-->>A: 200 OK
-    Note over F: audit_log.append(action, ts, cost_tokens)
+    Note over F: activity_stream.append(action, ts, cost_tokens)
 ```
 
 The agent makes a plain HTTP request. The firewall resolves the right credential from the store, injects it, and forwards. The agent receives the response. The credential value never crosses the sandbox boundary.
@@ -96,7 +96,7 @@ sequenceDiagram
 - **Redis Streams** — Per-zombie event inbox. Durable, ordered, consumer group semantics for at-least-once delivery.
 - **Event loop** — Worker thread that drives a zombie. Claims events, delivers to sandbox, checkpoints state, acks queue.
 - **NullClaw** — The embedded agent runtime inside the sandbox. Receives events and instructions, produces skill invocations and responses.
-- **Credential firewall** — Network-layer proxy. Intercepts outbound skill requests, injects credentials, records audit logs.
+- **Credential firewall** — Network-layer proxy. Intercepts outbound skill requests, injects credentials, records to the activity stream.
 
 ## Spend control
 
@@ -109,4 +109,4 @@ Every workspace has configurable limits that prevent runaway costs:
 | Cost ceiling | Max USD spend per billing period |
 | Kill switch | Manual stop from CLI or Mission Control at any time |
 
-When a limit is hit, the agent receives a graceful shutdown signal. The audit log records the reason. No surprises on the invoice.
+When a limit is hit, the agent receives a graceful shutdown signal. The activity stream records the reason. No surprises on the invoice.

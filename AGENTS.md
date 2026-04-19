@@ -7,20 +7,27 @@
 - Configuration lives in `docs.json`
 - Run `mint dev` to preview locally on port 3000
 - Run `mint broken-links` to check links
+- Run `make lint` for the full validation bundle (schema, broken links, markdown link check)
 - Deploys automatically on push to the default branch (Mintlify GitHub integration)
 
 ## Terminology
 
-- Use "spec" not "specification" or "ticket"
-- Use "run" not "job" or "task"
+- Use "zombie" (lowercase) for the product noun — the always-on agent process
 - Use "workspace" not "project"
-- Use "gate loop" not "CI pipeline" or "validation loop"
-- Use "scorecard" not "report" or "metrics"
+- Use "skill" for a named capability a zombie's agent can invoke (agentmail, slack, github, ...)
+- Use "trigger" for how a zombie receives events (today: webhook)
+- Use "credential firewall" for the network-layer proxy that injects secrets outside the sandbox
+- Use "activity stream" not "logs" or "audit log" for the append-only event record
+- Use "kill switch" for the immediate stop mechanism
+- Use "event" not "run" or "job" for a single webhook delivery processed by a zombie
+- Use "execution" for the billable per-event agent reasoning window
 - Use "agent" not "bot" or "AI"
 - Use "PR" not "pull request" (except on first mention per page)
-- Use "zombiectl" in code formatting when referring to CLI commands
-- Use "zombied" in code formatting when referring to server processes
+- Use `zombiectl` in code formatting when referring to CLI commands
+- Use `zombied` in code formatting when referring to server processes
 - Use "Mission Control" for the web dashboard (app.usezombie.com)
+
+Forbidden terminology: `spec`, `run`, `runs`, `gate loop`, `scorecard`. These refer to a v1 product surface that has been removed. Do not introduce them into new pages.
 
 ## Style preferences
 

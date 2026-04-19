@@ -3,7 +3,7 @@ title: "Plans"
 description: "Free and Scale plan details."
 ---
 
-UseZombie offers two plans. Both include the full spec-driven agent pipeline -- the difference is scale and support.
+UseZombie offers two plans. Both include the full zombie platform — always-on agent hosting, credential firewall, activity stream, webhook ingestion, kill switch. The difference is scale and support.
 
 ## Hobby (Free)
 
@@ -12,17 +12,12 @@ Get started with no commitment.
 | Feature | Details |
 |---------|---------|
 | Included credit | $10 |
-| Specs | Unlimited |
-| Self-repair gate loop | Included |
-| Scored PRs | Included |
+| Zombies per workspace | Unlimited |
+| Event processing | Included |
 | Workspaces | 1 |
 | Support | Community |
 
-Credit is deducted only for **completed runs**. Failed runs are free -- you are never charged for work that did not produce a result.
-
-<Note>
-  Coming soon: runs scoring below Bronze (score &lt; 40) will be automatically marked non-billable. You will never pay for low-quality output. Follow the [changelog](/changelog) for updates.
-</Note>
+Credit is deducted only for **completed zombie executions** — the per-event agent reasoning that produced a response. If an event fails before the agent produces output (budget breach, skill error, webhook rejected), it is free.
 
 ## Scale (Pay as you go)
 
@@ -31,16 +26,16 @@ Everything in Hobby, plus:
 | Feature | Details |
 |---------|---------|
 | Workspaces | Unlimited |
-| Priority execution queue | Included |
+| Priority event queue | Included |
 | Cost control dashboards | Included |
 | Support | Email |
 
-Scale billing is usage-based. You are charged for compute and token consumption on completed runs. The same rule applies: failed runs are free.
+Scale billing is usage-based. You are charged for compute and token consumption on completed zombie executions. The same rule applies: failed executions are free.
 
 ## Choosing a plan
 
 Start with Hobby. When you need more than one workspace, priority queue access, or email support, upgrade to Scale from the dashboard or CLI:
 
 ```bash
-zombiectl workspace upgrade-scale
+zombiectl workspace upgrade-scale --workspace-id ws_abc --subscription-id sub_xxx
 ```

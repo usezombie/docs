@@ -8,11 +8,15 @@ description: "Complete zombiectl command reference."
 | Group | Commands |
 |-------|----------|
 | Authentication | `login`, `logout` |
-| Workspaces | `workspace add`, `workspace list`, `workspace remove`, `workspace upgrade-scale` |
-| Specs | `specs sync`, `spec init`, `spec validate` |
-| Runs | `run`, `run status`, `runs list`, `runs replay` |
+| Zombies | `install`, `up`, `status`, `kill`, `logs` |
+| Credentials | `credential add`, `credential list` |
+| Workspaces | `workspace add`, `workspace list`, `workspace remove`, `workspace upgrade-scale`, `workspace billing` |
+| External agents | `agent create`, `agent list`, `agent delete` |
+| Integration grants | `grant list`, `grant revoke` |
 | Diagnostics | `doctor` |
-| Operator | `harness`, `skill-secret`, `agent`, `admin` |
+| Operator | `skill-secret`, `admin` |
+
+Every command accepts the [global flags](/cli/flags). Every command that returns structured data supports `--json` for machine-readable output.
 
 ---
 
@@ -26,7 +30,7 @@ Authenticate via Clerk OIDC device flow. Opens your default browser to complete 
 zombiectl login
 ```
 
-Use `--no-open` to print the auth URL instead of opening a browser automatically.
+Use `--no-open` to print the auth URL instead of opening a browser automatically. Use `--timeout-sec` and `--poll-ms` to tune the session poll.
 
 ### `zombiectl logout`
 
@@ -34,6 +38,82 @@ Clear the local session token.
 
 ```bash
 zombiectl logout
+```
+
+---
+
+## Zombies
+
+### `zombiectl install <template>`
+
+Scaffold a zombie from a bundled template into the current directory. Writes `SKILL.md` and `TRIGGER.md`. No API call, no authentication required.
+
+```bash
+zombiectl install lead-collector
+```
+
+Bundled templates today: `lead-collector`, `slack-bug-fixer`. See [Templates](/zombies/templates).
+
+### `zombiectl up`
+
+Deploy the zombie in the current directory to the active workspace. Reads `SKILL.md` and `TRIGGER.md`, POSTs them to `/v1/workspaces/{workspace_id}/zombies`, and starts the event loop.
+
+```bash
+zombiectl up
+```
+
+Output includes the new zombie's ID and webhook URL. See [Starting and observing](/zombies/running).
+
+### `zombiectl status`
+
+List every zombie in the current workspace with state, events processed, and budget consumed.
+
+```bash
+zombiectl status
+```
+
+### `zombiectl kill [<zombie-name>]`
+
+Stop a zombie by name.
+
+```bash
+zombiectl kill lead-collector
+```
+
+### `zombiectl logs --zombie <id>`
+
+Stream the activity stream for one zombie.
+
+```bash
+zombiectl logs --zombie zm_01JABC... --limit 50
+```
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--zombie <id>` | *(required)* | Zombie ID to stream. |
+| `--limit <n>` | `20` | Maximum events to return. |
+| `--cursor <cursor>` | *(none)* | Pagination cursor from a previous response. |
+
+---
+
+## Credentials
+
+### `zombiectl credential add <name> --value=<value>`
+
+Store a secret in the current workspace vault. The agent can reference it by name from `TRIGGER.md`.
+
+```bash
+zombiectl credential add agentmail_api_key --value=$AGENTMAIL_KEY
+```
+
+See [Workspace credentials](/zombies/credentials) for how the vault and credential firewall work.
+
+### `zombiectl credential list`
+
+List credential names and creation timestamps in the current workspace. Values are never returned.
+
+```bash
+zombiectl credential list
 ```
 
 ---
@@ -48,9 +128,11 @@ Connect a GitHub repository as a workspace.
 zombiectl workspace add https://github.com/org/repo
 ```
 
+The CLI opens the GitHub App install page; after install, the workspace is bound automatically. Use `--default-branch <branch>` to override the default branch (defaults to `main`).
+
 ### `zombiectl workspace list`
 
-List all configured workspaces.
+List all configured workspaces with an active marker.
 
 ```bash
 zombiectl workspace list
@@ -58,7 +140,7 @@ zombiectl workspace list
 
 ### `zombiectl workspace remove <id>`
 
-Remove a workspace binding.
+Remove a workspace from local config.
 
 ```bash
 zombiectl workspace remove ws_abc123
@@ -66,135 +148,73 @@ zombiectl workspace remove ws_abc123
 
 ### `zombiectl workspace upgrade-scale`
 
-Upgrade a workspace from Hobby to Scale plan.
+Upgrade a workspace to the Scale plan.
 
 ```bash
-zombiectl workspace upgrade-scale [--workspace-id <id>]
+zombiectl workspace upgrade-scale --workspace-id ws_abc123 --subscription-id sub_xxx
+```
+
+### `zombiectl workspace billing`
+
+Show the billing summary for a workspace over a given period (default 30 days).
+
+```bash
+zombiectl workspace billing --workspace-id ws_abc123 --period 30d
 ```
 
 ---
 
-## Specs
+## External agents
 
-### `zombiectl specs sync`
+External agents are API-key–authenticated callers (LangGraph, CrewAI, Composio, your own code) that drive a specific zombie programmatically.
 
-Sync `PENDING_*.md` spec files from a connected repository.
+### `zombiectl agent create`
 
-```bash
-zombiectl specs sync
-```
-
-### `zombiectl spec init`
-
-Generate a spec from a natural language description. An agent explores your repo via the [agent relay](/how-it-works#agent-relay-model), reads manifest files and project structure, and drafts a complete milestone spec.
+Mint an API key bound to one zombie.
 
 ```bash
-zombiectl spec init --describe "Add rate limiting per API key with Redis backend"
+zombiectl agent create --workspace ws_abc --zombie zm_xyz --name my-agent
 ```
 
-**What happens:**
-1. CLI sends your description + tool definitions to `zombied`
-2. Agent explores your repo via tool calls (read_file, list_dir, glob) — files are read locally, never uploaded
-3. Agent drafts a spec with the right language, gate commands, and acceptance criteria
-4. CLI writes the spec to `docs/spec/v1/pending/`
+The raw key (`zmb_…`) is returned **once**; store it in your secret manager.
 
-```
-🧟 analyzing your repo...
-→ listed ./             (root structure)
-→ read go.mod           (Go 1.21, github.com/acme/api)
-→ read Makefile          (lint, test, build)
-→ listed src/            (4 dirs, 23 files)
+### `zombiectl agent list`
 
-🧟 drafting spec...
-
-✓ wrote docs/spec/v1/pending/M5_001_RATE_LIMITING.md
-  4.8s | 4 reads | 15.6K tokens | $0.09
-```
-
-Requires authentication. The agent uses your workspace's configured LLM provider.
-
-### `zombiectl spec validate <file>`
-
-Validate a spec file locally before submission.
+List every external agent key in a workspace.
 
 ```bash
-zombiectl spec validate specs/PENDING_checkout_flow.md
+zombiectl agent list --workspace ws_abc
+```
+
+### `zombiectl agent delete <agent-id>`
+
+Revoke an external agent key.
+
+```bash
+zombiectl agent delete --workspace ws_abc ag_01JABC...
 ```
 
 ---
 
-## Runs
+## Integration grants
 
-### `zombiectl run --spec <file>`
+Integration grants are per-zombie permissions to reach a third-party service (Slack workspace, GitHub repo) that the zombie requested interactively.
 
-Submit a spec and start a run.
+### `zombiectl grant list --zombie <id>`
 
-```bash
-zombiectl run --spec specs/PENDING_checkout_flow.md
-```
-
-### `zombiectl run --spec <file> --preview`
-
-Preview the blast radius before executing. An agent reads your spec and explores the repo via the [agent relay](/how-it-works#agent-relay-model) to predict which files will be touched.
+List pending and approved grants for a zombie.
 
 ```bash
-zombiectl run --spec specs/M5_001_RATE_LIMITING.md --preview
+zombiectl grant list --zombie zm_01JABC...
 ```
 
-```
-🧟 analyzing your repo against spec...
-→ read M5_001_RATE_LIMITING.md
-→ listed src/http/       (middleware, handlers)
-→ read src/http/middleware.go
-→ listed src/redis/      (client)
+### `zombiectl grant revoke --zombie <id> <grant-id>`
 
-● src/http/middleware.go       high
-● src/redis/client.go          high
-◆ src/config/config.go         medium
-◆ docker-compose.yml           medium
-○ src/http/handler.go          low
-
-5 file(s) in blast radius
-  5.2s | 5 reads | 18.3K tokens | $0.11
-```
-
-Use `--preview-only` to preview without starting a run.
-
-### `zombiectl run --spec <file> --watch`
-
-Submit a spec and stream gate progress via SSE.
+Revoke a granted integration. Further attempts by the zombie to reach that integration fail with `UZ-GRANT-003`.
 
 ```bash
-zombiectl run --spec specs/PENDING_checkout_flow.md --watch
+zombiectl grant revoke --zombie zm_01JABC... gr_01JXYZ...
 ```
-
-<Note>The `--watch` flag is planned for a future release.</Note>
-
-### `zombiectl runs list`
-
-List runs with status and scores.
-
-```bash
-zombiectl runs list
-```
-
-### `zombiectl run status <id>`
-
-Fetch run detail with scorecard.
-
-```bash
-zombiectl run status run_abc123
-```
-
-### `zombiectl runs replay <id>`
-
-Structured failure narrative for a completed run.
-
-```bash
-zombiectl runs replay run_abc123
-```
-
-<Note>This command is planned for a future release.</Note>
 
 ---
 
@@ -212,22 +232,9 @@ zombiectl doctor
 
 ## Operator commands
 
-### `zombiectl harness`
-
-Agent harness lifecycle management.
-
-```bash
-zombiectl harness source put [--workspace-id <id>]
-zombiectl harness compile [--workspace-id <id>]
-zombiectl harness activate [--workspace-id <id>]
-zombiectl harness active [--workspace-id <id>]
-```
-
-All subcommands accept `--workspace-id` or use the current workspace from context.
-
 ### `zombiectl skill-secret`
 
-Manage agent skill secrets per workspace.
+Manage **skill-scoped** secrets per workspace. Distinct from and unrelated to the standard zombie credential flow — standard zombies declare vault keys in `TRIGGER.md` under `credentials:` and the platform resolves them against the workspace vault written by `zombiectl credential add`. `skill-secret` writes to a separate, skill-ref–scoped table for operator scenarios where the same credential name needs different values per skill version.
 
 ```bash
 zombiectl skill-secret put --workspace-id <id> --skill-ref <ref> --key <key> --value <value> [--scope sandbox]
@@ -236,25 +243,12 @@ zombiectl skill-secret delete --workspace-id <id> --skill-ref <ref> --key <key>
 
 Required flags: `--workspace-id`, `--skill-ref`, `--key`. The `put` action also requires `--value`. The `--scope` flag defaults to `sandbox`.
 
-### `zombiectl agent`
-
-Agent introspection — view profiles, scores, proposals, and improvement reports.
-
-```bash
-zombiectl agent profile
-zombiectl agent scores
-zombiectl agent proposals
-zombiectl agent improvement-report
-```
-
-<Note>
-  Coming soon: `zombiectl agent dashboard` will show all agents in a workspace with ASCII sparklines, current tier, trust status, and pending proposals in a single command.
-</Note>
-
 ### `zombiectl admin`
 
 Administrative workspace operations.
 
 ```bash
-zombiectl admin <subcommand>
+zombiectl admin config set scoring_context_max_tokens 2048 --workspace-id ws_abc
 ```
+
+See the [operator documentation](/operator/operations/doctor) for the full operator surface.

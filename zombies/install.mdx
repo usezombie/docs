@@ -1,0 +1,118 @@
+---
+title: "Installing a zombie"
+description: "Scaffold a zombie from a bundled template with `zombiectl install`."
+---
+
+## Overview
+
+`zombiectl install <template>` is the first command in a zombie's lifecycle. It writes a local directory containing two editable files — `SKILL.md` and `TRIGGER.md` — scaffolded from a bundled template. Nothing is uploaded, no API calls are made, and no authentication is required. You edit the files, then `zombiectl up` takes it from there.
+
+```bash
+zombiectl install lead-collector
+```
+
+```
+✓ lead-collector installed.
+  Created lead-collector/
+    SKILL.md   — agent instructions (edit this)
+    TRIGGER.md — deployment config
+
+Next steps:
+  zombiectl up              Start the zombie
+  zombiectl credential add  Add credentials (optional)
+```
+
+## Bundled templates
+
+Two templates ship with `zombiectl` today. Each is a complete, deployable starting point.
+
+| Template | What it does | Skills used |
+|----------|--------------|-------------|
+| `lead-collector` | Receives inbound email via a webhook, qualifies the sender, drafts a short reply. | `agentmail` |
+| `slack-bug-fixer` | Watches a Slack channel, identifies bug reports, opens a PR against the linked repo. | `slack`, `github` |
+
+List of available templates is embedded in the CLI; run `zombiectl install` without an argument to see the current set in the error output.
+
+## File layout
+
+The installed directory contains two files. Both are plain text; both are designed to be edited.
+
+```
+lead-collector/
+├── SKILL.md      # agent instructions (natural language)
+└── TRIGGER.md    # machine-readable config + deployment metadata
+```
+
+### `SKILL.md`
+
+A markdown file with free-form agent instructions. Write it as if you were onboarding a smart colleague to the job: who they are, what events they will receive, what to do with each, what tone to use, what to avoid.
+
+```markdown SKILL.md
+You are a lead qualification agent.
+
+When an email arrives:
+1. Read the sender and subject line.
+2. If it looks like a real sales inquiry, reply with a short acknowledgement
+   and tag the thread with `qualified`.
+3. If it looks like noise, ignore it and log the reason.
+4. Record what you did in the activity stream.
+
+Never promise a demo time. Never quote prices.
+```
+
+### `TRIGGER.md`
+
+A markdown file with YAML frontmatter that configures how the zombie receives events, which skills it is allowed to invoke, what credentials it expects, and its budget.
+
+```markdown TRIGGER.md
+---
+name: lead-collector
+trigger:
+  type: webhook
+  source: agentmail
+  event: message.received
+credentials:
+  - agentmail_api_key
+budget:
+  daily_dollars: 5.0
+  monthly_dollars: 29.0
+network:
+  allow:
+    - api.agentmail.to
+---
+
+This zombie qualifies inbound sales email.
+```
+
+The `name` field becomes the zombie's display name. The `trigger.source` field identifies the upstream provider and determines the webhook signature scheme for first-class integrations (`agentmail`, `slack`, `github`, `linear`, `jira`, `grafana`, `clerk`). The `credentials:` list names the vault keys the zombie will read at event time — every entry must exist in the workspace vault before `zombiectl up` succeeds. The `network.allow:` list is an outbound hostname allowlist enforced by the credential firewall.
+
+See [Writing skills](/zombies/skills) for the full `TRIGGER.md` reference, and [Templates](/zombies/templates) for the anatomy of a bundled template.
+
+## Flags and options
+
+`zombiectl install` takes a single positional argument.
+
+| Argument / flag | Required | Purpose |
+|-----------------|----------|---------|
+| `<template>` | Yes | Name of a bundled template. |
+| `--json` | No | Emit JSON instead of the human-readable greeting. |
+
+Exit codes:
+
+- `0` — template installed.
+- `2` — unknown or missing template name.
+- `1` — filesystem error (permission, disk full).
+
+## After install
+
+You have two reasonable next moves:
+
+1. **Edit the files**, then `zombiectl up` to deploy. The bundled templates declare the vault keys they expect under `credentials:` — the platform reads them from the workspace vault at event time.
+2. **Add credentials first** via `zombiectl credential add`, then `zombiectl up`. Either order works — but `zombiectl up` refuses to deploy until every key listed under `credentials:` is present in the vault.
+
+```bash
+zombiectl credential add agentmail_api_key --value=$AGENTMAIL_KEY
+zombiectl up
+```
+
+See [Starting and observing](/zombies/running) for the deployment workflow.

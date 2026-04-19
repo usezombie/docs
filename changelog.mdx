@@ -11,7 +11,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Each release follows a standard format: **What's new** for new capabilities, **API reference** for endpoint additions and shape changes, **Bug fixes** for user-visible fixes, and **Upgrading** whenever a release contains a breaking change. Versions follow semver — minor bumps add features, patches fix bugs, and anything breaking is called out under Upgrading.
 </Note>
 
-<Update label="v0.21.0 — Apr 19, 2026" tags={["Breaking", "API", "CLI"]}>
+<Update label="v0.22.0 — Apr 19, 2026" tags={["Breaking", "API", "CLI"]}>
   ## Legacy spec/run commands and endpoints removed
 
   The v1 spec→run flow is gone. Zombies are the product model now — long-lived agents you install, steer, and kill — and the old "submit a spec YAML, wait for a run" surface has been removed from both `zombied` and `zombiectl`. Leaving it around was confusing the CLI help, the API surface, and reviewers.
@@ -43,6 +43,31 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   ## CLI
 
   `zombiectl --help` now lists only the commands that map to the zombie-centric model: `login`, `logout`, `workspace`, `specs sync`, `doctor`, `skill-secret`, `admin`, plus the `zombie install|up|status|kill|logs|credential` family. The help banner is five lines shorter.
+</Update>
+
+<Update label="v0.21.0 — Apr 18, 2026" tags={["Breaking", "Docs"]}>
+  ## Docs reshaped around the zombie lifecycle
+
+  The public documentation now matches the product. Pages describing the old spec-and-run workflow have been removed, and a new **Zombies** section walks you through the real lifecycle — install a template, add credentials to the workspace vault, `zombiectl up`, observe with `status` and `logs`, `kill` when you are done.
+
+  ## Upgrading
+
+  - Bookmarks to `/specs/*` and `/runs/*` return 404. Use the new equivalents:
+    - `/specs/*` → [Authoring skills](/zombies/skills) and [Templates](/zombies/templates)
+    - `/runs/submitting` → [Installing a zombie](/zombies/install) and [Starting and observing](/zombies/running)
+    - `/runs/troubleshooting` → [Starting and observing](/zombies/running#exit-codes)
+  - The CLI reference at `/cli/zombiectl` no longer lists `spec`, `run`, `runs`, `spec init`, `run preview`, `run watch`, or `run interrupt`. The equivalent workflow is `zombiectl install → up → status → logs → kill`.
+  - Pricing copy on [Plans](/billing/plans) now speaks in terms of "zombie executions" instead of "runs". Behavior is unchanged — you are still only billed for completed agent work.
+
+  ## What's new
+
+  - **[Zombies overview](/zombies/overview)** — what a zombie is, the four-state lifecycle, workspace scoping.
+  - **[Installing a zombie](/zombies/install)** — `zombiectl install <template>`, bundled templates, the `SKILL.md` / `TRIGGER.md` file layout.
+  - **[Starting and observing](/zombies/running)** — `up`, `status`, `kill`, and `logs` in depth.
+  - **[Workspace credentials](/zombies/credentials)** — the vault, the credential firewall, and what the agent can and cannot see.
+  - **[Webhooks](/zombies/webhooks)** — authentication modes for the seven first-class providers, approval-gate callbacks, URL-embedded secrets.
+  - **[Authoring skills](/zombies/skills)** — full reference for `SKILL.md` and `TRIGGER.md`, tool bindings, credential references, budgets, and approval gates.
+  - **[Templates](/zombies/templates)** — anatomy of `lead-collector` and `slack-bug-fixer`, and how to write your own.
 </Update>
 
 <Update label="v0.20.0 — Apr 18, 2026" tags={["What's new", "API", "Security"]}>

@@ -1,0 +1,154 @@
+---
+title: "Authoring skills"
+description: "The `SKILL.md` and `TRIGGER.md` file pair — how a zombie is defined end-to-end."
+---
+
+## Overview
+
+A zombie is two files: a **`SKILL.md`** that tells the agent who it is and what to do, and a **`TRIGGER.md`** that tells the platform how the zombie connects to the world. Nothing else is needed — no Dockerfile, no deployment YAML, no server code.
+
+```
+my-zombie/
+├── SKILL.md      # agent instructions (natural language)
+└── TRIGGER.md    # machine-readable config + deployment metadata
+```
+
+`zombiectl install <template>` scaffolds both. This page is the reference for authoring your own.
+
+## `SKILL.md` — agent instructions
+
+`SKILL.md` is plain markdown. The whole file is handed to the agent as its system prompt on every event delivery. Everything the agent knows about its job comes from here.
+
+Good practice:
+
+- **State the role plainly.** "You are a lead qualification agent." First sentence.
+- **List the event shape.** What arrives on the webhook? Name the fields.
+- **Give an explicit procedure.** Numbered steps beat prose. The agent will follow them.
+- **Name the skills it can invoke.** Match the names to the `skills:` list in `TRIGGER.md`.
+- **Call out hard no-go behaviors.** "Never promise a demo time." "Never post to #general."
+- **Keep it short.** Every token in `SKILL.md` is paid for on every event. Aim for under 1500 tokens.
+
+```markdown SKILL.md
+You are a lead qualification agent.
+
+When an email arrives on the `email.received` event, you get:
+  - from      (string)
+  - subject   (string)
+  - body      (string, may be HTML)
+
+Procedure:
+1. Read `from` and `subject`.
+2. If it looks like a real sales inquiry, invoke `agentmail.reply` with a short,
+   friendly acknowledgement. Tag the thread `qualified`.
+3. If it looks like noise, do nothing and append a one-line reason to the
+   activity stream.
+
+Never promise a demo time. Never quote prices. Never invoke `agentmail.reply`
+more than once per event.
+```
+
+## `TRIGGER.md` — machine-readable config
+
+`TRIGGER.md` is YAML frontmatter plus an optional markdown body (the body is a free-form human description that appears in Mission Control; it is not parsed).
+
+### Required fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `name` | string | Display name; used as the kill target and in status output. |
+| `trigger.type` | string | Today only `webhook` is supported. |
+| `budget` | object | Daily and monthly dollar caps; see below. |
+
+### Optional fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `trigger.source` | string | Upstream provider id — selects the webhook signature scheme for first-class providers (`agentmail`, `slack`, `github`, `linear`, `jira`, `grafana`, `clerk`). |
+| `trigger.event` | string | Provider-specific event filter (e.g. `message.received`). |
+| `trigger.signature.secret_ref` | string | Vault key name whose value verifies incoming webhook signatures (first-class providers). |
+| `credentials` | list of strings | Vault key names the zombie reads at event time. Must all exist in the workspace vault. |
+| `skills` | list of strings | Explicit skill allowlist. When present, the agent can only invoke operations on these skills. |
+| `chain` | list of strings | Names of zombies to hand off to after this zombie finishes an event. |
+| `network.allow` | list of strings | Outbound hostname allowlist enforced by the credential firewall. |
+
+### Full example
+
+```yaml
+---
+name: lead-collector
+trigger:
+  type: webhook
+  source: agentmail
+  event: message.received
+chain:
+  - lead-enricher
+credentials:
+  - agentmail_api_key
+budget:
+  daily_dollars: 5.0
+  monthly_dollars: 29.0
+network:
+  allow:
+    - api.agentmail.to
+---
+
+This zombie qualifies inbound sales email.
+```
+
+### Tool bindings
+
+The `skills:` list is the tool binding when present. The platform ships a catalog of skills (`agentmail`, `slack`, `git`, `github`, `linear`, `jira`, `grafana`, `clerk`, and a generic `http`). Each skill exposes named operations (`agentmail.reply`, `slack.post_message`, `github.open_pr`, ...) that the agent can invoke from `SKILL.md`.
+
+When `skills:` is declared, the agent can only invoke operations that belong to a skill named in the list; a compromised or jailbroken agent cannot reach outside this allow-list. When `skills:` is omitted, the platform binds skills implicitly from the `credentials:` list and the `network.allow` hostnames.
+
+### Credential references
+
+Under `credentials:`, every entry is a **bare vault key name** — no URI scheme, no path. The firewall resolves each name against the workspace vault at the moment of the skill call; the agent sees the skill's response, never the resolved secret. See [Credentials](/zombies/credentials) for how to add, rotate, and list vault entries.
+
+### Budgets
+
+Under `budget:`, you cap spend with two dollar ceilings. Both are enforced by the billing subsystem; a breach terminates the event processing cleanly and records a `budget_breach` entry in the activity stream. Subsequent events in a later billing window are unaffected.
+
+| Field | Purpose |
+|-------|---------|
+| `daily_dollars` | Rolling 24-hour dollar ceiling for this zombie. |
+| `monthly_dollars` | Calendar-month dollar ceiling for this zombie. |
+
+Workspace-level budgets (across all zombies in the workspace) are configured separately in [Billing](/billing/budgets).
+
+### Network allowlist
+
+Under `network.allow:`, list every hostname the zombie's skills are allowed to reach. Outbound requests to other hostnames are dropped by the firewall before they leave the sandbox. This is a belt-and-suspenders control layered on top of the skill allowlist — even if a skill is bound, it can only dial the hostnames you have approved here.
+
+## Validation
+
+`zombiectl up` validates both files client-side before upload:
+
+- `TRIGGER.md` frontmatter must parse as YAML.
+- `name`, `trigger.type`, `budget` must be present.
+- Every name under `credentials:` must exist in the current workspace vault.
+- Every skill name under `skills:` (when declared) must exist in the platform catalog.
+
+Errors are reported with file + line where possible.
+
+```bash
+zombiectl up
+```
+
+```
+✗ TRIGGER.md: unknown credential 'agentmail' — is it in the workspace vault?
+  at line 6: credentials:
+              - agentmail
+  hint: run `zombiectl credential list` to see what is stored.
+```
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Bundled templates" icon="layer-group" href="/zombies/templates">
+    See the anatomy of `lead-collector` and `slack-bug-fixer`.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/zombies/webhooks">
+    Authentication modes and approval gates in depth.
+  </Card>
+</CardGroup>

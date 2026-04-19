@@ -1,6 +1,6 @@
 ---
 title: 'API Reference'
-description: 'UseZombie Control Plane API — spec-to-PR automation.'
+description: 'UseZombie Control Plane API — deploy, observe, and control zombies programmatically.'
 ---
 
 ## Base URL
@@ -14,7 +14,7 @@ https://api.usezombie.com
 All API endpoints require a Bearer token in the `Authorization` header, except health checks and the initial auth session creation.
 
 ```bash
-curl https://api.usezombie.com/v1/runs \
+curl https://api.usezombie.com/v1/workspaces/ws_abc/zombies \
   -H "Authorization: Bearer $ZOMBIE_TOKEN"
 ```
 
@@ -44,8 +44,8 @@ Every response includes a `request_id` for tracing.
 
 - **IDs** are UUIDs.
 - **Timestamps** are Unix milliseconds.
-- **Action endpoints** use `:action` suffix (e.g., `/v1/runs/{run_id}:cancel`).
-- **Streaming endpoints** (replay, stream, agent relay) return Server-Sent Events.
+- **Action endpoints** use a subpath form (e.g., `/v1/workspaces/{workspace_id}/zombies/{zombie_id}/steer`).
+- **Streaming endpoints** (activity stream) return Server-Sent Events.
 
 ## Rate limits
 
