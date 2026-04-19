@@ -11,6 +11,27 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Each release follows a standard format: **What's new** for new capabilities, **API reference** for endpoint additions and shape changes, **Bug fixes** for user-visible fixes, and **Upgrading** whenever a release contains a breaking change. Versions follow semver — minor bumps add features, patches fix bugs, and anything breaking is called out under Upgrading.
 </Note>
 
+<Update label="v0.24.0 — Apr 19, 2026" tags={["What's new", "UI", "Performance"]}>
+  ## One design system, one Button, one Card — across the dashboard and the marketing site
+
+  The marketing site and the operator dashboard now render every button, card, dialog, badge, tooltip, dropdown, input, pagination control, empty state, and metric tile through a single shared design system. Before this release each surface carried its own copy — the Button on the dashboard drifted from the Button on `/pricing`, and patches had to land twice. That's fixed. Want a new variant or a tone tweak? One file, and both surfaces update together.
+
+  The operator dashboard pages — the workspaces list, the workspace detail, and the run detail — also migrated off their legacy inline-style vocabulary. Buttons, empty states, and status tiles there now use the shared components; inline `<style>` blocks are gone. Functionally identical; visually tighter and consistent with the marketing site.
+
+  ## What's new
+
+  - `<Button>`, `<Card>`, `<Dialog>`, `<DropdownMenu>`, `<Tooltip>`, `<Badge>`, `<Input>`, `<Separator>`, `<Skeleton>`, `<ConfirmDialog>`, `<EmptyState>`, `<Pagination>`, `<StatusCard>`, `<Terminal>`, `<Grid>`, `<Section>`, `<InstallBlock>`, `<AnimatedIcon>`, and `<ZombieHandIcon>` all live in `@usezombie/design-system`. Both the Next.js dashboard and the Vite marketing site consume them directly.
+  - Button picks up the full shadcn-aligned variant set: `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`, plus the UseZombie signature `double-border`. Sizes: `default`, `sm`, `lg`, `icon`. React 19 ref-as-prop — no `forwardRef` anywhere in the package.
+  - The new `/agents` hero ships two interactive demos: a falling-beams background with collision-triggered particle bursts, and a typed terminal that animates out the `zombiectl login → install → run` happy path with bash syntax highlighting. Both lazy-load off the `/agents` route and collapse to static content under `prefers-reduced-motion: reduce`.
+
+  ## Performance
+
+  - posthog-js no longer blocks the landing first paint. The analytics client is dynamic-imported on idle; events that fire before it resolves are buffered and flushed in order once the module lands. On a cold cache that's ~60 kB gzipped removed from the critical path.
+  - Self-hosted Geist (via `@fontsource-variable/geist`) replaces the third-party CDN `@font-face` rules — zero googleapis / jsdelivr requests on any marketing-site route.
+  - Landing JS measured at 89.27 kB gzipped (under the 90 kB target). Website secondary routes (`/pricing`, `/agents`, `/privacy`, `/terms`) are all route-split and fetched on demand.
+  - A `size-limit` CI gate in `.github/workflows/test.yml` fails the build if landing JS exceeds 100 kB gz, landing CSS exceeds 20 kB gz, the `/agents` motion chunk exceeds 40 kB gz, or the animated-terminal chunk exceeds 5 kB gz.
+</Update>
+
 <Update label="v0.23.0 — Apr 19, 2026" tags={["Breaking", "CLI", "API"]}>
   ## `skill-secret` command and per-skill secret endpoints removed
 
@@ -67,7 +88,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   ## CLI
 
-  `zombiectl --help` now lists only the commands that map to the zombie-centric model: `login`, `logout`, `workspace`, `specs sync`, `doctor`, `skill-secret`, `admin`, `agent create|list|delete` (external-agent keys, renamed from `external-agents` in v0.20.0), `grant list|revoke`, plus the `zombie install|up|status|kill|logs|credential` family. The help banner is five lines shorter. (The older v1 `agent profile|scores|proposals|improvement-report` introspection was removed in a prior milestone and is unrelated to this release.)
+  `zombiectl --help` now lists only the commands that map to the zombie-centric model: `login`, `logout`, `workspace`, `doctor`, `skill-secret`, `admin`, `agent create|list|delete` (external-agent keys, renamed from `external-agents` in v0.20.0), `grant list|revoke`, plus the `zombie install|up|status|kill|logs|credential` family. The help banner is five lines shorter. (The older v1 `agent profile|scores|proposals|improvement-report` introspection was removed in a prior milestone and is unrelated to this release.)
 </Update>
 
 <Update label="v0.21.0 — Apr 18, 2026" tags={["Breaking", "Docs"]}>
