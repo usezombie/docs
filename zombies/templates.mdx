@@ -1,0 +1,140 @@
+---
+title: "Templates"
+description: "Bundled zombie templates — what each does, how they are structured, and how to write your own."
+---
+
+## Overview
+
+A **template** is a pre-built zombie you can scaffold with one command:
+
+```bash
+zombiectl install lead-collector
+```
+
+Two templates ship with `zombiectl` today. Each is a working, deployable zombie. Edit the files, drop in your credentials, `zombiectl up`.
+
+## Bundled templates
+
+### `lead-collector`
+
+Receives inbound email via a webhook, classifies each message, and drafts a short acknowledgement for genuine sales inquiries.
+
+```
+lead-collector/
+├── SKILL.md         # "You are a lead qualification agent..."
+└── TRIGGER.md       # webhook trigger, source=agentmail, event=message.received
+```
+
+- **Trigger:** webhook, `source: agentmail`, `event: message.received`
+- **Credentials it expects:** `agentmail_api_key`
+- **Budget:** `daily_dollars: 5.0`, `monthly_dollars: 29.0`
+- **Network allowlist:** `api.agentmail.to`
+- **Chain:** hands off to `lead-enricher` after each event
+
+Typical event shape:
+
+```json
+{
+  "event_id": "msg-01JABC",
+  "type": "email.received",
+  "data": {
+    "from": "alice@example.com",
+    "subject": "Interested in a demo",
+    "body": "Hi — we are looking at tools like yours..."
+  }
+}
+```
+
+Scaffold and deploy:
+
+```bash
+zombiectl install lead-collector
+zombiectl credential add agentmail_api_key --value=$AGENTMAIL_KEY
+zombiectl up
+```
+
+### `slack-bug-fixer`
+
+Watches a Slack channel, identifies bug reports from messages, and opens a draft PR against a linked repository.
+
+```
+slack-bug-fixer/
+├── SKILL.md         # "You are a bug triage agent..."
+└── TRIGGER.md       # webhook trigger, source=slack, skills=[slack, git, github]
+```
+
+- **Trigger:** webhook, `source: slack`, `event: message`
+- **Skills:** `slack`, `git`, `github`
+- **Credentials it expects:** `slack_bot_token`, `slack_signing_secret`, `github_token`
+- **Budget:** `daily_dollars: 10.0`, `monthly_dollars: 50.0`
+- **Network allowlist:** `api.slack.com`, `api.github.com`, `github.com`
+
+Typical event shape:
+
+```json
+{
+  "event_id": "slk-01JABC",
+  "type": "slack.message",
+  "data": {
+    "channel": "C01BUGS",
+    "user": "U0ALICE",
+    "text": "The login page throws a 500 when I submit an empty password"
+  }
+}
+```
+
+Scaffold and deploy:
+
+```bash
+zombiectl install slack-bug-fixer
+zombiectl credential add slack_bot_token       --value=$SLACK_BOT_TOKEN
+zombiectl credential add slack_signing_secret  --value=$SLACK_SIGNING_SECRET
+zombiectl credential add github_token          --value=$GITHUB_TOKEN
+zombiectl up
+```
+
+## Writing your own template
+
+There is no special "template format" — a template is just a directory with a valid `SKILL.md` and `TRIGGER.md`. To create one from scratch:
+
+```bash
+mkdir my-zombie && cd my-zombie
+touch SKILL.md TRIGGER.md
+```
+
+Then author the two files as described in [Authoring skills](/zombies/skills), add any credentials you reference, and `zombiectl up`.
+
+Minimal viable `TRIGGER.md`:
+
+```markdown TRIGGER.md
+---
+name: my-zombie
+trigger:
+  type: webhook
+budget:
+  daily_dollars: 1.0
+  monthly_dollars: 10.0
+network:
+  allow:
+    - httpbin.org
+---
+
+Short human description of what this zombie does.
+```
+
+Minimal viable `SKILL.md`:
+
+```markdown SKILL.md
+You are a simple HTTP echo agent. When an event arrives, append its `type` field
+and body length to the activity stream. Do nothing else.
+```
+
+## Sharing templates
+
+Templates are directories of markdown — they are trivial to share. Commit `my-zombie/` to a repo, clone it on a new machine, `cd my-zombie && zombiectl up`. The platform does not require templates to be registered anywhere; the CLI works on whatever is in front of it.
+
+Credentials and approval tokens stay out of the template — they live in the workspace vault. A template is safe to share publicly; a credential is not.
+
+<Note>
+  A hosted template marketplace (community-contributed zombies, one-click install) is on the roadmap. For now, git is the distribution mechanism.
+</Note>

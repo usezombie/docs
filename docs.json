@@ -23,21 +23,15 @@
             ]
           },
           {
-            "group": "Specs",
+            "group": "Zombies",
             "pages": [
-              "specs/writing-specs",
-              "specs/supported-formats",
-              "specs/validation"
-            ]
-          },
-          {
-            "group": "Runs",
-            "pages": [
-              "runs/submitting",
-              "runs/gate-loop",
-              "runs/scorecard",
-              "runs/pr-output",
-              "runs/troubleshooting"
+              "zombies/overview",
+              "zombies/install",
+              "zombies/running",
+              "zombies/credentials",
+              "zombies/webhooks",
+              "zombies/skills",
+              "zombies/templates"
             ]
           },
           {

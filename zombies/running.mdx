@@ -1,0 +1,126 @@
+---
+title: "Starting, observing, and stopping"
+description: "The `up`, `status`, `kill`, and `logs` commands — the zombie control plane."
+---
+
+## Overview
+
+Four commands move a zombie through its live states: `up` starts it, `status` shows what is currently running in your workspace, `logs` streams its activity, and `kill` stops it. Each command operates on the current workspace; set it with `zombiectl workspace add` or list with `zombiectl workspace list`.
+
+```bash
+zombiectl up         # deploy the zombie in the current directory
+zombiectl status     # list every zombie in this workspace
+zombiectl logs --zombie zm_01JABC...
+zombiectl kill lead-collector
+```
+
+## `zombiectl up`
+
+`zombiectl up` uploads the `SKILL.md` and `TRIGGER.md` files from a bundled template directory in your current working directory. It expects exactly one such directory; if none is found, the command fails. It does not take arguments today.
+
+```bash
+zombiectl up
+```
+
+```
+✓ lead-collector is live.
+  Zombie ID:   zm_01JABCDEFGHIJKLMN
+  Webhook URL: https://hooks.usezombie.com/v1/webhooks/zm_01JABCDEFGHIJKLMN
+
+Commands:
+  zombiectl status          Check status
+  zombiectl logs            View activity
+  zombiectl kill            Stop the zombie
+```
+
+Behind the scenes:
+
+1. The CLI looks for a known template directory (`lead-collector`, `slack-bug-fixer`, ...) in the working directory.
+2. It reads `SKILL.md` and `TRIGGER.md`, extracting the `name` field from the `TRIGGER.md` frontmatter.
+3. It POSTs the two markdown bodies to `/v1/workspaces/{workspace_id}/zombies` in your current workspace.
+4. The server parses `TRIGGER.md`, provisions a webhook endpoint, and starts the event loop.
+5. The zombie is now alive and waiting.
+
+Exit codes:
+
+- `0` — zombie deployed.
+- `1` — no template directory found in the working directory, no workspace selected, or API error.
+
+## `zombiectl status`
+
+Lists every zombie in the current workspace with its state, events processed, and budget consumed.
+
+```bash
+zombiectl status
+```
+
+```
+Zombies
+────────────────
+Name:   lead-collector
+Status: alive
+Events: 42
+Budget: $1.23
+```
+
+Pass `--json` for a machine-readable shape suitable for scripting.
+
+```bash
+zombiectl status --json
+```
+
+## `zombiectl logs`
+
+Streams the activity stream for a single zombie. The activity stream is an append-only record — every webhook received, every skill invoked, every response returned, every budget check.
+
+```bash
+zombiectl logs --zombie zm_01JABC... --limit 50
+```
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--zombie <id>` | *(required)* | Zombie ID to stream. |
+| `--limit <n>` | `20` | Maximum events to return. |
+| `--cursor <cursor>` | *(none)* | Pagination cursor from a previous response. |
+
+The output is paginated — the last line of a truncated response includes the cursor you pass back with `--cursor` to continue.
+
+```
+Activity Stream
+─────────────────────────────────────────────────────────────────
+  2026-04-18T15:22:31Z  webhook_received  email.inbound from alice@example.com
+  2026-04-18T15:22:32Z  skill_invoked     agentmail.reply
+  2026-04-18T15:22:45Z  event_completed   tokens=312 cost=$0.01
+
+  More: zombiectl logs --zombie zm_... --cursor=<next_cursor>
+```
+
+## `zombiectl kill`
+
+Stops a zombie by name. The event loop terminates; the webhook becomes inactive; session state is preserved so the same name can be brought back up.
+
+```bash
+zombiectl kill lead-collector
+```
+
+```
+✓ lead-collector killed.
+```
+
+You can bring the same zombie back up from the same directory at any time:
+
+```bash
+zombiectl up
+```
+
+The session checkpoint (conversation history, working memory) is rehydrated on restart — the zombie picks up where it left off.
+
+## Exit codes
+
+Every command returns a documented exit code. See the [CLI reference](/cli/zombiectl) for the full matrix.
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success. |
+| `1` | Workspace or API error (no workspace selected, network failure, server rejected the call). |
+| `2` | Invalid or missing argument (missing `<template>`, missing `--zombie`, etc.). |

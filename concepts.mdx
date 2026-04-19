@@ -14,35 +14,44 @@ description: "Core terminology and mental model for UseZombie."
   </Accordion>
 
   <Accordion title="ZombieConfig">
-    The YAML + markdown file that defines a zombie. YAML frontmatter carries machine-readable
-    config (trigger, skills, credentials, budget); the markdown body carries agent instructions
-    in natural language. The CLI compiles this to JSON before uploading — the server only ever
-    sees JSON.
+    A zombie is defined by two files in a directory: `SKILL.md` (agent instructions, natural
+    language) and `TRIGGER.md` (machine-readable config, YAML frontmatter + optional human
+    description). The CLI uploads both files on `zombiectl up`; the server parses `TRIGGER.md`
+    and stores the `SKILL.md` body as the agent's system prompt.
 
-    ```yaml
+    ```markdown TRIGGER.md
     ---
     name: lead-collector
     trigger:
       type: webhook
-      source: email
-      token: your-token
-    skills:
-      - agentmail
+      source: agentmail
+      event: message.received
     credentials:
-      agentmail_api_key: op://your-vault/agentmail/api_key
+      - agentmail_api_key
     budget:
-      max_tokens_per_event: 4000
+      daily_dollars: 5.0
+      monthly_dollars: 29.0
+    network:
+      allow:
+        - api.agentmail.to
     ---
 
+    This zombie qualifies inbound sales email.
+    ```
+
+    ```markdown SKILL.md
     You are a lead qualification agent...
     ```
+
+    See [Authoring skills](/zombies/skills) for the full `TRIGGER.md` reference.
   </Accordion>
 
   <Accordion title="Trigger">
     How a zombie receives events. Currently supported: `webhook`. The `source` field is a
-    human-readable label (e.g. "email", "github", "slack") — it appears in logs but is not used
-    for routing. Routing uses the zombie's unique ID. The `token` field is the Bearer token
-    callers must include.
+    human-readable label (e.g. "email", "github", "slack") — it appears in the activity stream
+    but is not used for routing. Routing uses the zombie's unique ID. The `signature` block
+    declares how inbound requests are authenticated — pointing at vault keys via
+    `signature.bearer_ref` or `signature.secret_ref`.
   </Accordion>
 
   <Accordion title="Skill">
@@ -61,9 +70,9 @@ description: "Core terminology and mental model for UseZombie."
   </Accordion>
 
   <Accordion title="Activity stream">
-    An append-only audit log of every action a zombie takes. Every event received, every skill
+    An append-only record of every action a zombie takes. Every event received, every skill
     invoked, every response returned — timestamped and queryable. `zombiectl logs` streams the
-    activity log in real time. The stream is stored in Postgres and paginated by cursor for
+    activity stream in real time. The stream is stored in Postgres and paginated by cursor for
     replay and debugging.
   </Accordion>
 
@@ -71,7 +80,7 @@ description: "Core terminology and mental model for UseZombie."
     The persisted state between event deliveries. After each event is processed, the zombie's
     agent state (conversation history, working memory) is checkpointed to Postgres. If the
     process crashes, the next event picks up from the last checkpoint. This is what makes
-    zombies stateful across runs — they remember context across events.
+    zombies stateful between events — they remember context from one delivery to the next.
   </Accordion>
 
   <Accordion title="Kill switch">
@@ -82,10 +91,11 @@ description: "Core terminology and mental model for UseZombie."
   </Accordion>
 
   <Accordion title="Budget">
-    Per-event spending limits. `max_tokens_per_event` caps the LLM token budget per event
-    delivery. `max_wall_seconds` caps wall-clock time. If either limit is hit, the event is
-    terminated and a budget breach is logged to the activity stream. One bad prompt never
-    becomes an infinite burn.
+    Dollar ceilings declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour
+    window; `monthly_dollars` caps spend over the calendar month. If either ceiling is hit, the
+    zombie stops processing new events and a budget breach is recorded in the activity stream.
+    One bad prompt never becomes an infinite burn. (Per-event token and wall-clock caps are
+    internal runtime controls and are not user-configurable in `TRIGGER.md`.)
   </Accordion>
 
   <Accordion title="Workspace">
@@ -104,8 +114,7 @@ description: "Core terminology and mental model for UseZombie."
   <Accordion title="Executor">
     The sidecar process (`zombied-executor`) that owns the sandbox lifecycle. The executor
     spawns NullClaw agents inside isolated sandbox containers, enforces resource limits (CPU,
-    memory, time), and reports execution results back to the event loop. The executor is also
-    used for harness compilation and spec preview in legacy v1 workflows.
+    memory, time), and reports execution results back to the event loop.
   </Accordion>
 
   <Accordion title="Event loop">
