@@ -30,7 +30,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 <Update label="v0.21.0 — Apr 18, 2026" tags={["Docs"]}>
   ## Docs reshaped around the zombie lifecycle
 
-  A new [Zombies](/zombies/overview) section walks through installing a template, adding credentials, running, observing, and killing a zombie. Pages describing the old spec/run workflow have been retired; the old `/specs/*` and `/runs/*` URLs now 404.
+  A new [Zombies](/zombies/overview) section walks through installing a template, adding credentials, running, observing, and killing a zombie. Pages describing the legacy v1 pipeline have been retired; the old `/specs/*` and `/runs/*` URLs now 404.
 
   New pages: [overview](/zombies/overview), [install](/zombies/install), [running](/zombies/running), [credentials](/zombies/credentials), [webhooks](/zombies/webhooks), [skills](/zombies/skills), [templates](/zombies/templates).
 </Update>
@@ -80,7 +80,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 <Update label="v0.14.0 — Apr 12, 2026" tags={["New", "Memory", "API"]}>
   ## Persistent zombie memory
 
-  Zombies remember facts across runs. Memory is row-scoped per zombie and persists in Postgres — a lead-collector zombie doesn't re-research the same lead, a support zombie doesn't re-ask customers their plan. Tools: `memory_store`, `memory_recall`, `memory_list`, `memory_forget`.
+  Zombies remember facts across executions. Memory is row-scoped per zombie and persists in Postgres — a lead-collector zombie doesn't re-research the same lead, a support zombie doesn't re-ask customers their plan. Tools: `memory_store`, `memory_recall`, `memory_list`, `memory_forget`.
 </Update>
 
 <Update label="v0.13.0 — Apr 12, 2026" tags={["New", "Integrations", "API"]}>
