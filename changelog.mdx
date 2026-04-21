@@ -7,6 +7,41 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="v0.26.0 — Apr 21, 2026" tags={["What's new", "API", "Billing"]}>
+  ## Tenant-scoped billing
+
+  Billing now lives at the tenant, not the workspace. Every new signup gets exactly one `billing.tenant_billing` row at `plan_tier=free`, `plan_sku=free_default`, and a 1000¢ free-credit balance. Any zombie run in any workspace owned by that tenant debits the same shared balance — creating a second workspace no longer grants additional credits, and plan changes no longer have to fan out across workspace rows. Per-workspace credit state and the workspace-scoped billing lifecycle endpoints are removed.
+
+  ## Removed
+
+  - `POST /v1/workspaces/{workspace_id}/billing/events`
+  - `POST /v1/workspaces/{workspace_id}/billing/scale`
+  - `GET /v1/workspaces/{workspace_id}/billing/summary`
+  - `GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/billing/summary`
+  - `POST /v1/workspaces/{workspace_id}/scoring/config`
+
+  ## What's new
+
+  - One tenant, one billing row: `billing.tenant_billing` holds `(plan_tier, plan_sku, balance_cents, grant_source, updated_at)` with the tenant id as the primary key.
+  - Worker debits the tenant balance atomically on every completed run via a conditional `UPDATE ... WHERE balance_cents >= $cents RETURNING` — an exhausted balance returns `UZ-BILLING-005 CreditExhausted` instead of producing a partial debit.
+  - Schema slots resequenced contiguously to `001..018` to tidy up pre-alpha gaps before the v2.0 baseline.
+
+  ## API reference
+
+  **New:** `GET /v1/tenants/me/billing` — returns the caller's tenant billing snapshot.
+
+  ```json
+  {
+    "plan_tier": "free",
+    "plan_sku": "free_default",
+    "balance_cents": 1000,
+    "updated_at": 1713700000000
+  }
+  ```
+
+  Auth: Bearer Clerk JWT (operator or admin). Returns `401 UZ-AUTH-001` without a valid token.
+</Update>
+
 <Update label="v0.25.0 — Apr 21, 2026" tags={["What's new", "API", "Security", "Integrations", "Observability"]}>
   ## Clerk-powered signup
 
