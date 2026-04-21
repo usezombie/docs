@@ -1,74 +1,187 @@
 ---
 title: "Metrics reference"
-description: "Prometheus metrics exposed by UseZombie."
+description: "Prometheus metrics exposed by the zombied control plane at /metrics."
 ---
 
 ## Overview
 
-All UseZombie components expose Prometheus metrics on the `/metrics` endpoint (default port 9091). Metrics are organized into three categories: session lifecycle, stage execution, and sandbox enforcement.
+The `zombied` control plane exposes Prometheus text-format metrics at `GET /metrics`. All metric names are prefixed with `zombie_` (with one exception, `zombied_run_limit_exceeded_total`, noted below). The exporter is open to any scraper — put it behind an authenticated gateway if the endpoint is publicly reachable.
 
-## Session lifecycle
+Labels are kept low-cardinality. Per-workspace metrics cap the label set at a bounded number of workspaces; overflow is routed to `workspace_id="_other"` and counted in `zombie_workspace_metrics_overflow_total`. Do not add workspace labels to new metrics without going through the per-workspace helper.
 
-Counters and gauges tracking the overall run pipeline.
+## Zombie lifecycle
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `sessions_created_total` | Counter | Total number of runs created. |
-| `sessions_active` | Gauge | Number of runs currently in progress. |
-| `failures_total` | Counter | Total number of runs that ended in a failed state. Labels: `reason`. |
-| `cancellations_total` | Counter | Total number of runs cancelled by the user or system. |
-
-## Stage execution
-
-Metrics tracking individual stage execution within runs.
+End-to-end counters and the wall-time histogram for inbound event delivery.
 
 | Metric | Type | Description |
-|--------|------|-------------|
-| `stages_started_total` | Counter | Total number of stages that began execution. |
-| `stages_completed_total` | Counter | Total number of stages that completed successfully. |
-| `stages_failed_total` | Counter | Total number of stages that failed. Labels: `error_code`. |
-| `agent_tokens_total` | Counter | Total LLM tokens consumed across all stages. Labels: `direction` (`input`, `output`). |
-| `agent_duration_seconds` | Histogram | Wall-clock duration of agent execution per stage. Buckets: 10s, 30s, 60s, 120s, 300s, 600s. |
+|---|---|---|
+| `zombie_triggered_total` | Counter | Inbound zombie webhook triggers that passed signature + dedupe and were enqueued. |
+| `zombie_completed_total` | Counter | Zombie events delivered to completion (exit status OK). |
+| `zombie_failed_total` | Counter | Zombie event delivery failures (runtime error, budget exhaustion, etc.). |
+| `zombie_tokens_total` | Counter | Total LLM tokens consumed across all zombie deliveries. |
+| `zombie_execution_seconds` | Histogram | End-to-end zombie event wall-time in seconds. Buckets ranged from sub-second through multi-minute — see `ZombieDurationBucketsMs` in `src/observability/metrics_zombie.zig`. |
 
-## Sandbox enforcement
+## Agent execution
 
-Metrics tracking sandbox policy enforcement and resource limit events.
+Agent-level token + latency metrics. Applied regardless of which zombie the agent is serving.
 
 | Metric | Type | Description |
-|--------|------|-------------|
-| `oom_kills_total` | Counter | Total number of agent executions killed by OOM (cgroups memory limit exceeded). |
-| `timeout_kills_total` | Counter | Total number of agent executions killed by timeout. |
-| `landlock_denials_total` | Counter | Total number of filesystem access attempts denied by Landlock. |
-| `resource_kills_total` | Counter | Total number of agent executions killed for any resource violation. |
-| `lease_expired_total` | Counter | Total number of runs where the lease expired before completion. |
-| `cpu_throttled_ms_total` | Counter | Cumulative milliseconds of CPU throttling applied by cgroups. |
-| `memory_peak_bytes` | Gauge | Peak memory usage of the most recent agent execution. |
+|---|---|---|
+| `zombie_agent_tokens_total` | Counter | LLM tokens consumed by direct agent calls. |
+| `zombie_agent_duration_seconds` | Histogram | Wall-clock duration of individual agent calls. Buckets: 1, 3, 5, 10, 30, 60, 120, 300 seconds. |
+| `zombie_backoff_wait_ms_total` | Counter | Cumulative time spent in backoff/retry sleeps across all external calls. |
+
+## External-call retry classification
+
+Every outbound external call the agent makes is wrapped by a classifier that tags retries and terminal failures with a reason. These counters drive the retry-effectiveness dashboards.
+
+| Metric | Type | Description |
+|---|---|---|
+| `zombie_external_retries_total` | Counter | Total retry attempts inside external side-effect wrappers. |
+| `zombie_external_retries_rate_limited_total` | Counter | Retries classified as rate-limited. |
+| `zombie_external_retries_timeout_total` | Counter | Retries classified as timeout. |
+| `zombie_external_retries_context_exhausted_total` | Counter | Retries classified as context-window exhausted. |
+| `zombie_external_retries_auth_total` | Counter | Retries classified as auth failure. |
+| `zombie_external_retries_invalid_request_total` | Counter | Retries classified as invalid request. |
+| `zombie_external_retries_server_error_total` | Counter | Retries classified as upstream server error. |
+| `zombie_external_retries_unknown_total` | Counter | Retries that did not match any known class. |
+| `zombie_external_failures_total` | Counter | External calls that exited the wrapper as a classified failure. |
+| `zombie_external_failures_{rate_limited,timeout,context_exhausted,auth,invalid_request,server_error,unknown}_total` | Counter | Per-class terminal failures; same categories as retries. |
+| `zombie_retry_after_hints_total` | Counter | Retry attempts that honored an upstream `Retry-After` hint rather than the wrapper's own backoff. |
+
+## Run limits
+
+`zombied_run_limit_exceeded_total` (note the `zombied_` prefix, not `zombie_`) is a single counter with a `reason` label.
+
+| Metric | Type | Description |
+|---|---|---|
+| `zombied_run_limit_exceeded_total{reason="token_budget"}` | Counter | Runs terminated by monthly token-budget exhaustion. |
+| `zombied_run_limit_exceeded_total{reason="wall_time"}` | Counter | Runs terminated by wall-time limit. |
+| `zombied_run_limit_exceeded_total{reason="repair_loops"}` | Counter | Runs terminated because the repair loop exhausted its max iterations. |
+
+## Gate repair
+
+Approval gate repair loops executed by the worker when a gate claim/lease is disputed or stale.
+
+| Metric | Type | Description |
+|---|---|---|
+| `zombie_gate_repair_loops_total` | Counter | Total gate-repair iterations attempted. |
+| `zombie_gate_repair_exhausted_total` | Counter | Gate-repair runs that hit the iteration cap without converging. |
+
+## Side-effect outbox
+
+Dead-letter counter for the reconciler daemon.
+
+| Metric | Type | Description |
+|---|---|---|
+| `zombie_side_effect_outbox_dead_letter_total` | Counter | Outbox rows dead-lettered by reconciliation (stuck-pending cleanup). |
+| `zombie_reconcile_running` | Gauge | `1` if the reconcile daemon is live; `0` otherwise. |
+
+## API server liveness
+
+| Metric | Type | Description |
+|---|---|---|
+| `zombie_api_in_flight_requests` | Gauge | Current in-flight API requests under the backpressure guard. |
+| `zombie_api_backpressure_rejections_total` | Counter | Requests rejected by the in-flight-count backpressure guard. |
+| `zombie_worker_running` | Gauge | `1` if a worker process is up; `0` otherwise. |
+
+## OTEL export
+
+Health of the outbound OTEL exporter that forwards metrics to an external collector.
+
+| Metric | Type | Description |
+|---|---|---|
+| `zombie_otel_export_total` | Counter | Total OTEL export attempts. |
+| `zombie_otel_export_failed_total` | Counter | Total OTEL export failures. |
+| `zombie_otel_last_success_at_ms` | Gauge | Unix-ms timestamp of the last successful OTEL export. `0` if no success recorded this process lifetime. |
+
+## Executor (NullClaw sessions)
+
+Sandbox session + resource-limit metrics from the executor boundary.
+
+| Metric | Type | Description |
+|---|---|---|
+| `zombie_executor_sessions_created_total` | Counter | Executor sessions created. |
+| `zombie_executor_sessions_active` | Gauge | Currently-active executor sessions. |
+| `zombie_executor_failures_total` | Counter | Executor RPC failures (transport-level). |
+| `zombie_executor_oom_kills_total` | Counter | Executor processes killed by the cgroup memory limit. |
+| `zombie_executor_timeout_kills_total` | Counter | Executor processes killed by the wall-time limit. |
+| `zombie_executor_landlock_denials_total` | Counter | Filesystem access attempts denied by Landlock. |
+| `zombie_executor_resource_kills_total` | Counter | Executor processes killed by any resource guard (CPU, disk, etc.). |
+| `zombie_executor_lease_expired_total` | Counter | Executor leases that expired without a renewal (orphan cleanup fired). |
+| `zombie_executor_cancellations_total` | Counter | Executor sessions cancelled (kill-switch, user-initiated). |
+| `zombie_executor_cpu_throttled_ms_total` | Counter | Cumulative cgroup CPU-throttling time across executor sessions. |
+| `zombie_executor_memory_peak_bytes` | Gauge | Peak RSS observed across executor sessions. |
+| `zombie_executor_stages_started_total` | Counter | NullClaw stage invocations started inside executor sessions. |
+| `zombie_executor_stages_completed_total` | Counter | NullClaw stage invocations that completed successfully. |
+| `zombie_executor_stages_failed_total` | Counter | NullClaw stage invocations that failed. |
+| `zombie_executor_agent_tokens_total` | Counter | LLM tokens consumed by agent calls inside executor sessions. |
+| `zombie_executor_agent_duration_seconds` | Histogram | Wall-time of agent calls inside executor sessions. |
+
+## Signup funnel
+
+Clerk-driven signup delivery counters emitted by `POST /v1/webhooks/clerk`. The `signup_bootstrapped` / `signup_replayed` split lets funnel dashboards distinguish first-delivery signups from idempotent retries.
+
+| Metric | Type | Description |
+|---|---|---|
+| `zombie_signup_bootstrapped_total` | Counter | Clerk webhooks that provisioned a fresh personal account (tenant + user + owner membership + default workspace + 0-cent credit state). |
+| `zombie_signup_replayed_total` | Counter | Clerk webhooks that resolved to an existing account via the `oidc_subject` fast-path — idempotent replay, no new rows. |
+| `zombie_signup_failed_total{reason="bad_sig"}` | Counter | Signup webhooks rejected with 401 `UZ-WH-010` for invalid Svix signature. |
+| `zombie_signup_failed_total{reason="stale_ts"}` | Counter | Signup webhooks rejected with 401 `UZ-WH-011` for timestamp outside the 5-minute freshness window. |
+| `zombie_signup_failed_total{reason="missing_email"}` | Counter | Signup webhooks rejected with 400 `UZ-REQ-001` for malformed JSON or missing primary email. |
+| `zombie_signup_failed_total{reason="db_error"}` | Counter | Signup webhooks that reached the transactional bootstrap and rolled back on DB error. |
+
+## Per-workspace metrics
+
+Workspace-labelled counters are bounded: the first N distinct workspaces get their own `workspace_id=` label; every subsequent workspace routes into `workspace_id="_other"`. `zombie_workspace_metrics_overflow_total` counts overflow increments — alert on sustained non-zero growth.
+
+| Metric | Type | Description |
+|---|---|---|
+| `zombie_agent_tokens_by_workspace_total{workspace_id}` | Counter | Per-workspace agent token consumption. Bounded workspace set; overflow counted in `zombie_workspace_metrics_overflow_total`. |
+| `zombie_gate_repair_loops_by_workspace_total{workspace_id}` | Counter | Per-workspace gate-repair loop iterations. |
+| `zombie_workspace_metrics_overflow_total` | Counter | Increments routed to `_other` because the per-workspace label slot was full. |
 
 ## Labels
 
-Common labels applied across metrics:
+Labels deliberately used across metrics:
 
-| Label | Description | Applied to |
-|-------|-------------|------------|
-| `reason` | Failure reason category | `failures_total` |
-| `error_code` | UZ-* error code | `stages_failed_total` |
-| `direction` | Token direction (`input` or `output`) | `agent_tokens_total` |
-| `workspace_id` | Workspace identifier | All metrics when cardinality allows |
+| Label | Applied to | Values |
+|---|---|---|
+| `reason` | `zombied_run_limit_exceeded_total`, `zombie_signup_failed_total` | Lifecycle-specific; see each metric. |
+| `workspace_id` | Per-workspace families (above) | UUIDv7 or `_other` on overflow. |
+| `le` | Histogram buckets (`*_seconds_bucket`) | Bucket upper-bound. |
 
 ## Grafana dashboard queries
 
-Example PromQL queries for common operational views:
+Real PromQL queries that run against the emitted metric names:
 
 ```promql
-# Run success rate (last 1 hour)
-1 - (rate(failures_total[1h]) / rate(sessions_created_total[1h]))
+# Zombie trigger → completion rate, last hour
+rate(zombie_completed_total[1h]) / rate(zombie_triggered_total[1h])
 
-# P95 stage duration
-histogram_quantile(0.95, rate(agent_duration_seconds_bucket[5m]))
+# P95 end-to-end zombie event wall-time, last 5 minutes
+histogram_quantile(0.95, sum by (le) (rate(zombie_execution_seconds_bucket[5m])))
 
-# OOM kill rate
-rate(oom_kills_total[5m])
+# External retry exhaustion (any reason)
+rate(zombie_external_failures_total[5m])
 
-# Active runs
-sessions_active
+# OOM kill rate at the executor boundary
+rate(zombie_executor_oom_kills_total[5m])
+
+# Signup funnel: fresh vs replay
+rate(zombie_signup_bootstrapped_total[1h])
+rate(zombie_signup_replayed_total[1h])
+
+# Signup failure mix
+sum by (reason) (rate(zombie_signup_failed_total[1h]))
+
+# Run limit terminations by reason
+sum by (reason) (rate(zombied_run_limit_exceeded_total[1h]))
+
+# Workspace cardinality overflow — alert if this is non-zero for long
+rate(zombie_workspace_metrics_overflow_total[5m])
 ```
+
+## Emission source
+
+The authoritative Prometheus text is rendered by `src/observability/metrics_render.zig` in the `usezombie/usezombie` repo. Any time a new `appendMetric(...)` or histogram emission lands there, update this page in the same PR — CI enforces router ↔ openapi parity but does not yet diff this page against the renderer, so drift is caught only at review time.
