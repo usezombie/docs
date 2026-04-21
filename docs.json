@@ -31,7 +31,16 @@
               "zombies/credentials",
               "zombies/webhooks",
               "zombies/skills",
-              "zombies/templates"
+              "zombies/templates",
+              {
+                "group": "Sample zombies",
+                "pages": [
+                  "zombies/homelab",
+                  "zombies/homebox-audit",
+                  "zombies/migration-zombie",
+                  "zombies/side-project-resurrector"
+                ]
+              }
             ]
           },
           {
@@ -49,10 +58,34 @@
             ]
           },
           {
+            "group": "Self-hosting",
+            "pages": [
+              "operator/quickstart",
+              "operator/deployment/architecture",
+              "operator/deployment/api-server",
+              "operator/deployment/executor",
+              "operator/deployment/worker",
+              "operator/configuration/environment",
+              "operator/configuration/credentials",
+              "operator/configuration/sandbox",
+              "operator/security/model",
+              "operator/security/rbac",
+              "operator/security/sandbox",
+              "operator/observability/overview",
+              "operator/observability/metrics",
+              "operator/observability/posthog-events",
+              "operator/observability/error-codes",
+              "operator/operations/doctor",
+              "operator/operations/fleet",
+              "operator/operations/reconcile"
+            ]
+          },
+          {
             "group": "CLI reference",
             "pages": [
               "cli/install",
               "cli/zombiectl",
+              "cli/zombie-lifecycle",
               "cli/flags",
               "cli/configuration"
             ]

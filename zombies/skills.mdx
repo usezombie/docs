@@ -75,21 +75,24 @@ more than once per event.
 
 ```yaml
 ---
-name: lead-collector
+name: slack-bug-fixer
 trigger:
   type: webhook
-  source: agentmail
-  event: message.received
-chain:
-  - lead-enricher
+  source: slack
+  event: message.posted
+skills:
+  - slack
+  - github
 credentials:
-  - agentmail_api_key
+  - slack_bot_token
+  - github_pat
 budget:
   daily_dollars: 5.0
   monthly_dollars: 29.0
 network:
   allow:
-    - api.agentmail.to
+    - slack.com
+    - api.github.com
 ---
 
 This zombie qualifies inbound sales email.
@@ -146,7 +149,7 @@ zombiectl up
 
 <CardGroup cols={2}>
   <Card title="Bundled templates" icon="layer-group" href="/zombies/templates">
-    See the anatomy of `lead-collector` and `slack-bug-fixer`.
+    See the anatomy of `slack-bug-fixer` and the flagship `homelab` Zombie.
   </Card>
   <Card title="Webhooks" icon="webhook" href="/zombies/webhooks">
     Authentication modes and approval gates in depth.

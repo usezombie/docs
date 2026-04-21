@@ -1,0 +1,133 @@
+---
+title: "Operator quickstart"
+description: "Deploy `zombied` in your own network, point `zombiectl` at it, run the same quickstart flow."
+---
+
+This is the self-hosted companion to the [hosted Quickstart](/quickstart). At the end you have the same loop running — sign-in, create zombie, curl trigger, credit deduction — but every byte flows through your own infrastructure.
+
+If you just want to try UseZombie, use the hosted control plane. Self-hosting is for operators who need the worker inside their own network (homelab, on-prem cluster, air-gapped), or who want the control plane too.
+
+## Prerequisites
+
+- A Linux host with Docker (or docker-compose) — 1 CPU, 512MiB RAM is enough for the worker; 2 CPU / 2GiB if you also host the control plane.
+- A Postgres 15+ database reachable from the control plane (managed or self-run).
+- An outbound-only network path from the worker to the control plane (the control plane never opens a socket back into your network).
+- `zombiectl` installed locally (`npm install -g @usezombie/zombiectl`).
+- Credentials you want the zombie to reach — kept in a vault you trust. This guide uses `op://` (1Password CLI). Any secret store works; `op://` is just the documented pattern.
+
+## Step 1. Deploy the control plane (optional)
+
+Skip this step if you only want to self-host the worker and keep using the hosted control plane at `api.usezombie.com`. The worker-only path is the fastest way to get started.
+
+For the full self-hosted stack, start with the reference `docker-compose.yml` in [`operator/deployment/architecture`](/operator/deployment/architecture):
+
+```bash
+docker compose -f deploy/docker-compose.yml up -d
+```
+
+This starts the API server, executor, and supporting infrastructure (Postgres, Redis). Walk the [architecture page](/operator/deployment/architecture) for the full component map.
+
+Point `zombiectl` at your control plane:
+
+```bash
+zombiectl --api-url https://zombie.internal.example.com login
+```
+
+The URL is persisted to `~/.config/usezombie/credentials.json`; subsequent commands target it automatically.
+
+## Step 2. Install the worker in your network
+
+The worker is a small Docker container that polls the control plane, holds credentials locally, and executes tool calls against resources in your network.
+
+Generate a worker bootstrap token:
+
+```bash
+zombiectl worker token
+```
+
+On a host inside your target network (a homelab box, a jump host, a Pi):
+
+```bash
+docker run -d --name zombie-worker \
+  --restart unless-stopped \
+  -e ZOMBIE_TOKEN="$(zombiectl worker token)" \
+  -e ZOMBIE_API_URL="https://zombie.internal.example.com" \
+  usezombie/worker:latest
+```
+
+Verify the worker is connected:
+
+```bash
+zombiectl worker list
+```
+
+You should see one `online` entry.
+
+## Step 3. Provision credentials from a vault
+
+Credentials stay on the worker. The control plane never sees the raw secret. The documented pattern is to pull from 1Password (`op://`) at runtime:
+
+```bash
+zombiectl credential add kube_homelab \
+  --value "$(op read 'op://homelab/k3s/kubeconfig')"
+```
+
+Any vault that can emit a secret to stdout works — `op`, `vault`, `gcloud secrets`, `aws secretsmanager`, even a `pass` entry. The `--value` flag reads once, encrypts immediately, and drops the plaintext.
+
+Environment variables work too, as a fallback:
+
+```bash
+export KUBE_HOMELAB="$(cat ~/.kube/config)"
+zombiectl credential add kube_homelab --value "$KUBE_HOMELAB"
+unset KUBE_HOMELAB
+```
+
+Reference the credential by name in any zombie's `TRIGGER.md`:
+
+```yaml
+credentials:
+  - kube_homelab
+skills:
+  - kubectl-readonly
+```
+
+## Step 4. Run the same flow as the hosted quickstart
+
+With the control plane and worker online, every step from the hosted [Quickstart](/quickstart) works identically:
+
+```bash
+zombiectl install slack-bug-fixer
+cd slack-bug-fixer
+zombiectl up
+```
+
+Grab the zombie ID from the output and fire a curl:
+
+```bash
+curl -X POST https://zombie.internal.example.com/v1/webhooks/$ZOMBIE_ID \
+  -H "Content-Type: application/json" \
+  -d '{"event_id":"demo-001","type":"message.received","data":{}}'
+```
+
+Watch logs:
+
+```bash
+zombiectl logs --zombie $ZOMBIE_ID --follow
+```
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="diagram-project" href="/operator/deployment/architecture">
+    Component map, ports, process boundaries.
+  </Card>
+  <Card title="Security posture" icon="shield-halved" href="/operator/security">
+    Sandbox details, credential firewall, worker isolation.
+  </Card>
+  <Card title="Observability" icon="chart-line" href="/operator/observability">
+    Metrics, traces, logs — where to look when something breaks.
+  </Card>
+  <Card title="Zombie lifecycle" icon="ghost" href="/cli/zombie-lifecycle">
+    The commands you'll run day-to-day against your self-hosted stack.
+  </Card>
+</CardGroup>

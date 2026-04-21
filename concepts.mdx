@@ -1,7 +1,52 @@
 ---
 title: "Key concepts"
-description: "Core terminology and mental model for UseZombie."
+description: "The four nouns, the credential firewall, and how credits flow."
 ---
+
+## The four nouns
+
+UseZombie has four primary objects. Everything else is infrastructure.
+
+<CardGroup cols={2}>
+  <Card title="Tenant" icon="building">
+    Your top-level billing and identity boundary. Created automatically on first Clerk sign-in. Carries the **credit balance** ($10 seeded on signup) and the default Stripe customer.
+  </Card>
+  <Card title="Workspace" icon="folder-tree">
+    A container for zombies and credentials. One tenant can have many workspaces (team, project, environment). Credits are **not** fragmented per workspace — all workspaces debit the same tenant wallet.
+  </Card>
+  <Card title="Zombie" icon="ghost">
+    A persistent, always-on agent process. One zombie has one `SKILL.md` + `TRIGGER.md`, one trigger, a set of skills, and a set of credentials (secrets it uses but never sees). Lives inside a workspace.
+  </Card>
+  <Card title="Skill" icon="plug">
+    A named capability a zombie's agent can invoke. Skills are declared in `TRIGGER.md` and resolved at runtime — the agent calls a skill by name, the runtime injects the credential and executes the call outside the sandbox. Examples: `kubectl-readonly`, `github`, `slack`.
+  </Card>
+</CardGroup>
+
+### How they relate
+
+```
+Tenant (wallet: $10.00)
+├── Workspace: "home"
+│   ├── Zombie: homelab-diagnostic
+│   │   └── Skills: kubectl-readonly, docker-readonly, ssh-readonly
+│   └── Zombie: homebox-audit
+│       └── Skills: docker-readonly, kubectl-readonly, tls-probe
+└── Workspace: "work-sandbox"
+    └── Zombie: pr-reviewer
+        └── Skills: github, slack
+```
+
+Every run debits the same tenant balance, regardless of which workspace the zombie lives in. This is the **single-wallet, multi-workspace** model introduced with v2 — there are no per-workspace credit pools and no workspace-scoped top-ups.
+
+## Credits
+
+New tenants start with **$10 (1000¢)** seeded at signup. There are no tokens to enter, no gates to clear — the balance lands the moment Clerk completes your first sign-in.
+
+- **Debits happen on completed runs only.** A zombie run that fails mid-execution, hits a budget ceiling, or is killed before producing output does not debit the tenant balance.
+- **Top-ups are tenant-scoped.** Adding credit in one workspace's billing page is a misleading frame; all credit is on the tenant. The billing UI at [app.usezombie.com/billing](https://app.usezombie.com/billing) lives at the tenant level.
+- **Scale plan is usage-based.** Once on Scale, completed-run billing switches from flat cost to metered compute + token consumption. The "completed run only" rule still applies.
+
+See the [Billing and cost control](/billing/plans) page for the full breakdown.
 
 ## Core terminology
 
@@ -13,7 +58,7 @@ description: "Core terminology and mental model for UseZombie."
     crash, and waits for events on its inbox queue.
   </Accordion>
 
-  <Accordion title="ZombieConfig">
+  <Accordion title="ZombieConfig (SKILL.md + TRIGGER.md)">
     A zombie is defined by two files in a directory: `SKILL.md` (agent instructions, natural
     language) and `TRIGGER.md` (machine-readable config, YAML frontmatter + optional human
     description). The CLI uploads both files on `zombiectl up`; the server parses `TRIGGER.md`
@@ -21,26 +66,29 @@ description: "Core terminology and mental model for UseZombie."
 
     ```markdown TRIGGER.md
     ---
-    name: lead-collector
+    name: homelab-diagnostic
     trigger:
       type: webhook
-      source: agentmail
+      source: custom
       event: message.received
+    skills:
+      - kubectl-readonly
+      - docker-readonly
     credentials:
-      - agentmail_api_key
+      - kube_homelab
     budget:
       daily_dollars: 5.0
       monthly_dollars: 29.0
     network:
       allow:
-        - api.agentmail.to
+        - k8s.home.tailnet
     ---
 
-    This zombie qualifies inbound sales email.
+    This zombie investigates homelab incidents, read-only.
     ```
 
     ```markdown SKILL.md
-    You are a lead qualification agent...
+    You are a homelab diagnostic agent...
     ```
 
     See [Authoring skills](/zombies/skills) for the full `TRIGGER.md` reference.
@@ -57,16 +105,20 @@ description: "Core terminology and mental model for UseZombie."
   <Accordion title="Skill">
     A named capability available to a zombie's agent. Skills are declared in the config and
     resolved by the runtime — the agent calls a skill by name, the runtime injects the
-    credential and executes the API call outside the sandbox. Examples: `agentmail`, `github`,
-    `slack`. Skills are the only way agents interact with external services.
+    credential and executes the API call outside the sandbox. Examples: `kubectl-readonly`,
+    `docker-readonly`, `github`, `slack`. Skills are the only way agents interact with
+    external services.
   </Accordion>
 
   <Accordion title="Credential firewall">
     The security boundary between your secrets and the agent. Credentials are stored encrypted
-    in the UseZombie vault. When an agent invokes a skill, the firewall retrieves the secret,
-    makes the outbound API call, and returns only the response. The agent process never receives
-    the raw credential — not as an environment variable, not as a function argument, not in any
-    log. If the agent is compromised, your keys are not.
+    in the vault. When an agent invokes a skill, the firewall retrieves the secret, makes the
+    outbound API call, and returns only the response. The agent process never receives the raw
+    credential — not as an environment variable, not as a function argument, not in any log.
+    If the agent is compromised, your keys are not.
+
+    For self-hosted deployments, the vault lives on the worker inside your network. The
+    UseZombie control plane never sees the raw secret.
   </Accordion>
 
   <Accordion title="Activity stream">
@@ -94,14 +146,8 @@ description: "Core terminology and mental model for UseZombie."
     Dollar ceilings declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour
     window; `monthly_dollars` caps spend over the calendar month. If either ceiling is hit, the
     zombie stops processing new events and a budget breach is recorded in the activity stream.
-    One bad prompt never becomes an infinite burn. (Per-event token and wall-clock caps are
-    internal runtime controls and are not user-configurable in `TRIGGER.md`.)
-  </Accordion>
-
-  <Accordion title="Workspace">
-    A container for zombies, billing, and access control. All zombies, credentials, and billing
-    are scoped to a workspace. Multiple team members can share a workspace with role-based
-    access.
+    One bad prompt never becomes an infinite burn. Per-event token and wall-clock caps are
+    internal runtime controls and are not user-configurable in `TRIGGER.md`.
   </Accordion>
 
   <Accordion title="NullClaw">
