@@ -49,7 +49,7 @@ Every outbound external call the agent makes is wrapped by a classifier that tag
 | `zombie_external_failures_{rate_limited,timeout,context_exhausted,auth,invalid_request,server_error,unknown}_total` | Counter | Per-class terminal failures; same categories as retries. |
 | `zombie_retry_after_hints_total` | Counter | Retry attempts that honored an upstream `Retry-After` hint rather than the wrapper's own backoff. |
 
-## Run limits
+## Execution limits
 
 `zombied_run_limit_exceeded_total` (note the `zombied_` prefix, not `zombie_`) is a single counter with a `reason` label.
 
