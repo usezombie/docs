@@ -55,9 +55,9 @@ Every outbound external call the agent makes is wrapped by a classifier that tag
 
 | Metric | Type | Description |
 |---|---|---|
-| `zombied_run_limit_exceeded_total{reason="token_budget"}` | Counter | Runs terminated by monthly token-budget exhaustion. |
-| `zombied_run_limit_exceeded_total{reason="wall_time"}` | Counter | Runs terminated by wall-time limit. |
-| `zombied_run_limit_exceeded_total{reason="repair_loops"}` | Counter | Runs terminated because the repair loop exhausted its max iterations. |
+| `zombied_run_limit_exceeded_total{reason="token_budget"}` | Counter | Events terminated by monthly token-budget exhaustion. |
+| `zombied_run_limit_exceeded_total{reason="wall_time"}` | Counter | Events terminated by wall-time limit. |
+| `zombied_run_limit_exceeded_total{reason="repair_loops"}` | Counter | Events terminated because the repair loop exhausted its max iterations. |
 
 ## Gate repair
 
