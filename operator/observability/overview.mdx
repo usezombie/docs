@@ -67,11 +67,11 @@ All layers share a common set of correlation fields that enable cross-layer inve
 | `trace_id` | OpenTelemetry trace ID | Grafana |
 | `event_id` | Webhook event identifier (stable across redelivery) | Grafana, PostHog, Audit |
 | `zombie_id` | Zombie instance that handled the event | Grafana, PostHog, Audit |
-| `workspace_id` | Workspace scoping | All four layers |
+| `workspace_id` | Workspace scoping | All layers |
 
 To investigate a failed zombie delivery across all layers:
 
 1. Start with the `event_id` from the webhook response or activity stream UI.
 2. Search Grafana logs and traces by `event_id` or `zombie_id`.
-3. Search PostHog by `zombie_id` or `workspace_id` to see the user-facing event timeline.
+3. Search PostHog by `workspace_id`, or by `zombie_id` on server-side events (`zombie_triggered` / `zombie_completed`) — note that `zombie_id` is stripped from app-surface events.
 4. Query the activity stream (`core.activity_events`) filtered by `zombie_id` for the full per-event audit.
