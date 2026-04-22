@@ -7,6 +7,120 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="Apr 22, 2026" tags={["What's new", "Breaking", "UI", "API", "CLI"]}>
+  ## Install zombies from the dashboard; kill switch moves to DELETE
+
+  The dashboard picks up its first lifecycle surface. Operators who prefer a GUI can now install a zombie, grab its webhook URL, and delete it — all without leaving `app.usezombie.com`. Cron scheduling, firewall rules, rename, and pause/resume remain CLI-only in this release and land once their backing endpoints ship.
+
+  We also took the opportunity to clean up the kill-switch endpoint while we were in the neighborhood: the zombie routes no longer carry action verbs in their paths. Any caller that was hitting the legacy kill endpoint must migrate; details under *Upgrading*.
+
+  Credit exhaustion is now operator-visible in the dashboard. When a tenant's balance hits zero, a destructive banner appears above the workspaces and zombies lists, and a "Balance exhausted" badge renders next to each zombie on its detail page — both driven by the `is_exhausted` / `exhausted_at` fields added earlier today on `GET /v1/tenants/me/billing`.
+
+  ## Upgrading
+
+  - **Kill switch moved from `POST` to `DELETE` on a new path.** Replace any caller hitting `POST /v1/workspaces/{ws}/zombies/{id}/stop` with `DELETE /v1/workspaces/{ws}/zombies/{id}/current-run`. Same behavior, same response shape, same 200 / 409 / 404 semantics. The `zombie_stopped` activity event is unchanged. The old path now returns 404 — pre-1.0 alpha breakage, no deprecation window. If you have dashboards, runbooks, or scripts pointing at `.../stop`, update them.
+  - The rename is a REST-hygiene change: "current-run" is a singleton sub-resource of the zombie, and DELETE is the idiomatic verb for "kill the running action." It also unblocks a symmetric `GET /current-run` in a future release for run-state queries without reintroducing action verbs in paths.
+
+  ## What's new
+
+  - New `Zombies` section in the dashboard sidebar — list view, install form, and a minimal detail page with a copyable webhook URL, firewall/trigger placeholders, and delete-with-confirm.
+  - Install form validates required fields client-side and surfaces a clear toast when a name already exists in the workspace.
+  - Webhook URL is shown with a one-click copy button on the detail page; paste straight into AgentMail, Slack Events API, Grafana, or any other webhook-capable service.
+  - Animated loading states on every async action (install, delete, route navigation).
+  - Credit-exhaustion banner + per-zombie badge wired to `GET /v1/tenants/me/billing` — no configuration needed, appears automatically when a tenant runs out.
+
+  ## API reference
+
+  ```http
+  DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}/current-run
+  ```
+
+  Transitions the zombie's status from `active` or `paused` to `stopped` and records a `zombie_stopped` activity event. Returns `200 {zombie_id, workspace_id, status: "stopped", request_id}`. Returns `409 UZ-ZMB-010` if already stopped or killed, `404 UZ-ZMB-009` if the zombie is not in the path workspace. Requires the operator role (same RBAC gate as before).
+
+  ## CLI
+
+  - `zombiectl zombie up` now prints a prominent success line — `🎉 Woohoo! Your zombie is installed and ready to run.` — followed by the webhook URL on the next line, before the existing "is live" summary and commands block. The new literal is asserted by a unit test so it will not silently drift.
+  - The `zombiectl zombie kill` command is unaffected by the kill-switch path rename — it continues to call `DELETE /zombies/{id}` (full delete, not the current-run kill) as it always did.
+</Update>
+
+<Update label="v0.27.0 — Apr 22, 2026" tags={["What's new", "Breaking", "API", "Security", "Billing"]}>
+  ## Admin-by-env-var is gone; credit exhaustion is now observable
+
+  The env-var `API_KEY` bypass that minted an admin principal with no tenant and no audit identity has been removed. Admin authentication now flows exclusively through Clerk sessions with `publicMetadata.role=admin` — set once per operator in the Clerk Dashboard, revoked instantly from the same place, and carried into every request JWT. Programmatic admin access uses a tenant-minted `zmb_t_…` key from `POST /v1/api-keys` (shipped in v0.26.0). Separately, the tenant billing response now surfaces credit exhaustion, and a new policy knob lets operators decide what the worker does when a tenant hits zero.
+
+  ## Upgrading
+
+  - **Remove `API_KEY` from your server environment.** If your deployment still passes `API_KEY`, it is now ignored. The server refuses to start without OIDC (`OIDC_JWKS_URL`, `OIDC_ISSUER`, `OIDC_AUDIENCE`) — no fallback.
+  - **Promote your admin user in Clerk.** Dashboard → Users → select user → Metadata → Public metadata → set `{"role": "admin"}`. The operator playbook at `playbooks/012_usezombie_admin_bootstrap/001_playbook.md` walks through dev + prod step-by-step and ends by minting a `zmb_t_…` key for CI / scripts and stowing it at `op://ZMB_CD_<env>/usezombie-admin/api_key`.
+  - **If you consumed the `balance_cents == 0` branch**, switch to reading `is_exhausted` / `exhausted_at` on `GET /v1/tenants/me/billing` (see below).
+
+  ## What's new
+
+  - `BALANCE_EXHAUSTED_POLICY={continue|warn|stop}` (default `warn`). `stop` pre-empts delivery for an exhausted tenant — the zombie never runs, Redis gets an XACK so the event doesn't retry, and a `balance_gate_blocked` activity event is recorded. `warn` logs and emits a rate-limited `balance_exhausted` activity event (1 per workspace per 24h). `continue` is the old "log and let it run free" behavior, made explicit.
+  - First-exhausting debit stamps `balance_exhausted_at` atomically and writes a one-shot `balance_exhausted_first_debit` activity event. Replays do not double-emit.
+
+  ## API reference
+
+  `GET /v1/tenants/me/billing` gains two fields on every response:
+
+  - `is_exhausted` — `boolean`, true once the tenant's balance has hit zero on a worker debit.
+  - `exhausted_at` — `integer` (epoch ms) or `null`. Non-null only once `is_exhausted` is true.
+
+  The OpenAPI schema lists both as required with `exhausted_at` nullable.
+</Update>
+
+<Update label="v0.26.1 — Apr 22, 2026" tags={["Bug fixes", "What's new", "Observability"]}>
+  ## Observability: per-workspace + per-zombie token counter now wired, OTLP histograms now exported
+
+  Two observability paths that looked live but weren't are now actually live. The per-workspace Prometheus token counter is now emitted on every successful zombie delivery, and a new `zombie_id` label lets you slice the same counter by zombie. The OTLP JSON exporter now forwards histogram data points (`_bucket`, `_sum`, `_count`) instead of silently dropping them.
+
+  ## What's new
+
+  - Prometheus counter `zombie_agent_tokens_by_workspace_total` now carries both `workspace_id` and `zombie_id` labels and reports real data after each completed delivery. Useful for top-N spend dashboards at either granularity.
+  - `zombie_workspace_metrics_overflow_total` is exposed so operators can detect when the fixed-capacity slot table (4096 `(workspace_id, zombie_id)` pairs) saturates and falls back to an `_other` aggregation bucket.
+
+  ## Bug fixes
+
+  - Per-workspace token counter was a no-op: the helper existed but no production code path called it. It now fires from the same spot that records `zombie_tokens_total`, so Grafana queries against the per-workspace family return real values instead of zero.
+  - OTLP JSON exporter silently dropped `_bucket` / `_sum` / `_count` lines, so histograms (`zombie_execution_seconds`, `zombie_agent_duration_seconds`, `zombie_executor_agent_duration_seconds`) never reached an OTLP collector. The exporter now emits OTLP histogram data points with cumulative-to-delta bucket conversion, `explicitBounds`, and `aggregationTemporality: 2` (CUMULATIVE).
+  - Removed the `zombie_gate_repair_loops_by_workspace_total` and `zombie_gate_repair_loops_total` counters (plus their helpers) — gate-repair is a pipeline-era concept with no zombie-era call site, so these counters always read zero and misled operators into expecting data that could never appear.
+</Update>
+
+<Update label="v0.26.0 — Apr 21, 2026" tags={["What's new", "API", "Billing"]}>
+  ## Tenant-scoped billing
+
+  Billing now lives at the tenant, not the workspace. Every new signup gets exactly one `billing.tenant_billing` row at `plan_tier=free`, `plan_sku=free_default`, and a 1000¢ free-credit balance. Any zombie run in any workspace owned by that tenant debits the same shared balance — creating a second workspace no longer grants additional credits, and plan changes no longer have to fan out across workspace rows. Per-workspace credit state and the workspace-scoped billing lifecycle endpoints are removed.
+
+  ## Removed
+
+  - `POST /v1/workspaces/{workspace_id}/billing/events`
+  - `POST /v1/workspaces/{workspace_id}/billing/scale`
+  - `GET /v1/workspaces/{workspace_id}/billing/summary`
+  - `GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/billing/summary`
+  - `POST /v1/workspaces/{workspace_id}/scoring/config`
+
+  ## What's new
+
+  - One tenant, one billing row: `billing.tenant_billing` holds `(plan_tier, plan_sku, balance_cents, grant_source, updated_at)` with the tenant id as the primary key.
+  - Worker debits the tenant balance atomically on every completed run via a conditional `UPDATE ... WHERE balance_cents >= $cents RETURNING` — an exhausted balance returns `UZ-BILLING-005 CreditExhausted` instead of producing a partial debit.
+  - Schema slots resequenced contiguously to `001..018` to tidy up pre-alpha gaps before the v2.0 baseline.
+
+  ## API reference
+
+  **New:** `GET /v1/tenants/me/billing` — returns the caller's tenant billing snapshot.
+
+  ```json
+  {
+    "plan_tier": "free",
+    "plan_sku": "free_default",
+    "balance_cents": 1000,
+    "updated_at": 1713700000000
+  }
+  ```
+
+  Auth: Bearer Clerk JWT (operator or admin). Returns `401 UZ-AUTH-001` without a valid token.
+</Update>
+
 <Update label="v0.25.0 — Apr 21, 2026" tags={["What's new", "API", "Security", "Integrations", "Observability"]}>
   ## Clerk-powered signup
 
