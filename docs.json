@@ -120,8 +120,7 @@
           {
             "group": "Billing",
             "pages": [
-              "POST /v1/workspaces/{workspace_id}/billing/scale",
-              "POST /v1/workspaces/{workspace_id}/billing/events"
+              "GET /v1/tenants/me/billing"
             ]
           }
         ]
