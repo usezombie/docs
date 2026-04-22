@@ -88,8 +88,10 @@ Reference the credential by name in any zombie's `TRIGGER.md`:
 credentials:
   - kube_homelab
 skills:
-  - kubectl-readonly
+  - kubectl
 ```
+
+The read-only policy ("only `get`, `describe`, `logs`, `top`; never `delete` or `secrets`") lives as prose in the zombie's `SKILL.md`, not in structured YAML — see [Homelab Zombie](/zombies/homelab) for the full pattern.
 
 ## Step 4. Run the same flow as the hosted quickstart
 

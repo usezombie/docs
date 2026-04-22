@@ -4,7 +4,7 @@ description: "Diagnose kubectl / docker issues in your homelab without ever hand
 ---
 
 <Note>
-  **Source attribution.** The narrative on this page follows `docs/brainstormed/docs/homelab-zombie-launch.md`. The executable skill ships at `samples/homelab/` in the [usezombie repo](https://github.com/usezombie/usezombie) and is authored by the M33 Homelab Zombie milestone.
+  **Source attribution.** The narrative on this page follows `docs/brainstormed/docs/homelab-zombie-launch.md`. The executable Homelab Zombie ships at `samples/homelab/` in the [usezombie repo](https://github.com/usezombie/usezombie) as one `SKILL.md` + one `TRIGGER.md` — no sub-skill directories, no YAML allowlists. Authored by M33.
 </Note>
 
 Homelab Zombie is the flagship v2 sample. It is an AI agent that investigates incidents in your homelab — pods crash-looping, disks filling, containers OOM-killed — using real `kubectl` and Docker access, but in a way designed to be **safe to run unsupervised** at 11pm on a bad day.
@@ -61,11 +61,15 @@ In v0.1 the zombie stops at the proposal — no writes, no restarts. It's diagno
 
 ## Three things that make it safe to run
 
-### 1. Verb-level skill allowlists
+### 1. The allowlist lives in prose, inside the SKILL.md prompt
 
-The agent has a skill called `kubectl-readonly`. It is a shim around `kubectl` that only permits `get`, `describe`, `logs`, `top`, `events`. Every command the agent wants to run is parsed, checked against the allowlist, and executed if and only if it passes. If the agent tries `kubectl delete`, the skill returns an error — the agent reasons with that error and tries something else.
+The zombie's `SKILL.md` is a markdown file the agent reads as its system prompt. It tells the agent, in plain English, which `kubectl` verbs to use and which to avoid:
 
-`secrets` is denied even for `get`. Log exfiltration via secrets is the first thing a bad agent run would try. It can't.
+> Use only `kubectl get`, `describe`, `logs`, `top`, and `events`. Never run `delete`, `apply`, `patch`, or any write verb. Never read `secrets` — even a `get` on a secret object is forbidden. If you need to understand an object that you can only see through a write verb, stop and report instead of attempting it.
+
+The agent reasons with that policy the same way it reasons with any other instruction. When it produces a command that breaks the rule, the next loop's self-reflection flags it; when nullclaw (the tool-enforcement layer) lands, the same prose is the contract the structural enforcer will gate against. YAGNI says don't build the structural gate until a second zombie needs the same policy — today the homelab zombie is the only one, so prose is the whole spec.
+
+`secrets` denial is called out explicitly because log exfiltration via secrets is the first thing a bad agent run would try. The prompt names it. That is the allowlist.
 
 ### 2. The agent never holds the kubeconfig
 
@@ -87,7 +91,7 @@ The control plane never has a route to your k3s API. Your kubeconfig never leave
 zombiectl install homelab
 ```
 
-This scaffolds the Homelab Zombie directory with `SKILL.md`, `TRIGGER.md`, and the per-sub-skill entries for `kubectl-readonly`, `docker-readonly`, and `ssh-readonly`.
+This scaffolds a `homelab/` directory with exactly two files: `SKILL.md` (agent instructions + the read-only policy in prose) and `TRIGGER.md` (tool wiring, credential references, budget, network allowlist). No sub-skill directories.
 
 For the full end-to-end — worker placement, Tailscale integration, cred add — follow the [Operator quickstart](/operator/quickstart).
 

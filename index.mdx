@@ -15,11 +15,11 @@ Giving an agent cluster-admin credentials is a risk that does not evaporate just
 
 UseZombie fixes this with three properties, together:
 
-- **Verb-level skill allowlists** — each skill declares exactly which operations it permits (e.g. `get`, `describe`, `logs`, `top` on `kubectl`; never `delete`, `apply`, `secrets`).
+- **Tool policy in prose** — each zombie's `SKILL.md` is the system prompt. It tells the agent in plain English which verbs to use and which to avoid (e.g. "only `kubectl get`, `describe`, `logs`, `top`; never `delete`, `apply`, `secrets`"). No YAML allowlists, no per-skill sub-directories — the prose is the contract.
 - **Placeholder credentials** — the agent process never sees your real API token. It gets a UUID placeholder, and a proxy at the network boundary swaps it for the real secret outside the sandbox. Prompt-injection attacks that try to exfiltrate the token succeed only in repeating the placeholder.
 - **Customer-network workers** — the worker that actually executes tool calls runs inside your network (a Docker container in your homelab, a Pi behind your firewall, your laptop). The UseZombie control plane never routes to your cluster API.
 
-If you're thinking "this is what Microsandbox does for code execution" — yes, similar pattern, credit where it's due. UseZombie extends it with audit + approval layers + a skill registry aimed at homelab, ops, and developer-tool workloads.
+If you're thinking "this is what Microsandbox does for code execution" — yes, similar pattern, credit where it's due. UseZombie extends it with audit + approval layers aimed at homelab, ops, and developer-tool workloads.
 
 <Card title="Get started in ten minutes" icon="rocket" href="/quickstart" horizontal>
   Sign up, install `zombiectl`, trigger your first zombie, watch credits tick.

@@ -61,13 +61,13 @@ The flagship v2 sample. A diagnostic agent for Kubernetes / Docker homelabs — 
 
 ```
 homelab/
-├── SKILL.md         # "You are a homelab diagnostic agent..."
-└── TRIGGER.md       # webhook + cli triggers, skills=[kubectl-readonly, docker-readonly, ssh-readonly]
+├── SKILL.md         # "You are a homelab diagnostic agent..." + the read-only policy in prose
+└── TRIGGER.md       # webhook trigger, tools=[kubectl, docker, ssh], credential refs, budget
 ```
 
-- **Skills:** `kubectl-readonly`, `docker-readonly`, `ssh-readonly`
-- **Credentials it expects:** `kube_<name>`, optionally `ssh_<name>`
-- **Worker placement:** `customer-network`
+- **Tools:** `kubectl`, `docker`, `ssh`. Read-only policy lives as prose in `SKILL.md`.
+- **Credentials it expects:** `kube_<name>`, optionally `ssh_<name>`.
+- **Worker placement:** inside your homelab — kubeconfig never leaves your network.
 
 Scaffold and deploy:
 

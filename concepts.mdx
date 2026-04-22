@@ -18,7 +18,7 @@ UseZombie has four primary objects. Everything else is infrastructure.
     A persistent, always-on agent process. One zombie has one `SKILL.md` + `TRIGGER.md`, one trigger, a set of skills, and a set of credentials (secrets it uses but never sees). Lives inside a workspace.
   </Card>
   <Card title="Skill" icon="plug">
-    A named capability a zombie's agent can invoke. Skills are declared in `TRIGGER.md` and resolved at runtime — the agent calls a skill by name, the runtime injects the credential and executes the call outside the sandbox. Examples: `kubectl-readonly`, `github`, `slack`.
+    A named tool a zombie's agent can invoke. Skills are declared in `TRIGGER.md` as bare tool names; the runtime injects the credential and executes the call outside the sandbox when the agent invokes one. Examples: `kubectl`, `docker`, `github`, `slack`. Constraint policy (which verbs the agent may use, what it must never do) lives as prose inside the zombie's `SKILL.md` — not as YAML allowlists or per-skill sub-directories.
   </Card>
 </CardGroup>
 
@@ -28,12 +28,12 @@ UseZombie has four primary objects. Everything else is infrastructure.
 Tenant (wallet: $10.00)
 ├── Workspace: "home"
 │   ├── Zombie: homelab-diagnostic
-│   │   └── Skills: kubectl-readonly, docker-readonly, ssh-readonly
+│   │   └── Tools: kubectl, docker, ssh  (read-only policy in SKILL.md)
 │   └── Zombie: homebox-audit
-│       └── Skills: docker-readonly, kubectl-readonly, tls-probe
+│       └── Tools: docker, kubectl, tls-probe  (enumerate-only policy in SKILL.md)
 └── Workspace: "work-sandbox"
     └── Zombie: pr-reviewer
-        └── Skills: github, slack
+        └── Tools: github, slack  (comment-only policy in SKILL.md)
 ```
 
 Every run debits the same tenant balance, regardless of which workspace the zombie lives in. This is the **single-wallet, multi-workspace** model introduced with v2 — there are no per-workspace credit pools and no workspace-scoped top-ups.
@@ -72,8 +72,8 @@ See the [Billing and cost control](/billing/plans) page for the full breakdown.
       source: custom
       event: message.received
     skills:
-      - kubectl-readonly
-      - docker-readonly
+      - kubectl
+      - docker
     credentials:
       - kube_homelab
     budget:
@@ -103,11 +103,17 @@ See the [Billing and cost control](/billing/plans) page for the full breakdown.
   </Accordion>
 
   <Accordion title="Skill">
-    A named capability available to a zombie's agent. Skills are declared in the config and
-    resolved by the runtime — the agent calls a skill by name, the runtime injects the
-    credential and executes the API call outside the sandbox. Examples: `kubectl-readonly`,
-    `docker-readonly`, `github`, `slack`. Skills are the only way agents interact with
-    external services.
+    A named tool available to a zombie's agent — the only way agents interact with external
+    services. Skills are declared in `TRIGGER.md` as bare tool names; the runtime injects the
+    credential and executes the call outside the sandbox. Examples: `kubectl`, `docker`,
+    `github`, `slack`.
+
+    Tool **policy** — which verbs the agent may use, which resources it must never touch —
+    lives as natural-language prose inside the zombie's `SKILL.md` (the system prompt the
+    agent reads). This is deliberate: YAML allowlists and per-skill sub-directories are
+    premature abstraction until a second zombie reuses the same policy. The prose is the
+    contract the agent reasons against today, and the contract a structural enforcer will
+    gate against tomorrow.
   </Accordion>
 
   <Accordion title="Credential firewall">

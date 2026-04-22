@@ -57,14 +57,10 @@ zombie resurrect github.com/kishorec/my-old-saas-idea
 [01:15] Opening PR: "Resurrect: update 2022-era deps, restore build"
 ```
 
-## Skills and credentials required
+## Tools and policy
 
-| Skill | Why |
-|-------|-----|
-| `git-readwrite` | Clone, branch, commit, push. |
-| `shell-sandboxed` | Run installs, builds, tests. |
-| `github-pr` | Open the final PR. |
+Authored as one `SKILL.md` + one `TRIGGER.md`. The tools the zombie invokes — `git`, `shell`, `github` — are named in `TRIGGER.md`. Policy lives as prose inside `SKILL.md`: **"read-only against your codebase architecture; allow dependency bumps within minor versions; require an explicit `--allow-major` flag for major bumps; never touch `.env`, secrets, or anything that looks like a credential; open a PR with a plain-language explanation of every change."**
 
-Credential: a GitHub token with repo scope. Worker placement is `cloud` with a minimum of 2 GiB RAM.
+Credential: a GitHub token with repo scope. Worker placement is `cloud` with at least 2 GiB RAM.
 
-See `samples/side-project-resurrector/README.md` in the repo for the full skill + credential manifest.
+See `samples/side-project-resurrector/README.md` in the repo for the full manifest.

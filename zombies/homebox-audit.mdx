@@ -66,14 +66,10 @@ High (fix this month):
 ...
 ```
 
-## Skills and credentials required
+## Tools and policy
 
-| Skill | Why |
-|-------|-----|
-| `docker-readonly` | Enumerate containers, inspect volumes and network settings. |
-| `kubectl-readonly` | Enumerate workloads and pods across namespaces. |
-| `tls-probe` | Probe public TLS endpoints for expiry and chain issues. |
+Authored as one `SKILL.md` + one `TRIGGER.md`. The tools the zombie can invoke — `docker`, `kubectl`, `tls-probe` — are named in `TRIGGER.md` as bare tool names. The read-only policy is prose inside the `SKILL.md` prompt: **"enumerate only; never change configs, never update images, never rotate secrets; stop at the report."**
 
-Credentials: a Kubernetes kubeconfig and SSH access to Docker hosts. Worker placement is `customer-network` — the worker stays inside your homelab.
+Credentials: a Kubernetes kubeconfig and SSH access to Docker hosts. Worker placement is inside your homelab, so those credentials never leave your network.
 
-See `samples/homebox-audit/README.md` in the repo for the full skill + credential manifest.
+See `samples/homebox-audit/README.md` in the repo for the full manifest.

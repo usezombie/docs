@@ -29,7 +29,7 @@ The `zombiectl` binary ships a small set of templates intended as MVP starting p
 | Template | What it does | Skills used |
 |----------|--------------|-------------|
 | `slack-bug-fixer` | Watches a Slack channel, identifies bug reports, opens a PR against the linked repo. | `slack`, `github` |
-| `homelab` | The flagship v2 sample — read-only `kubectl` / Docker diagnosis. See [Homelab Zombie](/zombies/homelab). | `kubectl-readonly`, `docker-readonly`, `ssh-readonly` |
+| `homelab` | The flagship v2 sample — read-only `kubectl` / Docker diagnosis. See [Homelab Zombie](/zombies/homelab). | `kubectl`, `docker`, `ssh` (read-only policy in `SKILL.md`) |
 
 Run `zombiectl install` with no argument to see the current bundled set in the error output.
 
