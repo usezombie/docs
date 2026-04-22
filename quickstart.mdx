@@ -21,13 +21,21 @@ zombiectl --version
 zombiectl login
 ```
 
-`zombiectl login` opens a browser tab, completes the Clerk flow, and writes an authenticated session to `~/.config/usezombie/credentials.json`. A default workspace has already been provisioned on your behalf; subsequent commands target it unless you pass `--workspace`.
+`zombiectl login` opens a browser tab, completes the Clerk flow, and writes an authenticated session to `~/.config/usezombie/credentials.json`.
 
-Confirm the CLI is wired to your tenant:
+Check that the CLI is wired to your tenant:
 
 ```bash
 zombiectl workspace list
 ```
+
+If the list is empty, create your first workspace by binding a GitHub repository:
+
+```bash
+zombiectl workspace add https://github.com/your-user/your-repo
+```
+
+This opens the UseZombie GitHub App install flow in your browser, finishes the binding, and sets the new workspace as current. See the [workspaces guide](/workspaces/managing) for the full reference.
 
 ## Step 3. Create a zombie
 
@@ -88,11 +96,13 @@ curl -X POST https://hooks.usezombie.com/v1/webhooks/$ZOMBIE_ID \
 
 The HTTP response comes back in milliseconds with `{"accepted": true}` — ingestion is fast because execution happens in the background. Watch the dashboard detail page: within a few seconds the new event appears in the activity stream, the agent reasons, and the run completes.
 
-Tail logs from the CLI if you prefer:
+Read logs from the CLI if you prefer:
 
 ```bash
-zombiectl logs --zombie $ZOMBIE_ID --follow
+zombiectl logs --zombie $ZOMBIE_ID --limit 50
 ```
+
+The output is paginated — re-run with `--cursor <next_cursor>` to see older events.
 
 ## Step 6. Verify the credit deduction
 

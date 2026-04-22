@@ -60,13 +60,19 @@ For a specific zombie, pass the name or ID. Add `--json` to script against the o
 
 ## `zombiectl logs`
 
-Tail the activity stream. Default is live tail; pass `--follow=false` for a one-shot read.
+Read the activity stream for one zombie. Output is paginated, not streamed.
 
 ```bash
-zombiectl logs --zombie zm_019abc12 --follow
+zombiectl logs --zombie zm_019abc12 --limit 50
 ```
 
-Every event received, every skill call, every response, every credential use is timestamped and queryable. Each line carries a `run_id` you can cross-reference with the billing debit entry.
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--zombie <id>` | *(required)* | Zombie ID to read. |
+| `--limit <n>` | `20` | Maximum events to return. |
+| `--cursor <cursor>` | *(none)* | Pagination cursor from a previous response. |
+
+Every event received, every skill call, every response, every credential use is timestamped. Each line carries a `run_id` you can cross-reference with the billing debit entry. When the response is truncated, the last line prints `More: zombiectl logs --cursor=<next_cursor>` — pass that back to paginate.
 
 ## Triggering a zombie
 
@@ -82,7 +88,7 @@ curl -X POST https://hooks.usezombie.com/v1/webhooks/$ZOMBIE_ID \
   }'
 ```
 
-The API returns `{"accepted": true}` immediately; the zombie processes the event asynchronously. Watch progress with `zombiectl logs --follow`.
+The API returns `{"accepted": true}` immediately; the zombie processes the event asynchronously. Watch progress with `zombiectl logs --zombie $ZOMBIE_ID --limit 50`.
 
 ## `zombiectl kill`
 
@@ -109,13 +115,15 @@ credentials:
   - slack_bot_token
 ```
 
-To delete a credential:
+List existing credentials with:
 
 ```bash
-zombiectl credential rm slack_bot_token
+zombiectl credential list
 ```
 
-Removal fails if any live zombie still references the credential; kill or update the zombie first.
+<Note>
+  Credential deletion is not yet exposed via CLI — manage removals from the credentials page in Mission Control ([app.usezombie.com](https://app.usezombie.com)). A `zombiectl credential rm` subcommand is on the roadmap.
+</Note>
 
 ## What's next
 
