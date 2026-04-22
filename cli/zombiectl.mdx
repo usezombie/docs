@@ -8,9 +8,9 @@ description: "Complete zombiectl command reference."
 | Group | Commands |
 |-------|----------|
 | Authentication | `login`, `logout` |
-| Zombies | `install`, `up`, `status`, `kill`, `logs` |
+| Zombies | `install`, `up`, `list`, `status`, `kill`, `logs` |
 | Credentials | `credential add`, `credential list` |
-| Workspaces | `workspace add`, `workspace list`, `workspace remove`, `workspace upgrade-scale`, `workspace billing` |
+| Workspaces | `workspace add`, `workspace list`, `workspace use`, `workspace show`, `workspace credentials`, `workspace remove`, `workspace upgrade-scale`, `workspace billing` |
 | External agents | `agent create`, `agent list`, `agent delete` |
 | Integration grants | `grant list`, `grant revoke` |
 | Diagnostics | `doctor` |
@@ -63,6 +63,23 @@ zombiectl up
 ```
 
 Output includes the new zombie's ID and webhook URL. See [Starting and observing](/zombies/running).
+
+### `zombiectl list`
+
+List zombies in the active workspace. Keyset-paginated over `(created_at, id)` — the dashboard `/zombies` page uses the same contract.
+
+```bash
+zombiectl list --limit 20
+```
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--workspace-id <id>` | *(active)* | Override the active workspace for this call. |
+| `--limit <n>` | `20` | Page size. Clamped to `100`. |
+| `--cursor <cursor>` | *(none)* | Cursor from a previous response's `cursor` field. |
+| `--json` | *off* | Emit the raw `{items, total, cursor}` envelope for scripting. |
+
+Human-readable output prints a table and, when more pages remain, a "Next" hint with the exact cursor to pass back.
 
 ### `zombiectl status`
 
@@ -136,6 +153,34 @@ List all configured workspaces with an active marker.
 
 ```bash
 zombiectl workspace list
+```
+
+### `zombiectl workspace use <id>`
+
+Set the active workspace persistently. Writes `current_workspace_id` to `~/.config/zombiectl/workspaces.json`; every subsequent command that accepts `--workspace-id` defaults to this value when the flag is omitted.
+
+```bash
+zombiectl workspace use ws_abc123
+```
+
+Errors out if the id isn't in the local list (run `zombiectl workspace list` first). The dashboard's own `active_workspace_id` cookie and the CLI config are independent — switching one does not affect the other. See [Workspaces overview](/workspaces/overview).
+
+### `zombiectl workspace show`
+
+Show the active workspace (or a specific one via `--workspace-id`) — mirrors the dashboard **Settings** page.
+
+```bash
+zombiectl workspace show
+```
+
+Prints the workspace id, active marker, repo URL, and default branch. Use `--json` for scripting.
+
+### `zombiectl workspace credentials`
+
+Workspace-level credential vault surface. Paired with the dashboard `/credentials` placeholder — both sides are placeholders today. The backing vault ships in a future release; for per-zombie credential overrides available now, see [`zombiectl credential add`](#zombiectl-credential-add-name-value-value).
+
+```bash
+zombiectl workspace credentials
 ```
 
 ### `zombiectl workspace remove <id>`

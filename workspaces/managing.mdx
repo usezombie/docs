@@ -37,6 +37,32 @@ ws_01J8XVKA3M       acme/frontend               ACTIVE   Hobby
 ws_01J8XVKB7N       acme/infra                  PAUSED   Scale
 ```
 
+## Switch the active workspace
+
+```bash
+zombiectl workspace use <workspace-id>
+```
+
+Makes the workspace active for subsequent CLI commands — `zombiectl list`, `zombiectl status`, `zombiectl up`, and anything else that accepts a `--workspace-id` flag defaults to this value when the flag is omitted.
+
+The choice is persisted to `~/.config/zombiectl/workspaces.json` (`current_workspace_id` field), so it survives across shells and sessions.
+
+Errors out if the id isn't in your local list — run `zombiectl workspace list` first to see what's available.
+
+<Tip>
+  The dashboard at [app.usezombie.com](https://app.usezombie.com) has its own workspace switcher backed by a cookie. The CLI config and the dashboard cookie are independent — switching one does **not** affect the other. Useful when you want the CLI pointed at staging while the browser watches production.
+</Tip>
+
+## Show the active workspace
+
+```bash
+zombiectl workspace show
+```
+
+Prints the active workspace's id, repo URL, default branch, and active marker. Pass `--workspace-id <id>` to inspect a specific workspace without changing the active one. Add `--json` for scripting.
+
+This mirrors the dashboard **Settings** page.
+
 ## Remove a workspace
 
 ```bash

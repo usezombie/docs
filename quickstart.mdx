@@ -17,6 +17,22 @@ description: Install a zombie and have your agent running with two commands.
     ```
 
     Opens your browser for authentication. Your session is stored locally.
+
+    <Tip>
+      Prefer a GUI? The same workflow is available at [app.usezombie.com](https://app.usezombie.com) — overview dashboard, zombies list with search, install form, detail page with kill switch. The CLI and dashboard stay in sync.
+    </Tip>
+  </Step>
+
+  <Step title="Select a workspace">
+    ```bash
+    zombiectl workspace list           # see what you have
+    zombiectl workspace use ws_abc123  # make it active
+    zombiectl workspace show           # confirm
+    ```
+
+    `workspace use` persists the choice to `~/.config/zombiectl/workspaces.json`; every later command that accepts `--workspace-id` defaults to it. The dashboard has its own workspace switcher — the two are independent, so you can point the CLI and the browser at different workspaces if you want.
+
+    If you haven't added a workspace yet, use `zombiectl workspace add <repo-url>` to connect one.
   </Step>
 
   <Step title="Install a zombie template">
