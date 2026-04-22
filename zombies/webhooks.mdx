@@ -21,16 +21,16 @@ A zombie declares its webhook trigger in `TRIGGER.md`:
 
 ```yaml
 ---
-name: lead-collector
+name: slack-bug-fixer
 trigger:
   type: webhook
-  source: email
+  source: slack
   signature:
-    secret_ref: agentmail_webhook_secret
+    secret_ref: slack_signing_secret
 ---
 ```
 
-`trigger.source` is a human-readable label (`email`, `github`, `slack`, `linear`, ...) that appears in the activity stream; the platform routes strictly by the zombie ID in the URL path. The `signature` block declares how the platform will authenticate incoming requests.
+`trigger.source` is a human-readable label (`slack`, `github`, `linear`, `grafana`, ...) that appears in the activity stream; the platform routes strictly by the zombie ID in the URL path. The `signature` block declares how the platform will authenticate incoming requests.
 
 ### Authentication modes
 

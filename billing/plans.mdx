@@ -1,21 +1,23 @@
 ---
 title: "Plans"
-description: "Free and Scale plan details."
+description: "Hobby and Scale — what you get and how credits work."
 ---
 
-UseZombie offers two plans. Both include the full zombie platform — always-on agent hosting, credential firewall, activity stream, webhook ingestion, kill switch. The difference is scale and support.
+UseZombie has two plans. Both include the full platform — always-on agent hosting, credential firewall, activity stream, webhook ingestion, kill switch. The difference is scale and support.
 
 ## Hobby (Free)
 
-Get started with no commitment.
+New tenants start here. The first sign-in seeds the tenant balance with **$10 (1000¢)** automatically — there are no tokens to enter or gates to clear. The balance is waiting for you the moment Clerk completes auth.
 
 | Feature | Details |
 |---------|---------|
-| Included credit | $10 |
+| Included credit | $10 (1000¢), tenant-scoped |
 | Zombies per workspace | Unlimited |
+| Workspaces | Unlimited |
 | Event processing | Included |
-| Workspaces | 1 |
-| Support | Community |
+| Support | Community (Discord, GitHub) |
+
+The $10 balance is **tenant-scoped and shared across every workspace** you create. There is no per-workspace pool — every zombie run debits the same wallet. This is the single-wallet model introduced with v2.
 
 Credit is deducted only for **completed zombie executions** — the per-event agent reasoning that produced a response. If an event fails before the agent produces output (budget breach, skill error, webhook rejected), it is free.
 
@@ -25,17 +27,18 @@ Everything in Hobby, plus:
 
 | Feature | Details |
 |---------|---------|
-| Workspaces | Unlimited |
 | Priority event queue | Included |
 | Cost control dashboards | Included |
 | Support | Email |
 
-Scale billing is usage-based. You are charged for compute and token consumption on completed zombie executions. The same rule applies: failed executions are free.
+Scale billing is usage-based. You are charged for compute and token consumption on completed zombie executions. The same rule applies: failed executions are free, and billing is against the same tenant wallet.
 
 ## Choosing a plan
 
-Start with Hobby. When you need more than one workspace, priority queue access, or email support, upgrade to Scale from the dashboard or CLI:
+Start with Hobby. When you hit the priority queue or want email support, upgrade to Scale from the dashboard at [app.usezombie.com/billing](https://app.usezombie.com/billing) or via the CLI:
 
 ```bash
 zombiectl workspace upgrade-scale --workspace-id ws_abc --subscription-id sub_xxx
 ```
+
+Upgrades and top-ups apply to the tenant, not an individual workspace — the subscription follows the wallet.

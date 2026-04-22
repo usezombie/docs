@@ -1,32 +1,39 @@
 ---
 title: "Workspaces"
-description: "What a workspace is and how it works."
+description: "What a workspace is and how it relates to your tenant."
 ---
 
-A workspace binds a GitHub repository to UseZombie. It is the fundamental unit of organization, billing, and access control.
+A **workspace** is a container for zombies and credentials, scoped inside your tenant. It binds a GitHub repository to UseZombie via the UseZombie GitHub App.
 
 ## What a workspace contains
 
 Each workspace has its own:
 
-- **Repository connection** -- a 1:1 binding to a GitHub repo via the UseZombie GitHub App.
-- **Entitlements** -- determined by the plan tier (Hobby or Scale).
-- **Billing** -- credit balance, usage tracking, and budget controls are scoped per workspace.
-- **Agent configuration** -- harness settings, execution profiles, and environment variables.
-- **Isolation** -- runs in one workspace cannot access specs, artifacts, or credentials from another.
+- **Repository connection** — a 1:1 binding to a GitHub repo via the UseZombie GitHub App.
+- **Zombies** — the configured agents that live and run here.
+- **Credentials** — the vault keys zombies in this workspace can read. Workspace-scoped on purpose: credentials do not leak across workspaces.
+- **Webhook namespace** — every zombie in a workspace gets its own unique URL under `https://hooks.usezombie.com/v1/webhooks/{zombie_id}`.
+- **Access control** — teammates invited to a workspace can see, start, and kill its zombies; they cannot see zombies in other workspaces.
+
+## What a workspace does NOT contain
+
+- **Billing.** Credits, plan tier, and Stripe subscription all live on the **tenant**, not the workspace. Creating a second workspace does not give you a second $10 credit; every run in every workspace debits the same tenant wallet. See [Billing and cost control](/billing/plans).
+- **Per-workspace spend caps.** Monthly spend caps live at the tenant level in v2.
 
 ## Plan limits
 
+Both plans allow unlimited workspaces under a tenant. The plan-tier difference is priority queue access + support, not workspace count.
+
 | Feature | Hobby (Free) | Scale |
 |---------|-------------|-------|
-| Workspaces | 1 | Unlimited |
-| Specs | Unlimited | Unlimited |
-| Self-repair gate loop | Included | Included |
-| Priority queue | -- | Included |
+| Workspaces | Unlimited | Unlimited |
+| Zombies per workspace | Unlimited | Unlimited |
+| Priority event queue | — | Included |
+| Support | Community | Email |
 
 ## Workspace lifecycle
 
-1. **Create** -- connect a GitHub repo with `zombiectl workspace add`.
-2. **Active** -- specs are synced, runs are accepted.
-3. **Paused** -- new runs are rejected; in-flight runs complete normally.
-4. **Removed** -- workspace is deleted. Run history is retained for 30 days.
+1. **Create** — connect a GitHub repo with `zombiectl workspace add <repo-url>`. The GitHub App install flow opens in your browser; completion binds the repo server-side.
+2. **Active** — zombies can be installed, deployed, and triggered.
+3. **Paused** — `POST /v1/workspaces/{workspace_id}/pause` via the API (no CLI subcommand yet). New runs rejected; in-flight runs complete.
+4. **Removed** — `zombiectl workspace remove <workspace-id>`. Run history retained 30 days; GitHub App connection uninstalled for that repo.

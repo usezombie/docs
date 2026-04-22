@@ -43,7 +43,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   - The `zombiectl zombie kill` command is unaffected by the kill-switch path rename — it continues to call `DELETE /zombies/{id}` (full delete, not the current-run kill) as it always did.
 </Update>
 
-<Update label="v0.27.0 — Apr 22, 2026" tags={["What's new", "Breaking", "API", "Security", "Billing"]}>
+<Update label="Apr 22, 2026" tags={["What's new", "Breaking", "API", "Security", "Billing"]}>
   ## Admin-by-env-var is gone; credit exhaustion is now observable
 
   The env-var `API_KEY` bypass that minted an admin principal with no tenant and no audit identity has been removed. Admin authentication now flows exclusively through Clerk sessions with `publicMetadata.role=admin` — set once per operator in the Clerk Dashboard, revoked instantly from the same place, and carried into every request JWT. Programmatic admin access uses a tenant-minted `zmb_t_…` key from `POST /v1/api-keys` (shipped in v0.26.0). Separately, the tenant billing response now surfaces credit exhaustion, and a new policy knob lets operators decide what the worker does when a tenant hits zero.
@@ -69,7 +69,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   The OpenAPI schema lists both as required with `exhausted_at` nullable.
 </Update>
 
-<Update label="v0.26.1 — Apr 22, 2026" tags={["Bug fixes", "What's new", "Observability"]}>
+<Update label="Apr 22, 2026" tags={["Bug fixes", "What's new", "Observability"]}>
   ## Observability: per-workspace + per-zombie token counter now wired, OTLP histograms now exported
 
   Two observability paths that looked live but weren't are now actually live. The per-workspace Prometheus token counter is now emitted on every successful zombie delivery, and a new `zombie_id` label lets you slice the same counter by zombie. The OTLP JSON exporter now forwards histogram data points (`_bucket`, `_sum`, `_count`) instead of silently dropping them.
@@ -86,7 +86,30 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   - Removed the `zombie_gate_repair_loops_by_workspace_total` and `zombie_gate_repair_loops_total` counters (plus their helpers) — gate-repair is a pipeline-era concept with no zombie-era call site, so these counters always read zero and misled operators into expecting data that could never appear.
 </Update>
 
-<Update label="v0.26.0 — Apr 21, 2026" tags={["What's new", "API", "Billing"]}>
+<Update label="Apr 22, 2026" tags={["What's new", "UI", "CLI", "Integrations"]}>
+  ## Docs follow-up — rewritten for the v2 MVP
+
+  The `docs.usezombie.com` site has been rewritten end-to-end against the current product. The new quickstart walks a fresh operator from Clerk sign-up to a live zombie firing webhook events in under ten minutes, against the shared $10 tenant balance introduced earlier this month. Stale pre-Clerk vocabulary — redemption flows, legacy "lead-collector"-centric examples — has been cleared from every page outside the historical changelog entries that predate this release.
+
+  ## What's new
+
+  - **New quickstart.** Sign up → dashboard → create zombie → copy webhook URL → `curl` trigger → verify the credit debit in the billing UI. End-to-end in one page.
+  - **New CLI reference:** `/cli/zombie-lifecycle` — compact reference for `install`, `up`, `status`, `logs`, `kill`, `credential add` with copyable examples.
+  - **Self-hosting status page:** `/operator/quickstart` — an honest map of what ships today (systemd `zombied worker` on bare-metal, Zig API binary, local-dev compose for Postgres + Redis) vs. what's on the roadmap (containerized worker, `zombiectl worker token` lifecycle). A dedicated "Self-hosting" group now collects every operator page in the sidebar.
+  - **Four new zombie pages** under `/zombies/`:
+    - `/zombies/homelab` — the flagship Homelab Zombie (`kubectl` / Docker diagnosis without holding the kubeconfig).
+    - `/zombies/homebox-audit` — quarterly self-hosted-stack audit.
+    - `/zombies/migration-zombie` — mechanical codebase migrations.
+    - `/zombies/side-project-resurrector` — revive a dormant side-project repo.
+  - **Concepts page updated** to cover the four nouns (tenant, workspace, zombie, skill) and the tenant-scoped credit model.
+  - **Billing pages** rewritten around the single-wallet, multi-workspace model.
+
+  ## CLI
+
+  No binary changes in this release — the docs now accurately describe the shipped CLI surface (`zombiectl install | up | status | logs | kill | credential`). Event triggering is documented as `curl` against the webhook URL, not a CLI subcommand.
+</Update>
+
+<Update label="Apr 21, 2026" tags={["What's new", "API", "Billing"]}>
   ## Tenant-scoped billing
 
   Billing now lives at the tenant, not the workspace. Every new signup gets exactly one `billing.tenant_billing` row at `plan_tier=free`, `plan_sku=free_default`, and a 1000¢ free-credit balance. Any zombie run in any workspace owned by that tenant debits the same shared balance — creating a second workspace no longer grants additional credits, and plan changes no longer have to fan out across workspace rows. Per-workspace credit state and the workspace-scoped billing lifecycle endpoints are removed.
@@ -121,7 +144,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Auth: Bearer Clerk JWT (operator or admin). Returns `401 UZ-AUTH-001` without a valid token.
 </Update>
 
-<Update label="v0.25.0 — Apr 21, 2026" tags={["What's new", "API", "Security", "Integrations", "Observability"]}>
+<Update label="Apr 21, 2026" tags={["What's new", "API", "Security", "Integrations", "Observability"]}>
   ## Clerk-powered signup
 
   New users can now sign up through Clerk and have their account provisioned automatically. A Clerk `user.created` webhook delivered to `POST /v1/webhooks/clerk` atomically creates a tenant, a user record bound to the Clerk OIDC subject, an owner membership, and a default workspace with a Heroku-style name (`jolly-harbor-482`) and a 0-cent credit state. Replayed webhooks are idempotent — a re-delivered `user.created` returns the existing workspace with `created: false` and makes no new writes.
@@ -138,7 +161,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Three new Prometheus counters on `/metrics` (six time series): `zombie_signup_bootstrapped_total`, `zombie_signup_replayed_total`, and `zombie_signup_failed_total` with `reason` label (`bad_sig`, `stale_ts`, `missing_email`, `db_error`). One new PostHog event, `signup_bootstrapped`, with `distinct_id = oidc_subject` so funnels stitch across retries; email domain included, full email never is. Server log lines (`clerk.bad_sig`, `clerk.stale_ts`, `clerk.bad_request`) flow through the existing OTLP log exporter. The operator metrics reference ([Metrics reference](/operator/observability/metrics)) has been reconciled against the live exporter.
 </Update>
 
-<Update label="v0.24.0 — Apr 19, 2026" tags={["Improvements", "UI", "Performance"]}>
+<Update label="Apr 19, 2026" tags={["Improvements", "UI", "Performance"]}>
   ## Unified design system across the dashboard and marketing site
 
   Buttons, cards, dialogs, inputs, and other UI primitives now come from a single `@usezombie/design-system` package. The dashboard and marketing site share one source of truth — tweak a variant once, both surfaces update.
@@ -146,19 +169,19 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   The new `/agents` page adds an interactive hero and animated terminal. Landing JS is under 90 kB gzipped, with a `size-limit` CI gate guarding bundle size. PostHog loads on idle so first paint is no longer blocked.
 </Update>
 
-<Update label="v0.23.0 — Apr 19, 2026" tags={["Improvements", "CLI", "API"]}>
+<Update label="Apr 19, 2026" tags={["Improvements", "CLI", "API"]}>
   ## One credential surface for zombies
 
   Workspace credentials now flow through a single path: `zombiectl credential add` writes to the workspace vault, and that's what every zombie reads at runtime. No parallel surfaces, no guessing which command owns a given secret.
 </Update>
 
-<Update label="v0.22.0 — Apr 19, 2026" tags={["Improvements", "CLI"]}>
+<Update label="Apr 19, 2026" tags={["Improvements", "CLI"]}>
   ## Zombie lifecycle is the unified product model
 
   The CLI and API now speak one language: `zombiectl install → up → status → logs → kill`. `zombiectl --help` is shorter, the API surface is tighter, and the docs, product, and code all describe the same thing. See [Zombies](/zombies/overview).
 </Update>
 
-<Update label="v0.21.0 — Apr 18, 2026" tags={["Docs"]}>
+<Update label="Apr 18, 2026" tags={["Docs"]}>
   ## Docs reshaped around the zombie lifecycle
 
   A new [Zombies](/zombies/overview) section walks through installing a template, adding credentials, running, observing, and killing a zombie. Pages describing the legacy v1 pipeline have been retired; the old `/specs/*` and `/runs/*` URLs now 404.
@@ -166,7 +189,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   New pages: [overview](/zombies/overview), [install](/zombies/install), [running](/zombies/running), [credentials](/zombies/credentials), [webhooks](/zombies/webhooks), [skills](/zombies/skills), [templates](/zombies/templates).
 </Update>
 
-<Update label="v0.20.0 — Apr 18, 2026" tags={["New", "API", "Security"]}>
+<Update label="Apr 18, 2026" tags={["New", "API", "Security"]}>
   ## Tenant API keys
 
   Tenant admins can now mint named, rotatable API keys via `POST /v1/api-keys` — scoped to the tenant, revocable, and audited. Raw keys (`zmb_t_…`) are shown once on creation; only the hash is stored. The legacy `API_KEY` env var still works as a bootstrap fallback.
@@ -174,7 +197,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Workspace-scoped **external agent keys** were renamed to **agent keys**: `/v1/workspaces/{ws}/external-agents` → `/v1/workspaces/{ws}/agent-keys`.
 </Update>
 
-<Update label="v0.19.0 — Apr 18, 2026" tags={["New", "Security", "Integrations"]}>
+<Update label="Apr 18, 2026" tags={["New", "Security", "Integrations"]}>
   ## Unified webhook authentication — seven first-class providers
 
   Every per-zombie webhook flows through one fail-closed middleware that handles URL-embedded secrets, Bearer tokens, HMAC signatures, and Svix multi-signature rotation with constant-time comparisons.
@@ -182,7 +205,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Seven providers ship first-class: **agentmail**, **Grafana**, **Slack**, **GitHub**, **Linear**, **Jira**, and **Clerk** (via Svix). Onboarding takes one field in `TRIGGER.md`; secrets are workspace-vaulted and rotate without a zombie redeploy. See [Webhooks](/zombies/webhooks).
 </Update>
 
-<Update label="v0.18.0 — Apr 16, 2026" tags={["New", "API", "UI"]}>
+<Update label="Apr 16, 2026" tags={["New", "API", "UI"]}>
   ## Operator dashboard foundation
 
   Workspace-wide **activity feed**, **operator kill switch** for runaway zombies, and **per-zombie billing summary** that mirrors the workspace view. Billing numbers now come from real execution telemetry (previously zeroed since v0.10).
@@ -190,31 +213,31 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Ships with six accessible React primitives — `StatusCard`, `EmptyState`, `Pagination`, `DataTable`, `ConfirmDialog`, `ActivityFeed` — and Tailwind v4 semantic design tokens.
 </Update>
 
-<Update label="v0.17.0 — Apr 16, 2026" tags={["Improvements", "API"]}>
+<Update label="Apr 16, 2026" tags={["Improvements", "API"]}>
   ## Consistent pagination and full OpenAPI coverage
 
   Every list endpoint returns the same `{ items, total, cursor? }` envelope so SDK generators can emit a single `Paginated<T>` type. Memory reads moved to `GET`, and `openapi.json` now documents every route the server exposes — 26 previously undocumented operations are authored in.
 </Update>
 
-<Update label="v0.16.0 — Apr 16, 2026" tags={["Improvements", "API", "Security"]}>
+<Update label="Apr 16, 2026" tags={["Improvements", "API", "Security"]}>
   ## Workspace-scoped REST paths
 
   Identity — workspace, zombie, grant — is now always in the URL path (`/v1/workspaces/{ws}/zombies/{id}`), and query parameters are reserved for pagination and search. Every handler authorizes workspace membership after authentication; cross-workspace lookups return `404`, so the API does not leak the existence of resources you cannot see.
 </Update>
 
-<Update label="v0.15.0 — Apr 15, 2026" tags={["New", "API"]}>
+<Update label="Apr 15, 2026" tags={["New", "API"]}>
   ## Live zombie steering
 
   Redirect a running zombie mid-execution without killing it. `POST /v1/workspaces/{ws}/zombies/{id}/steer` injects a message into the zombie's event stream — delivered mid-execution if the zombie is running, queued otherwise (300-second TTL).
 </Update>
 
-<Update label="v0.14.0 — Apr 12, 2026" tags={["New", "Memory", "API"]}>
+<Update label="Apr 12, 2026" tags={["New", "Memory", "API"]}>
   ## Persistent zombie memory
 
   Zombies remember facts across executions. Memory is row-scoped per zombie and persists in Postgres — a lead-collector zombie doesn't re-research the same lead, a support zombie doesn't re-ask customers their plan. Tools: `memory_store`, `memory_recall`, `memory_list`, `memory_forget`.
 </Update>
 
-<Update label="v0.13.0 — Apr 12, 2026" tags={["New", "Integrations", "API"]}>
+<Update label="Apr 12, 2026" tags={["New", "Integrations", "API"]}>
   ## Integration grants + credentialed proxy
 
   Zombies — internal or external (LangGraph, CrewAI) — call external services through UseZombie's credentialed proxy. Credentials never leave the platform: injected server-side, stripped from response echoes, and logged to the activity stream.
@@ -222,31 +245,31 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   A zombie requests a grant, humans approve once via Slack/Discord/dashboard, and the grant is reusable until revoked. Launch providers: Slack, Gmail/AgentMail, Discord, Grafana. New CLI: `zombiectl agent create|list|delete`, `zombiectl grant list|revoke`.
 </Update>
 
-<Update label="v0.12.0 — Apr 12, 2026" tags={["New", "Observability", "API"]}>
+<Update label="Apr 12, 2026" tags={["New", "Observability", "API"]}>
   ## Zombie execution telemetry
 
   Every event delivery records `token_count`, `time_to_first_token_ms`, `wall_seconds`, and `credit_deducted_cents`, queryable per-zombie via `GET /v1/workspaces/{ws}/zombies/{id}/telemetry`. Each delivery also emits an OpenTelemetry `zombie.delivery` span that lines up correctly in Grafana Tempo.
 </Update>
 
-<Update label="v0.11.0 — Apr 12, 2026" tags={["New", "Integrations"]}>
+<Update label="Apr 12, 2026" tags={["New", "Integrations"]}>
   ## Slack plugin
 
   Connect Slack via "Add to Slack" OAuth or `zombiectl credential add slack`. Bot tokens live in the vault; events and interactions are HMAC-verified with constant-time comparison. Any zombie with a `slack_event` trigger fires automatically on matching messages.
 </Update>
 
-<Update label="v0.10.0 — Apr 12, 2026" tags={["New", "Observability"]}>
+<Update label="Apr 12, 2026" tags={["New", "Observability"]}>
   ## Zombie observability
 
   Every trigger and delivery shows up in Grafana and PostHog. Prometheus exposes `zombies_triggered_total`, `zombies_completed_total`, `zombies_failed_total`, `zombie_tokens_total`, and a `zombie_execution_seconds` histogram; PostHog fires `zombie_triggered` and `zombie_completed` with tokens, wall-time, and exit status.
 </Update>
 
-<Update label="v0.9.0 — Apr 12, 2026" tags={["New", "Billing"]}>
+<Update label="Apr 12, 2026" tags={["New", "Billing"]}>
   ## Zombie credit metering
 
   Free-plan zombies deduct from `consumed_credit_cents` after each successful delivery at 1 cent per agent-second; Scale is unlimited and short-circuits without a DB write. Crash replay is idempotent on `event_id`, and a DB hiccup never drops or double-charges an event.
 </Update>
 
-<Update label="v0.8.1 — Apr 11, 2026" tags={["Internal"]}>
+<Update label="Apr 11, 2026" tags={["Internal"]}>
   ## Scoring infrastructure removed (M10_004)
 
   The legacy agent scoring pipeline had no callers after the zombie execution model replaced
@@ -256,7 +279,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   against dropped tables. No user-visible API changes.
 </Update>
 
-<Update label="v0.8.0 — April 11, 2026" tags={["New releases", "Zombies", "API"]}>
+<Update label="April 11, 2026" tags={["New releases", "Zombies", "API"]}>
   ## Zombie directory format, AI Firewall, error standardization, pipeline v1 removal
 
   ### Zombie directory format
@@ -296,7 +319,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   `hx.zig` wrapper. Handlers contain only business logic. No user-visible behavior change.
 </Update>
 
-<Update label="v0.5.0 — April 11, 2026" tags={["New releases", "Zombies"]}>
+<Update label="April 11, 2026" tags={["New releases", "Zombies"]}>
   ## Lead Zombie — v2 core ships
 
   UseZombie is now a runtime for always-on agents. Two commands, running agent:
@@ -355,7 +378,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   - Fixed UTF-8 truncation splitting multi-byte characters in session context
 </Update>
 
-<Update label="v0.4.0 — April 6, 2026" tags={["New releases", "Improvements"]}>
+<Update label="April 6, 2026" tags={["New releases", "Improvements"]}>
   ## Steer running agents mid-run
 
   Interrupt a running agent without aborting it. Send a message via `zombiectl runs interrupt <run_id> <message>` or `POST /v1/runs/{id}:interrupt` — the agent picks it up at the next gate checkpoint. Two modes: **queued** (next checkpoint) and **instant** (IPC delivery).

@@ -49,10 +49,10 @@ zombiectl logout
 Scaffold a zombie from a bundled template into the current directory. Writes `SKILL.md` and `TRIGGER.md`. No API call, no authentication required.
 
 ```bash
-zombiectl install lead-collector
+zombiectl install slack-bug-fixer
 ```
 
-Bundled templates today: `lead-collector`, `slack-bug-fixer`. See [Templates](/zombies/templates).
+Bundled templates include `slack-bug-fixer` and the flagship `homelab` zombie. See [Templates](/zombies/templates).
 
 ### `zombiectl up`
 
@@ -77,7 +77,7 @@ zombiectl status
 Stop a zombie by name.
 
 ```bash
-zombiectl kill lead-collector
+zombiectl kill slack-bug-fixer
 ```
 
 ### `zombiectl logs --zombie <id>`

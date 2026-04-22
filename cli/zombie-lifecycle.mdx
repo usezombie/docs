@@ -1,0 +1,137 @@
+---
+title: "Zombie lifecycle"
+description: "Create, run, watch, trigger, and tear down a zombie with `zombiectl`."
+---
+
+This page is the command reference for the MVP zombie lifecycle — everything a new operator touches during the quickstart. For a full CLI tour (workspace, admin, agent, grant, doctor), see [`zombiectl` overview](/cli/zombiectl).
+
+All commands accept `--help` and exit 0 when the command exists. `--json` switches any command to JSON output.
+
+## `zombiectl install <template>`
+
+Scaffold a zombie directory from a bundled template.
+
+```bash
+zombiectl install slack-bug-fixer
+```
+
+Writes a `slack-bug-fixer/` directory in the current working directory containing:
+
+- `SKILL.md` — natural-language agent instructions, edited by you.
+- `TRIGGER.md` — YAML frontmatter declaring the trigger, skills, credentials, budget.
+
+No network calls. No authentication required. You edit the files, then `zombiectl up` takes it from there.
+
+Run `zombiectl install` with no argument to see the current list of bundled templates.
+
+## `zombiectl up`
+
+From inside a zombie directory, upload the config and start the zombie.
+
+```bash
+cd slack-bug-fixer
+zombiectl up
+```
+
+Output:
+
+```
+✓ zombie created  id=zm_019abc12-8d3a-7f13-8abc-2b3e1e0a6f11
+✓ webhook live    POST https://hooks.usezombie.com/v1/webhooks/019abc12-8d3a-7f13-8abc-2b3e1e0a6f11
+✓ agent running   status=alive
+```
+
+`zombiectl up` parses `TRIGGER.md`, registers any declared skills and credentials, provisions the webhook endpoint, and starts the event loop. If you re-run `zombiectl up` after editing the files, it updates the existing zombie in place.
+
+## `zombiectl status`
+
+Show the live state of all zombies in the current workspace.
+
+```bash
+zombiectl status
+```
+
+```
+ID                 NAME              STATE   LAST EVENT   DAILY $    MONTHLY $
+zm_019abc12...     slack-bug-fixer   alive   2s ago       $0.03/5    $0.03/29
+```
+
+For a specific zombie, pass the name or ID. Add `--json` to script against the output.
+
+## `zombiectl logs`
+
+Read the activity stream for one zombie. Output is paginated, not streamed.
+
+```bash
+zombiectl logs --zombie zm_019abc12 --limit 50
+```
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--zombie <id>` | *(required)* | Zombie ID to read. |
+| `--limit <n>` | `20` | Maximum events to return. |
+| `--cursor <cursor>` | *(none)* | Pagination cursor from a previous response. |
+
+Every event received, every skill call, every response, every credential use is timestamped. Each line carries a `run_id` you can cross-reference with the billing debit entry. When the response is truncated, the last line prints `More: zombiectl logs --cursor=<next_cursor>` — pass that back to paginate.
+
+## Triggering a zombie
+
+There is no `zombiectl trigger` subcommand — zombies are triggered by HTTP, not by CLI. The webhook URL was printed during `zombiectl up`. Fire an event at it with `curl`:
+
+```bash
+curl -X POST https://hooks.usezombie.com/v1/webhooks/$ZOMBIE_ID \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_id": "demo-001",
+    "type": "message.received",
+    "data": { "from": "alice@example.com" }
+  }'
+```
+
+The API returns `{"accepted": true}` immediately; the zombie processes the event asynchronously. Watch progress with `zombiectl logs --zombie $ZOMBIE_ID --limit 50`.
+
+## `zombiectl kill`
+
+Stop a zombie immediately.
+
+```bash
+zombiectl kill slack-bug-fixer
+```
+
+Terminates the running agent process mid-action. No new events are processed, no further billing. State is checkpointed so the zombie can be restarted cleanly.
+
+## `zombiectl credential add`
+
+Store an encrypted credential referenced by one or more zombies.
+
+```bash
+zombiectl credential add slack_bot_token --value=$SLACK_BOT_TOKEN
+```
+
+The credential is encrypted at rest and **never returned to the agent process** — when a skill needs it, the credential firewall injects it outside the sandbox. To reference the credential from a zombie, add its name to `TRIGGER.md`:
+
+```yaml
+credentials:
+  - slack_bot_token
+```
+
+List existing credentials with:
+
+```bash
+zombiectl credential list
+```
+
+<Note>
+  Credential deletion is not yet exposed via CLI — manage removals from the credentials page in Mission Control ([app.usezombie.com](https://app.usezombie.com)). A `zombiectl credential rm` subcommand is on the roadmap.
+</Note>
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Add a credential" icon="key" href="/zombies/credentials">
+    Detailed credential reference — BYOK, vault semantics, rotation.
+  </Card>
+  <Card title="Full CLI reference" icon="rectangle-terminal" href="/cli/zombiectl">
+    Every command, including workspace, doctor, admin.
+  </Card>
+</CardGroup>

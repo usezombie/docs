@@ -11,7 +11,7 @@ Four commands move a zombie through its live states: `up` starts it, `status` sh
 zombiectl up         # deploy the zombie in the current directory
 zombiectl status     # list every zombie in this workspace
 zombiectl logs --zombie zm_01JABC...
-zombiectl kill lead-collector
+zombiectl kill slack-bug-fixer
 ```
 
 ## `zombiectl up`
@@ -23,7 +23,7 @@ zombiectl up
 ```
 
 ```
-✓ lead-collector is live.
+✓ slack-bug-fixer is live.
   Zombie ID:   zm_01JABCDEFGHIJKLMN
   Webhook URL: https://hooks.usezombie.com/v1/webhooks/zm_01JABCDEFGHIJKLMN
 
@@ -35,7 +35,7 @@ Commands:
 
 Behind the scenes:
 
-1. The CLI looks for a known template directory (`lead-collector`, `slack-bug-fixer`, ...) in the working directory.
+1. The CLI looks for a known template directory (`slack-bug-fixer`, `homelab`, ...) in the working directory.
 2. It reads `SKILL.md` and `TRIGGER.md`, extracting the `name` field from the `TRIGGER.md` frontmatter.
 3. It POSTs the two markdown bodies to `/v1/workspaces/{workspace_id}/zombies` in your current workspace.
 4. The server parses `TRIGGER.md`, provisions a webhook endpoint, and starts the event loop.
@@ -57,7 +57,7 @@ zombiectl status
 ```
 Zombies
 ────────────────
-Name:   lead-collector
+Name:   slack-bug-fixer
 Status: alive
 Events: 42
 Budget: $1.23
@@ -88,8 +88,8 @@ The output is paginated — the last line of a truncated response includes the c
 ```
 Activity Stream
 ─────────────────────────────────────────────────────────────────
-  2026-04-18T15:22:31Z  webhook_received  email.inbound from alice@example.com
-  2026-04-18T15:22:32Z  skill_invoked     agentmail.reply
+  2026-04-18T15:22:31Z  webhook_received  slack.message in #bugs
+  2026-04-18T15:22:32Z  skill_invoked     github.create_pull_request
   2026-04-18T15:22:45Z  event_completed   tokens=312 cost=$0.01
 
   More: zombiectl logs --zombie zm_... --cursor=<next_cursor>
@@ -100,11 +100,11 @@ Activity Stream
 Stops a zombie by name. The event loop terminates; the webhook becomes inactive; session state is preserved so the same name can be brought back up.
 
 ```bash
-zombiectl kill lead-collector
+zombiectl kill slack-bug-fixer
 ```
 
 ```
-✓ lead-collector killed.
+✓ slack-bug-fixer killed.
 ```
 
 You can bring the same zombie back up from the same directory at any time:
