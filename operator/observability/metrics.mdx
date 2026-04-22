@@ -7,7 +7,7 @@ description: "Prometheus metrics exposed by the zombied control plane at /metric
 
 The `zombied` control plane exposes Prometheus text-format metrics at `GET /metrics`. All metric names are prefixed with `zombie_` (with one exception, `zombied_run_limit_exceeded_total`, noted below). The exporter is open to any scraper — put it behind an authenticated gateway if the endpoint is publicly reachable.
 
-Labels are kept low-cardinality. Per-workspace metrics cap the label set at a bounded number of workspaces; overflow is routed to `workspace_id="_other"` and counted in `zombie_workspace_metrics_overflow_total`. Do not add workspace labels to new metrics without going through the per-workspace helper.
+Labels are kept low-cardinality. The per-workspace tokens counter is keyed on both `workspace_id` and `zombie_id`; overflow (4096 distinct pairs max) routes to `workspace_id="_other",zombie_id="_other"` and is counted in `zombie_workspace_metrics_overflow_total`. Do not add workspace or zombie labels to other metrics without going through the per-workspace helper.
 
 ## Zombie lifecycle
 
@@ -65,7 +65,6 @@ Approval gate repair loops executed by the worker when a gate claim/lease is dis
 
 | Metric | Type | Description |
 |---|---|---|
-| `zombie_gate_repair_loops_total` | Counter | Total gate-repair iterations attempted. |
 | `zombie_gate_repair_exhausted_total` | Counter | Gate-repair runs that hit the iteration cap without converging. |
 
 ## Side-effect outbox
@@ -87,7 +86,7 @@ Dead-letter counter for the reconciler daemon.
 
 ## OTEL export
 
-Health of the outbound OTEL exporter that forwards metrics to an external collector.
+Health of the outbound OTEL exporter that forwards metrics to an external collector. The OTLP/HTTP JSON exporter (`src/observability/otel_export.zig`) forwards counters, gauges, **and histograms** as OTLP data points — `zombie_execution_seconds`, `zombie_agent_duration_seconds`, and `zombie_executor_agent_duration_seconds` arrive at the collector as OTLP histogram data points (cumulative temporality) with explicit bucket bounds and the `sum`/`count` fields. Both Prometheus scrape and OTLP collectors receive histogram data.
 
 | Metric | Type | Description |
 |---|---|---|
@@ -131,15 +130,24 @@ Clerk-driven signup delivery counters emitted by `POST /v1/webhooks/clerk`. The 
 | `zombie_signup_failed_total{reason="missing_email"}` | Counter | Signup webhooks rejected with 400 `UZ-REQ-001` for malformed JSON or missing primary email. |
 | `zombie_signup_failed_total{reason="db_error"}` | Counter | Signup webhooks that reached the transactional bootstrap and rolled back on DB error. |
 
-## Per-workspace metrics
+## Per-workspace + per-zombie metrics
 
-Workspace-labelled counters are bounded: the first N distinct workspaces get their own `workspace_id=` label; every subsequent workspace routes into `workspace_id="_other"`. `zombie_workspace_metrics_overflow_total` counts overflow increments — alert on sustained non-zero growth.
+The token counter is keyed on both `workspace_id` and `zombie_id`. The first 4096 distinct `(workspace_id, zombie_id)` pairs each get their own label set; every subsequent pair routes into `workspace_id="_other",zombie_id="_other"`. `zombie_workspace_metrics_overflow_total` counts overflow increments — alert on sustained non-zero growth. The counter fires from the live zombie delivery path (`src/zombie/event_loop_helpers.zig`) on every successful completion.
 
 | Metric | Type | Description |
 |---|---|---|
-| `zombie_agent_tokens_by_workspace_total{workspace_id}` | Counter | Per-workspace agent token consumption. Bounded workspace set; overflow counted in `zombie_workspace_metrics_overflow_total`. |
-| `zombie_gate_repair_loops_by_workspace_total{workspace_id}` | Counter | Per-workspace gate-repair loop iterations. |
-| `zombie_workspace_metrics_overflow_total` | Counter | Increments routed to `_other` because the per-workspace label slot was full. |
+| `zombie_agent_tokens_by_workspace_total{workspace_id,zombie_id}` | Counter | Tokens consumed per `(workspace, zombie)` pair. Bounded to 4096 pairs; overflow counted in `zombie_workspace_metrics_overflow_total`. |
+| `zombie_workspace_metrics_overflow_total` | Counter | Increments routed to `_other` because the 4096-slot table is full. |
+
+Example PromQL:
+
+```promql
+# Top-10 zombies by token spend over the last day
+topk(10, sum by (workspace_id, zombie_id) (rate(zombie_agent_tokens_by_workspace_total[1d])))
+
+# Per-workspace token spend over 5 minutes
+sum by (workspace_id) (rate(zombie_agent_tokens_by_workspace_total[5m]))
+```
 
 ## Labels
 
@@ -148,7 +156,8 @@ Labels deliberately used across metrics:
 | Label | Applied to | Values |
 |---|---|---|
 | `reason` | `zombied_run_limit_exceeded_total`, `zombie_signup_failed_total` | Lifecycle-specific; see each metric. |
-| `workspace_id` | Per-workspace families (above) | UUIDv7 or `_other` on overflow. |
+| `workspace_id` | `zombie_agent_tokens_by_workspace_total` | UUIDv7 or `_other` on overflow. |
+| `zombie_id` | `zombie_agent_tokens_by_workspace_total` | Zombie instance id or `_other` on overflow. |
 | `le` | Histogram buckets (`*_seconds_bucket`) | Bucket upper-bound. |
 
 ## Grafana dashboard queries
@@ -178,8 +187,11 @@ sum by (reason) (rate(zombie_signup_failed_total[1h]))
 # Run limit terminations by reason
 sum by (reason) (rate(zombied_run_limit_exceeded_total[1h]))
 
-# Workspace cardinality overflow — alert if this is non-zero for long
+# Workspace + zombie cardinality overflow — alert if this is non-zero for long
 rate(zombie_workspace_metrics_overflow_total[5m])
+
+# Top-N zombies by token spend over the last hour
+topk(10, sum by (workspace_id, zombie_id) (rate(zombie_agent_tokens_by_workspace_total[1h])))
 ```
 
 ## Emission source

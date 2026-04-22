@@ -7,6 +7,23 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="v0.26.1 — Apr 22, 2026" tags={["Bug fixes", "What's new", "Observability"]}>
+  ## Observability: per-workspace + per-zombie token counter now wired, OTLP histograms now exported
+
+  Two observability paths that looked live but weren't are now actually live. The per-workspace Prometheus token counter is now emitted on every successful zombie delivery, and a new `zombie_id` label lets you slice the same counter by zombie. The OTLP JSON exporter now forwards histogram data points (`_bucket`, `_sum`, `_count`) instead of silently dropping them.
+
+  ## What's new
+
+  - Prometheus counter `zombie_agent_tokens_by_workspace_total` now carries both `workspace_id` and `zombie_id` labels and reports real data after each completed delivery. Useful for top-N spend dashboards at either granularity.
+  - `zombie_workspace_metrics_overflow_total` is exposed so operators can detect when the fixed-capacity slot table (4096 `(workspace_id, zombie_id)` pairs) saturates and falls back to an `_other` aggregation bucket.
+
+  ## Bug fixes
+
+  - Per-workspace token counter was a no-op: the helper existed but no production code path called it. It now fires from the same spot that records `zombie_tokens_total`, so Grafana queries against the per-workspace family return real values instead of zero.
+  - OTLP JSON exporter silently dropped `_bucket` / `_sum` / `_count` lines, so histograms (`zombie_execution_seconds`, `zombie_agent_duration_seconds`, `zombie_executor_agent_duration_seconds`) never reached an OTLP collector. The exporter now emits OTLP histogram data points with cumulative-to-delta bucket conversion, `explicitBounds`, and `aggregationTemporality: 2` (CUMULATIVE).
+  - Removed the `zombie_gate_repair_loops_by_workspace_total` and `zombie_gate_repair_loops_total` counters (plus their helpers) — gate-repair is a pipeline-era concept with no zombie-era call site, so these counters always read zero and misled operators into expecting data that could never appear.
+</Update>
+
 <Update label="v0.26.0 — Apr 21, 2026" tags={["What's new", "API", "Billing"]}>
   ## Tenant-scoped billing
 

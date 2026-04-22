@@ -1,6 +1,6 @@
 ---
 title: "Observability overview"
-description: "Three-layer observability: Grafana, PostHog, Langfuse."
+description: "Three-layer observability: Grafana, PostHog, and a Postgres-backed audit layer."
 ---
 
 ## Overview
@@ -17,55 +17,61 @@ graph LR
     subgraph Product Layer
         PostHog[PostHog analytics]
     end
-    subgraph AI Layer
-        Langfuse[Langfuse traces]
+    subgraph Audit Layer
+        Activity[core.activity_events]
+        Telemetry[zombie_execution_telemetry]
+        Prompts[prompt_lifecycle_events]
+        Credits[workspace_credit_audit]
     end
     Prometheus --> Grafana[Grafana Cloud]
     Loki --> Grafana
     Tempo --> Grafana
     PostHog --> PH[PostHog Cloud]
-    Langfuse --> LF[Langfuse Cloud]
+    Activity --> PG[Postgres]
+    Telemetry --> PG
+    Prompts --> PG
+    Credits --> PG
 ```
 
 ## Infrastructure layer — Grafana Cloud
 
 The infrastructure layer covers system health, resource usage, and operational metrics. It is the primary tool for operators monitoring the platform.
 
-- **Prometheus metrics** — Counters, gauges, and histograms for session lifecycle, stage execution, sandbox enforcement, and system resources. Scraped from the `/metrics` endpoint on port 9091.
+- **Prometheus metrics** — Counters, gauges, and histograms for zombie lifecycle, agent execution, sandbox enforcement, and system resources. Scraped from the `/metrics` endpoint.
 - **Structured logs** — JSON-formatted logs shipped to Loki. Every log line includes correlation fields for filtering and tracing.
-- **Distributed traces** — OpenTelemetry traces shipped to Tempo. Each run generates a trace spanning API request, queue claim, stage execution, and PR creation.
+- **Distributed traces** — OpenTelemetry traces shipped to Tempo. Each zombie delivery generates a trace spanning webhook ingestion, queue claim, agent execution, and side-effect dispatch.
 
 ## Product layer — PostHog
 
-The product layer tracks user-facing events and feature adoption. It answers questions like "how many specs were submitted this week" and "what is the P95 time-to-PR."
+The product layer tracks user-facing events and feature adoption. It answers questions like "how many zombies were triggered this week" and "what is the P95 time-to-completion."
 
-- Events are emitted from the API server and the CLI.
+- Events are emitted from the API server, the worker, and the CLI.
 - No PII is stored — events reference workspace IDs and anonymized user IDs.
 - Used for product decisions, funnel analysis, and feature flags.
 
-## AI layer — Langfuse
+## Audit layer — Postgres
 
-The AI layer traces agent behavior within each run. It answers questions like "how many tokens did the agent use" and "where did the agent spend the most time."
+The audit layer is the richest source of per-zombie detail. It is append-only, survives log retention windows, and is queryable with SQL.
 
-- Each stage execution generates a Langfuse trace with prompt/completion pairs.
-- Token usage, latency, and model selection are recorded.
-- Used for cost analysis, prompt optimization, and agent quality scoring.
+- **Activity stream (`core.activity_events`)** — per-zombie and per-workspace event log. Every trigger, agent call, approval gate, and completion lands here with the owning `zombie_id` and `workspace_id`.
+- **Execution telemetry (`zombie_execution_telemetry`)** — per-delivery cost and latency audit. One row per completed zombie event with `token_count`, `wall_seconds`, and `time_to_first_token_ms`.
+- **Prompt lifecycle events (`prompt_lifecycle_events`)** — append-only agent prompt audit. Records the full prompt/response chain for each agent turn.
+- **Credit audit trail (`workspace_credit_audit`, `workspace_billing_audit`)** — billing ledger. Every credit debit, grant, and plan change is recorded with its `event_id`.
 
 ## Correlation fields
 
-All three layers share a common set of correlation fields that enable cross-layer investigation:
+All layers share a common set of correlation fields that enable cross-layer investigation:
 
 | Field | Description | Present in |
 |-------|-------------|------------|
-| `trace_id` | OpenTelemetry trace ID | Grafana, Langfuse |
-| `run_id` | UseZombie run identifier | All three layers |
-| `workspace_id` | Workspace scoping | All three layers |
-| `stage_id` | Individual stage within a run | Grafana, Langfuse |
-| `executor_id` | Executor instance that handled the stage | Grafana |
+| `trace_id` | OpenTelemetry trace ID | Grafana |
+| `event_id` | Webhook event identifier (stable across redelivery) | Grafana, PostHog, Audit |
+| `zombie_id` | Zombie instance that handled the event | Grafana, PostHog, Audit |
+| `workspace_id` | Workspace scoping | All four layers |
 
-To investigate a failed run across all layers:
+To investigate a failed zombie delivery across all layers:
 
-1. Start with the `run_id` from the API response or CLI output.
-2. Search Grafana logs and traces by `run_id`.
-3. Search Langfuse traces by `run_id` to see agent behavior.
-4. Search PostHog by `run_id` to see the user-facing event timeline.
+1. Start with the `event_id` from the webhook response or activity stream UI.
+2. Search Grafana logs and traces by `event_id` or `zombie_id`.
+3. Search PostHog by `zombie_id` or `workspace_id` to see the user-facing event timeline.
+4. Query the activity stream (`core.activity_events`) filtered by `zombie_id` for the full per-event audit.

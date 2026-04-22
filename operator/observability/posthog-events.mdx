@@ -6,7 +6,7 @@ SDKs:
 - `posthog-node` in `zombiectl`
 - [posthog-zig](https://github.com/usezombie/posthog-zig) in `zombied`
 
-> PostHog is one of two observability tools (with Grafana). Langfuse was removed in M12_001. See `docs/done/v1/M12_001_OBSERVABILITY_CONSOLIDATION.md`.
+> PostHog is one of two observability tools (with Grafana). Langfuse is no longer part of the stack.
 
 ## Provisioning Contract
 
@@ -56,6 +56,10 @@ Emitters:
 - dashboard pages and cards in `ui/packages/app/app/(dashboard)` and `ui/packages/app/components/domain`
 
 Allowed app properties are allowlisted in `ui/packages/app/lib/analytics/posthog.ts`.
+
+<Note>
+`zombie_id` is **not** in the app allowlist (`ALLOWED_PROP_KEYS` in `posthog.ts`). Any attempt to track a per-zombie event from the app will silently drop the `zombie_id` property. For per-zombie analytics, use server-side events (`zombie_triggered` / `zombie_completed`) or query the activity stream (`core.activity_events`) via the API.
+</Note>
 
 | Event | Typical properties | Description |
 |---|---|---|
@@ -110,7 +114,7 @@ CLI properties are sanitized to strings before capture. Shared command context m
 
 ## Runtime Events
 
-Emitters live in `src/observability/posthog_events.zig`.
+Emitters live in `src/observability/telemetry_events.zig` (typed event structs) and `src/observability/telemetry.zig` (backend wrapper that forwards to PostHog).
 
 ### Startup Lifecycle
 
@@ -134,7 +138,20 @@ Emitters live in `src/observability/posthog_events.zig`.
 | `workspace_created` | `workspaces_lifecycle.zig` | `workspace_id`, `tenant_id`, `repo_url`, `request_id` | New workspace provisioned via API |
 | `workspace_github_connected` | `github_callback.zig` | `workspace_id`, `installation_id`, `request_id` | GitHub App OAuth callback completed |
 
+### Zombie Lifecycle
+
+Server-side events emitted as each inbound webhook is accepted and each zombie delivery resolves. Both carry `zombie_id`, `workspace_id`, and `event_id` so they correlate with activity stream rows and Grafana traces.
+
+| Event | Emitter | Properties | Description |
+|---|---|---|---|
+| `zombie_triggered` | `webhooks.zig` (via event loop) | `workspace_id`, `zombie_id`, `event_id`, `source` | Inbound zombie trigger that passed signature + dedupe |
+| `zombie_completed` | `event_loop_helpers.zig` | `workspace_id`, `zombie_id`, `event_id`, `tokens`, `wall_ms`, `exit_status`, `time_to_first_token_ms` | Zombie event delivered to completion |
+
 ### Run Lifecycle
+
+<Note>
+These `run_*` events originate from the pipeline execution path. Zombie-era deliveries emit `zombie_triggered` and `zombie_completed` instead (see Zombie Lifecycle above). The pipeline path is retained for operators who are still running legacy-era runs alongside zombie-era deliveries.
+</Note>
 
 | Event | Emitter | Properties | Description |
 |---|---|---|---|
@@ -179,7 +196,7 @@ Emitters live in `src/observability/posthog_events.zig`.
 
 ## Adding New Events
 
-1. Add or extend the surface helper closest to the emitter (`posthog.ts`, CLI analytics helper, or `posthog_events.zig`).
+1. Add or extend the surface helper closest to the emitter (`posthog.ts`, CLI analytics helper, or `telemetry_events.zig`).
 2. Keep analytics fail-open and non-blocking.
 3. Allowlist or sanitize properties before capture.
 4. Add unit or integration coverage for the new event path.
