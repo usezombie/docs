@@ -1,63 +1,33 @@
 ---
-title: "Operator quickstart"
-description: "Deploy `zombied` in your own network, point `zombiectl` at it, run the same quickstart flow."
+title: "Self-hosting status"
+description: "What self-hosting looks like today, and what's on the roadmap."
 ---
 
-This is the self-hosted companion to the [hosted Quickstart](/quickstart). At the end you have the same loop running — sign-in, create zombie, curl trigger, credit deduction — but every byte flows through your own infrastructure.
+<Warning>
+  Self-hosting is not yet a "one command and you're done" path. The production worker fleet runs on OVHCloud bare-metal with systemd — not as a Docker container you pull from Docker Hub. The fully containerized self-hosted experience (single `docker compose up`, `zombiectl worker token` for bootstrap, etc.) is on the roadmap but does not ship today. This page is a map of what works now and where to look.
+</Warning>
 
-If you just want to try UseZombie, use the hosted control plane. Self-hosting is for operators who need the worker inside their own network (homelab, on-prem cluster, air-gapped), or who want the control plane too.
+## Who this page is for
 
-## Prerequisites
+Operators who want one of:
 
-- A Linux host with Docker (or docker-compose) — 1 CPU, 512MiB RAM is enough for the worker; 2 CPU / 2GiB if you also host the control plane.
-- A Postgres 15+ database reachable from the control plane (managed or self-run).
-- An outbound-only network path from the worker to the control plane (the control plane never opens a socket back into your network).
-- `zombiectl` installed locally (`npm install -g @usezombie/zombiectl`).
-- Credentials you want the zombie to reach — kept in a vault you trust. This guide uses `op://` (1Password CLI). Any secret store works; `op://` is just the documented pattern.
+- **Worker-only self-hosting** — keep using the hosted control plane at `api.usezombie.com`, but run the worker inside your own network (homelab, on-prem, air-gapped). The "never hand over the kubeconfig" narrative on the [Homelab Zombie](/zombies/homelab) page is this mode.
+- **Full self-hosting** — run the control plane + worker on your own infrastructure. Today this requires running the `zombied` Zig binary directly; see [Architecture](/operator/deployment/architecture) for the component map.
 
-## Step 1. Deploy the control plane (optional)
+If you just want to try UseZombie, use the [hosted Quickstart](/quickstart) instead.
 
-Skip this step if you only want to self-host the worker and keep using the hosted control plane at `api.usezombie.com`. The worker-only path is the fastest way to get started.
+## What ships today
 
-For the full self-hosted stack, start with the reference `docker-compose.yml` at the [usezombie repo root](https://github.com/usezombie/usezombie/blob/main/docker-compose.yml):
+| Component | Today | Roadmap |
+|-----------|-------|---------|
+| **Local dev data-plane** | `docker compose up` at the [repo root](https://github.com/usezombie/usezombie/blob/main/docker-compose.yml) brings up Postgres + Redis only. | Unchanged — the compose file is for local dev, not production. |
+| **Control plane (API + executor)** | Zig binaries. `make up` builds and runs them against the local compose infra. For production, see [API server](/operator/deployment/api-server), [Executor](/operator/deployment/executor). | Single-container production image. |
+| **Worker** | `zombied worker` binary as a systemd service on OVHCloud bare-metal. Configured via `/opt/zombie/.env`. See [Worker](/operator/deployment/worker) for the canonical procedure. | `usezombie/worker:latest` Docker image, bootstrap token via `zombiectl worker token`, suitable for homelab placement. |
+| **Worker auth** | Configured manually in the `.env` EnvironmentFile on the worker machine. | `zombiectl worker token` lifecycle (mint, rotate, revoke) driven by the CLI. |
 
-```bash
-docker compose -f docker-compose.yml up -d
-```
+## Provisioning credentials works today
 
-This starts the API server, executor, and supporting infrastructure (Postgres, Redis). Walk the [architecture page](/operator/deployment/architecture) for the full component map.
-
-Point `zombiectl` at your control plane:
-
-```bash
-zombiectl --api-url https://zombie.internal.example.com login
-```
-
-The URL is persisted to `~/.config/usezombie/credentials.json`; subsequent commands target it automatically.
-
-## Step 2. Install the worker in your network
-
-The worker is a small Docker container that polls the control plane, holds credentials locally, and executes tool calls against resources in your network. On a host inside your target network (a homelab box, a jump host, a Pi), it runs as:
-
-```bash
-docker run -d --name zombie-worker \
-  --restart unless-stopped \
-  -e ZOMBIE_TOKEN="$WORKER_TOKEN" \
-  -e ZOMBIE_API_URL="https://zombie.internal.example.com" \
-  usezombie/worker:latest
-```
-
-`ZOMBIE_TOKEN` is a per-worker bootstrap token minted by the control plane. **In the current MVP the token lifecycle is owned by the worker deployment page — there is no `zombiectl worker` subcommand yet.** Follow [`operator/deployment/worker`](/operator/deployment/worker) for the supported procedure (generation, rotation, revocation).
-
-Confirm the worker has registered by tailing its container logs until you see `worker ready`:
-
-```bash
-docker logs -f zombie-worker
-```
-
-## Step 3. Provision credentials from a vault
-
-Credentials stay on the worker. The control plane never sees the raw secret. The documented pattern is to pull from 1Password (`op://`) at runtime:
+Regardless of how your worker is deployed, `zombiectl credential add` + the tenant vault are stable today:
 
 ```bash
 zombiectl credential add kube_homelab \
@@ -83,11 +53,11 @@ skills:
   - kubectl
 ```
 
-The read-only policy ("only `get`, `describe`, `logs`, `top`; never `delete` or `secrets`") lives as prose in the zombie's `SKILL.md`, not in structured YAML — see [Homelab Zombie](/zombies/homelab) for the full pattern.
+Read-only policy ("only `get`, `describe`, `logs`, `top`; never `delete` or `secrets`") lives as prose in the zombie's `SKILL.md`, not in structured YAML — see [Homelab Zombie](/zombies/homelab) for the pattern.
 
-## Step 4. Run the same flow as the hosted quickstart
+## Once the worker is reachable
 
-With the control plane and worker online, every step from the hosted [Quickstart](/quickstart) works identically:
+With a worker online (via whichever deployment model you're running), everything from the [hosted Quickstart](/quickstart) works identically:
 
 ```bash
 zombiectl install slack-bug-fixer
@@ -95,10 +65,10 @@ cd slack-bug-fixer
 zombiectl up
 ```
 
-Grab the zombie ID from the output and fire a curl:
+Grab the zombie ID from the output and fire a curl at whichever control-plane URL your worker is paired with:
 
 ```bash
-curl -X POST https://zombie.internal.example.com/v1/webhooks/$ZOMBIE_ID \
+curl -X POST https://<your-control-plane>/v1/webhooks/$ZOMBIE_ID \
   -H "Content-Type: application/json" \
   -d '{"event_id":"demo-001","type":"message.received","data":{}}'
 ```
@@ -115,13 +85,19 @@ Pagination is via `--cursor <next_cursor>`, printed at the end of a truncated re
 
 <CardGroup cols={2}>
   <Card title="Architecture" icon="diagram-project" href="/operator/deployment/architecture">
-    Component map, ports, process boundaries.
+    Component map, ports, process boundaries. Start here for full self-hosting.
   </Card>
-  <Card title="Security posture" icon="shield-halved" href="/operator/security">
+  <Card title="Worker deployment" icon="server" href="/operator/deployment/worker">
+    The canonical systemd-on-bare-metal procedure that production uses today.
+  </Card>
+  <Card title="API server" icon="code" href="/operator/deployment/api-server">
+    Running the control-plane API binary.
+  </Card>
+  <Card title="Executor" icon="cube" href="/operator/deployment/executor">
+    The sandbox sidecar that owns run lifecycle.
+  </Card>
+  <Card title="Security posture" icon="shield-halved" href="/operator/security/model">
     Sandbox details, credential firewall, worker isolation.
-  </Card>
-  <Card title="Observability" icon="chart-line" href="/operator/observability">
-    Metrics, traces, logs — where to look when something breaks.
   </Card>
   <Card title="Zombie lifecycle" icon="ghost" href="/cli/zombie-lifecycle">
     The commands you'll run day-to-day against your self-hosted stack.

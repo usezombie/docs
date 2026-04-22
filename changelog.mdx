@@ -95,7 +95,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   - **New quickstart.** Sign up → dashboard → create zombie → copy webhook URL → `curl` trigger → verify the credit debit in the billing UI. End-to-end in one page.
   - **New CLI reference:** `/cli/zombie-lifecycle` — compact reference for `install`, `up`, `status`, `logs`, `kill`, `credential add` with copyable examples.
-  - **New operator quickstart:** `/operator/quickstart` — self-hosted status with worker placement in your own network and `op://` vault integration for credential provisioning. A dedicated "Self-hosting" group now collects every operator page in the sidebar.
+  - **Self-hosting status page:** `/operator/quickstart` — an honest map of what ships today (systemd `zombied worker` on bare-metal, Zig API binary, local-dev compose for Postgres + Redis) vs. what's on the roadmap (containerized worker, `zombiectl worker token` lifecycle). A dedicated "Self-hosting" group now collects every operator page in the sidebar.
   - **Four new zombie pages** under `/zombies/`:
     - `/zombies/homelab` — the flagship Homelab Zombie (`kubectl` / Docker diagnosis without holding the kubeconfig).
     - `/zombies/homebox-audit` — quarterly self-hosted-stack audit.
