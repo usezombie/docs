@@ -7,6 +7,32 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="v0.27.0 — Apr 22, 2026" tags={["What's new", "Breaking", "API", "Security", "Billing"]}>
+  ## Admin-by-env-var is gone; credit exhaustion is now observable
+
+  The env-var `API_KEY` bypass that minted an admin principal with no tenant and no audit identity has been removed. Admin authentication now flows exclusively through Clerk sessions with `publicMetadata.role=admin` — set once per operator in the Clerk Dashboard, revoked instantly from the same place, and carried into every request JWT. Programmatic admin access uses a tenant-minted `zmb_t_…` key from `POST /v1/api-keys` (shipped in v0.26.0). Separately, the tenant billing response now surfaces credit exhaustion, and a new policy knob lets operators decide what the worker does when a tenant hits zero.
+
+  ## Upgrading
+
+  - **Remove `API_KEY` from your server environment.** If your deployment still passes `API_KEY`, it is now ignored. The server refuses to start without OIDC (`OIDC_JWKS_URL`, `OIDC_ISSUER`, `OIDC_AUDIENCE`) — no fallback.
+  - **Promote your admin user in Clerk.** Dashboard → Users → select user → Metadata → Public metadata → set `{"role": "admin"}`. The operator playbook at `playbooks/012_usezombie_admin_bootstrap/001_playbook.md` walks through dev + prod step-by-step and ends by minting a `zmb_t_…` key for CI / scripts and stowing it at `op://ZMB_CD_<env>/usezombie-admin/api_key`.
+  - **If you consumed the `balance_cents == 0` branch**, switch to reading `is_exhausted` / `exhausted_at` on `GET /v1/tenants/me/billing` (see below).
+
+  ## What's new
+
+  - `BALANCE_EXHAUSTED_POLICY={continue|warn|stop}` (default `warn`). `stop` pre-empts delivery for an exhausted tenant — the zombie never runs, Redis gets an XACK so the event doesn't retry, and a `balance_gate_blocked` activity event is recorded. `warn` logs and emits a rate-limited `balance_exhausted` activity event (1 per workspace per 24h). `continue` is the old "log and let it run free" behavior, made explicit.
+  - First-exhausting debit stamps `balance_exhausted_at` atomically and writes a one-shot `balance_exhausted_first_debit` activity event. Replays do not double-emit.
+
+  ## API reference
+
+  `GET /v1/tenants/me/billing` gains two fields on every response:
+
+  - `is_exhausted` — `boolean`, true once the tenant's balance has hit zero on a worker debit.
+  - `exhausted_at` — `integer` (epoch ms) or `null`. Non-null only once `is_exhausted` is true.
+
+  The OpenAPI schema lists both as required with `exhausted_at` nullable.
+</Update>
+
 <Update label="v0.26.1 — Apr 22, 2026" tags={["Bug fixes", "What's new", "Observability"]}>
   ## Observability: per-workspace + per-zombie token counter now wired, OTLP histograms now exported
 
