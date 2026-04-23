@@ -7,6 +7,23 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="Apr 24, 2026" tags={["What's new", "Breaking", "Integrations"]}>
+  ## `platform-ops` — flagship sample for fly.io + upstash + Slack
+
+  A new sample lives at `samples/platform-ops/`. Point a chat at it and the agent polls your fly.io apps and logs (`GET /v1/apps`, `GET /v1/apps/{app}/logs`), reads upstash redis stats (`GET /v2/redis/stats/{db}`), correlates the two signals, and posts a plain-text diagnosis to a Slack channel. It's strictly read-only against fly and upstash; its one write path is the Slack post. Credentials are structured `{host, api_token}` / `{host, bot_token}` records in `zombie_vault`; raw token bytes are substituted into outbound HTTPS requests at the tool bridge, after the executor sandbox closes around the agent — they never reach the LLM context, logs, or database.
+
+  ## Upgrading
+
+  - **`samples/homelab/` is removed.** The kubectl-first homelab sample was superseded by `samples/platform-ops/`; fly.io's native API surface is enough for the first-customer demo and leaves no kubeconfig on the worker. Scripts that ran `zombiectl install --from samples/homelab` should switch to `--from samples/platform-ops` and re-onboard credentials for `fly`, `upstash`, and `slack`. The `kubectl_config` and `docker_socket` credentials are no longer referenced by any shipped sample.
+
+  ## What's new
+
+  - `samples/platform-ops/` ships with `SKILL.md` (diagnostic prompt, budget prose ≤ $8/month, `http_request` as the one tool, `cron_add` gated on the operator explicitly asking for recurring polling), `TRIGGER.md` (`trigger.type: chat`, the six NullClaw primitives actually used, three-host network allowlist, $1/day + $8/month budget caps), and a `README.md` operator walkthrough covering install, chat, an example diagnosis, optional self-scheduling, and credential hygiene.
+  - Three credential shapes land alongside: `fly = {host, api_token}`, `upstash = {host, api_token}`, `slack = {host, bot_token}`. Add them via `zombiectl credential add <name> --host <host> --api-token <token>` (use `--bot-token` for `slack`).
+  - Install works today via `zombiectl install --from samples/platform-ops`. Chatting with the zombie requires the worker + executor updates landing in the next release train — until then the install succeeds but the zombie sits idle waiting for a chat pipeline to reach it.
+  - Architecture doc refresh: `docs/ARCHITECTURE_ZOMBIE_EVENT_FLOW.md` now carries three mermaid sequence diagrams (install + first wake, chat turn with tool calls to fly / upstash / slack, kill) plus the full step-by-step walk, and drops duplicated prose sections. Platform-ops is the worked example throughout.
+</Update>
+
 <Update label="Apr 22, 2026" tags={["What's new", "Breaking", "UI", "API", "CLI"]}>
   ## Install zombies from the dashboard; kill switch moves to DELETE
 
