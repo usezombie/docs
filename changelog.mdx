@@ -7,6 +7,32 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="Apr 23, 2026" tags={["Breaking", "What's new", "CLI"]}>
+  ## One command installs a zombie
+
+  `zombiectl install --from <path>` is now the only way to install. It reads `SKILL.md` and `TRIGGER.md` from the directory you point at, registers the zombie, and the zombie is live before the command returns — no separate start step, no follow-up `zombiectl up`. The output is deliberately minimal:
+
+  ```
+  $ zombiectl install --from samples/homelab
+  🎉 homelab is live.
+    Zombie ID: zom_01xyz
+  ```
+
+  Use `zombiectl status` or `zombiectl list` to fetch the webhook URL when you need it for external wiring. In scripts, `--json` still returns `zombie_id`, `webhook_url`, and `name` in one object.
+
+  ## Upgrading
+
+  - **`zombiectl up` is removed.** It used to POST the zombie dir in cwd to the server. That step is now part of `install --from`. Replace `zombiectl install <template>` followed by edits followed by `zombiectl up` with a single `zombiectl install --from <path>` that points at a directory you authored directly. Any script hitting `zombiectl up` now gets the unknown-command branch.
+  - **Bundled templates (`zombiectl install lead-collector` / `slack-bug-fixer`) are removed.** The `zombiectl/templates/` directory no longer ships. Samples in `samples/` (e.g. `samples/homelab`) are the new starting point — clone one, edit, install.
+  - **Install no longer prints the webhook URL in pretty mode.** If your flow piped the install output to grab the URL, switch to `zombiectl status --json | jq -r '.zombies[] | select(.name=="<name>") | .webhook_url'` (or keep using `--json` on install and read `.webhook_url` from the JSON response).
+
+  ## CLI
+
+  - `zombiectl install --from <path>` — registers the zombie at the given path. `SKILL.md` and `TRIGGER.md` are required. Typed errors on missing path / missing file: `ERR_PATH_NOT_FOUND`, `ERR_SKILL_MISSING`, `ERR_TRIGGER_MISSING`. Exit 2 for usage errors (`zombiectl install` with no flag; legacy `zombiectl install <name>` without `--from`).
+  - `zombiectl status` empty-list hint now points at `zombiectl install --from <path>` instead of the old `<template>` form.
+
+</Update>
+
 <Update label="Apr 22, 2026" tags={["What's new", "Breaking", "UI", "API", "CLI"]}>
   ## Mission Control dashboard — full lifecycle in the browser; kill switch moves to DELETE
 
