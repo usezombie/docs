@@ -74,12 +74,12 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   ## CLI
 
-  - `zombiectl --help` now surfaces the full `zombie` command group — `install | up | status | kill | logs | credential` — alongside the existing `login / workspace / specs / doctor` commands.
-  - `zombiectl zombie list [--workspace-id ID] [--cursor C] [--limit N] [--json]` — new subcommand that mirrors the `/zombies` list in Mission Control (cursor-paginated, honours the same `limit ≤ 100` clamp).
+  - `zombiectl --help` now surfaces the full zombie-lifecycle commands — `install | up | status | kill | logs | credential` — alongside the existing `login / workspace / specs / doctor` commands.
+  - `zombiectl list [--workspace-id ID] [--cursor C] [--limit N] [--json]` — new subcommand that mirrors the `/zombies` list in Mission Control (cursor-paginated, honours the same `limit ≤ 100` clamp).
   - `zombiectl workspace show [--workspace-id ID]` — new subcommand that mirrors the Mission Control `/settings` page (prints workspace ID, name, and active-workspace status).
-  - **Active workspace is now persistent.** `zombiectl workspace use <workspace_id>` writes it to `~/.config/zombiectl/workspaces.json`; subsequent commands (`zombie list`, `zombie status`, `workspace show`, etc.) default to it when `--workspace-id` is omitted. Mission Control's `active_workspace_id` cookie and the CLI's config file stay independent — setting one doesn't affect the other.
-  - `zombiectl zombie up` still prints the `🎉 Woohoo! Your zombie is installed and ready to run.` success line (unchanged).
-  - `zombiectl zombie kill` is unaffected by the kill-switch path rename — it continues to call `DELETE /zombies/{id}` (full delete, not the current-run kill) as it always did.
+  - **Active workspace is now persistent.** `zombiectl workspace use <workspace_id>` writes it to `~/.config/zombiectl/workspaces.json`; subsequent commands (`zombiectl list`, `zombiectl status`, `workspace show`, etc.) default to it when `--workspace-id` is omitted. Mission Control's `active_workspace_id` cookie and the CLI's config file stay independent — setting one doesn't affect the other.
+  - `zombiectl up` still prints the `🎉 Woohoo! Your zombie is installed and ready to run.` success line (unchanged).
+  - `zombiectl kill` is unaffected by the kill-switch path rename — it continues to call `DELETE /zombies/{id}` (full delete, not the current-run kill) as it always did.
 </Update>
 
 <Update label="Apr 22, 2026" tags={["What's new", "Breaking", "API", "Security", "Billing"]}>
