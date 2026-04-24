@@ -9,6 +9,10 @@ This walks you from a fresh browser tab to your first executed zombie run. You n
 
 Open [app.usezombie.com](https://app.usezombie.com) and sign up with GitHub, Google, or email. Clerk runs the auth flow — nothing to redeem, no gates to clear.
 
+<Tip>
+  Prefer a GUI? The same workflow is available in **Mission Control** at [app.usezombie.com](https://app.usezombie.com) — overview page, zombies list with search, install form, detail page with kill switch. The CLI and Mission Control stay in sync.
+</Tip>
+
 Your tenant is created on first sign-in with a **$10 (1000¢) balance** seeded automatically. Credits are **tenant-scoped**, shared across every workspace under the tenant — you can create as many workspaces as you like without fragmenting the balance.
 
 The dashboard header shows the live balance in the top right. Keep the tab open; you'll watch it tick down after Step 4.
@@ -36,6 +40,15 @@ zombiectl workspace add https://github.com/your-user/your-repo
 ```
 
 This opens the UseZombie GitHub App install flow in your browser, finishes the binding, and sets the new workspace as current. See the [workspaces guide](/workspaces/managing) for the full reference.
+
+If you manage more than one workspace, pick the one you want the CLI pointed at:
+
+```bash
+zombiectl workspace use ws_abc123   # make it active
+zombiectl workspace show            # confirm
+```
+
+`workspace use` persists the choice to `~/.config/zombiectl/workspaces.json`; every later command that accepts `--workspace-id` defaults to it when the flag is omitted. Mission Control's own workspace switcher is backed by a cookie and stays independent — you can point the CLI at staging while the browser watches production.
 
 ## Step 3. Create a zombie
 

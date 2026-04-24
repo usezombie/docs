@@ -8,13 +8,15 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 </Tip>
 
 <Update label="Apr 22, 2026" tags={["What's new", "Breaking", "UI", "API", "CLI"]}>
-  ## Install zombies from the dashboard; kill switch moves to DELETE
+  ## Mission Control — full lifecycle in the browser; kill switch moves to DELETE
 
-  The dashboard picks up its first lifecycle surface. Operators who prefer a GUI can now install a zombie, grab its webhook URL, and delete it — all without leaving `app.usezombie.com`. Cron scheduling, firewall rules, rename, and pause/resume remain CLI-only in this release and land once their backing endpoints ship.
+  Mission Control reaches its first "I can run my day from here" shape. Sign in to `app.usezombie.com` and you get an overview page with live status tiles + recent activity, a zombies list with cursor pagination and in-view search, an install form, and a per-zombie detail page that shows the webhook URL, the full config, and a one-click kill switch. Firewall, credentials, and settings pages are in place as placeholders; they'll fill in as the underlying features ship.
 
-  We also took the opportunity to clean up the kill-switch endpoint while we were in the neighborhood: the zombie routes no longer carry action verbs in their paths. Any caller that was hitting the legacy kill endpoint must migrate; details under *Upgrading*.
+  Multi-workspace operators get a workspace switcher in the header. Selecting a workspace persists the choice in a cookie and revalidates the current page — no sign-out or token reissue required.
 
-  Credit exhaustion is now operator-visible in the dashboard. When a tenant's balance hits zero, a destructive banner appears above the workspaces and zombies lists, and a "Balance exhausted" badge renders next to each zombie on its detail page — both driven by the `is_exhausted` / `exhausted_at` fields added earlier today on `GET /v1/tenants/me/billing`.
+  We also cleaned up the kill-switch endpoint while we were in the neighborhood: the zombie routes no longer carry action verbs in their paths. Any caller hitting the legacy kill endpoint must migrate; details under *Upgrading*.
+
+  Credit exhaustion is now operator-visible in Mission Control. When a tenant's balance hits zero, a destructive banner appears above the zombies list and a "Balance exhausted" badge renders on each zombie's detail page — both driven by the `is_exhausted` / `exhausted_at` fields on `GET /v1/tenants/me/billing`.
 
   ## Upgrading
 
@@ -23,24 +25,61 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   ## What's new
 
-  - New `Zombies` section in the dashboard sidebar — list view, install form, and a minimal detail page with a copyable webhook URL, firewall/trigger placeholders, and delete-with-confirm.
-  - Install form validates required fields client-side and surfaces a clear toast when a name already exists in the workspace.
-  - Webhook URL is shown with a one-click copy button on the detail page; paste straight into AgentMail, Slack Events API, Grafana, or any other webhook-capable service.
-  - Animated loading states on every async action (install, delete, route navigation).
-  - Credit-exhaustion banner + per-zombie badge wired to `GET /v1/tenants/me/billing` — no configuration needed, appears automatically when a tenant runs out.
+  - **Overview dashboard** at `/` — status tiles for active / paused / stopped zombies and the tenant credit balance, plus a live "Recent Activity" feed. Renders as a Server Component with independent Suspense boundaries so a slow endpoint doesn't block first paint.
+  - **Zombies list** at `/zombies` — cursor pagination with a "Load more" button and in-view search across name, id, and status. Built on `GET /v1/workspaces/{ws}/zombies?cursor={ts}:{id}&limit=N` (see API reference).
+  - **Install form** at `/zombies/new` — validates required fields client-side, migrated onto the design-system `Form` primitive (react-hook-form + zod). Surfaces a clear toast when a name already exists.
+  - **Zombie detail** at `/zombies/[id]` — webhook URL with one-click copy, trigger panel, firewall-rules panel, zombie config (rename / describe / delete-with-confirm), and a React-19 `useOptimistic`-powered kill switch with 409 auto-recovery.
+  - **Workspace switcher** in the header — backed by a new `GET /v1/tenants/me/workspaces` endpoint (see API reference) plus a Server Action that writes the `active_workspace_id` cookie and revalidates. Works without re-issuing your session.
+  - **Placeholder pages** at `/firewall`, `/credentials`, `/settings` so the sidebar shows the full shape of what's coming.
+  - **Credit-exhaustion banner + per-zombie badge** wired to `GET /v1/tenants/me/billing` — no configuration needed, appears automatically when a tenant runs out.
+  - **Auth abstraction**: every `@clerk/nextjs` call now flows through `lib/auth/server.ts` and `lib/auth/client.ts`. Switching auth provider in a future release is a two-file edit.
+  - **Same-origin `/backend` proxy**: browser-side fetches go through `/backend/:path*` which the Next config rewrites to `API_BACKEND_URL`. No more CORS surprises in dev, preview, or prod.
+  - Animated loading states on every async action (install, delete, route navigation, workspace switch).
 
   ## API reference
+
+  **New:** `GET /v1/tenants/me/workspaces` — returns every workspace the caller's tenant owns. Backs the workspace switcher.
+
+  ```json
+  {
+    "items": [
+      { "id": "ws_01HW...", "name": "Production", "created_at": 1713700000000 },
+      { "id": "ws_01HX...", "name": "Staging",    "created_at": 1713700000001 }
+    ],
+    "total": 2
+  }
+  ```
+
+  **Changed:** `GET /v1/workspaces/{workspace_id}/zombies` now accepts `?cursor={timestamp}:{id}&limit=N` (default 20, max 100). Response gains a nullable `cursor` field holding the key for the next page (`null` at the end). Unpaginated callers keep working — absent `cursor` / `limit` yields the first 20.
+
+  ```
+  GET /v1/workspaces/ws_01HW.../zombies?limit=2
+  ```
+
+  ```json
+  {
+    "items":  [ { "id": "zom_01...", "name": "alpha", "status": "active" }, ... ],
+    "total":  2,
+    "cursor": "1713700050000:zom_01..."
+  }
+  ```
+
+  **Renamed (breaking):**
 
   ```http
   DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}/current-run
   ```
 
-  Transitions the zombie's status from `active` or `paused` to `stopped` and records a `zombie_stopped` activity event. Returns `200 {zombie_id, workspace_id, status: "stopped", request_id}`. Returns `409 UZ-ZMB-010` if already stopped or killed, `404 UZ-ZMB-009` if the zombie is not in the path workspace. Requires the operator role (same RBAC gate as before).
+  Transitions the zombie's status from `active` or `paused` to `stopped` and records a `zombie_stopped` activity event. Returns `200 {zombie_id, workspace_id, status: "stopped", request_id}`. Returns `409 UZ-ZMB-010` if already stopped or killed, `404 UZ-ZMB-009` if the zombie is not in the path workspace. Requires the operator role.
 
   ## CLI
 
-  - `zombiectl zombie up` now prints a prominent success line — `🎉 Woohoo! Your zombie is installed and ready to run.` — followed by the webhook URL on the next line, before the existing "is live" summary and commands block. The new literal is asserted by a unit test so it will not silently drift.
-  - The `zombiectl zombie kill` command is unaffected by the kill-switch path rename — it continues to call `DELETE /zombies/{id}` (full delete, not the current-run kill) as it always did.
+  - `zombiectl --help` now surfaces the full zombie-lifecycle commands — `install | up | status | kill | logs | credential` — alongside the existing `login / workspace / specs / doctor` commands.
+  - `zombiectl list [--workspace-id ID] [--cursor C] [--limit N] [--json]` — new subcommand that mirrors the `/zombies` list in Mission Control (cursor-paginated, honours the same `limit ≤ 100` clamp).
+  - `zombiectl workspace show [--workspace-id ID]` — new subcommand that mirrors the Mission Control `/settings` page (prints workspace ID, name, and active-workspace status).
+  - **Active workspace is now persistent.** `zombiectl workspace use <workspace_id>` writes it to `~/.config/zombiectl/workspaces.json`; subsequent commands (`zombiectl list`, `zombiectl status`, `workspace show`, etc.) default to it when `--workspace-id` is omitted. Mission Control's `active_workspace_id` cookie and the CLI's config file stay independent — setting one doesn't affect the other.
+  - `zombiectl up` still prints the `🎉 Woohoo! Your zombie is installed and ready to run.` success line (unchanged).
+  - `zombiectl kill` is unaffected by the kill-switch path rename — it continues to call `DELETE /zombies/{id}` (full delete, not the current-run kill) as it always did.
 </Update>
 
 <Update label="Apr 22, 2026" tags={["What's new", "Breaking", "API", "Security", "Billing"]}>
