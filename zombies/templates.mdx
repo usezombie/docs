@@ -8,50 +8,12 @@ description: "Bundled zombie templates — what each does, how they are structur
 A **template** is a pre-built zombie you can scaffold with one command:
 
 ```bash
-zombiectl install lead-collector
+zombiectl install slack-bug-fixer
 ```
 
-Two templates ship with `zombiectl` today. Each is a working, deployable zombie. Edit the files, drop in your credentials, `zombiectl up`.
+The CLI ships a small set of bundled templates. Each is a working, deployable zombie. Edit the files, drop in your credentials, `zombiectl up`.
 
 ## Bundled templates
-
-### `lead-collector`
-
-Receives inbound email via a webhook, classifies each message, and drafts a short acknowledgement for genuine sales inquiries.
-
-```
-lead-collector/
-├── SKILL.md         # "You are a lead qualification agent..."
-└── TRIGGER.md       # webhook trigger, source=agentmail, event=message.received
-```
-
-- **Trigger:** webhook, `source: agentmail`, `event: message.received`
-- **Credentials it expects:** `agentmail_api_key`
-- **Budget:** `daily_dollars: 5.0`, `monthly_dollars: 29.0`
-- **Network allowlist:** `api.agentmail.to`
-- **Chain:** hands off to `lead-enricher` after each event
-
-Typical event shape:
-
-```json
-{
-  "event_id": "msg-01JABC",
-  "type": "email.received",
-  "data": {
-    "from": "alice@example.com",
-    "subject": "Interested in a demo",
-    "body": "Hi — we are looking at tools like yours..."
-  }
-}
-```
-
-Scaffold and deploy:
-
-```bash
-zombiectl install lead-collector
-zombiectl credential add agentmail_api_key --value=$AGENTMAIL_KEY
-zombiectl up
-```
 
 ### `slack-bug-fixer`
 
@@ -92,6 +54,30 @@ zombiectl credential add slack_signing_secret  --value=$SLACK_SIGNING_SECRET
 zombiectl credential add github_token          --value=$GITHUB_TOKEN
 zombiectl up
 ```
+
+### `homelab`
+
+The flagship v2 sample. A diagnostic agent for Kubernetes / Docker homelabs — read-only, never holds your kubeconfig, worker runs inside your network. See [Homelab Zombie](/zombies/homelab) for the full narrative.
+
+```
+homelab/
+├── SKILL.md         # "You are a homelab diagnostic agent..." + the read-only policy in prose
+└── TRIGGER.md       # webhook trigger, tools=[kubectl, docker, ssh], credential refs, budget
+```
+
+- **Tools:** `kubectl`, `docker`, `ssh`. Read-only policy lives as prose in `SKILL.md`.
+- **Credentials it expects:** `kube_<name>`, optionally `ssh_<name>`.
+- **Worker placement:** inside your homelab — kubeconfig never leaves your network.
+
+Scaffold and deploy:
+
+```bash
+zombiectl install homelab
+zombiectl credential add kube_homelab --value="$(op read 'op://homelab/k3s/kubeconfig')"
+zombiectl up
+```
+
+The full end-to-end — worker placement, Tailscale routing — lives in the [Operator quickstart](/operator/quickstart).
 
 ## Writing your own template
 
