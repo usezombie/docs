@@ -7,14 +7,33 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
-<Update label="Apr 24, 2026" tags={["What's new", "Breaking", "Integrations"]}>
+<Update label="Apr 26, 2026" tags={["What's new", "API", "CLI"]}>
+  ## Worker substrate — install a zombie, see it work in seconds
+
+  Zombies installed via `POST /v1/workspaces/{ws}/zombies` are now claimed by a worker thread within ~1s of the 201 — no worker restart needed. A new `POST /v1/workspaces/{ws}/zombies/{id}/kill` aborts an in-flight zombie cleanly and propagates the cancel to the executor, replacing the legacy `DELETE /…/zombies/{id}` shortcut. A new `PATCH /v1/workspaces/{ws}/zombies/{id}` updates a zombie's config and signals the worker to pick up the new revision on its next loop iteration. SIGTERM on the worker now triggers a graceful drain instead of cutting in-flight events mid-call.
+
+  ## What's new
+
+  - **Atomic install path.** The create endpoint now does INSERT into `core.zombies` + `XGROUP CREATE MKSTREAM zombie:{id}:events` + `XADD zombie:control * type=zombie_created` synchronously before returning 201. By the time the API responds, the per-zombie data stream and the control-plane signal both exist; a webhook arriving 1ms after the 201 finds the consumer group already.
+  - **Fleet-wide control plane.** A new Redis stream `zombie:control` carries lifecycle signals (created / status_changed / config_changed / drain_request). One watcher thread per worker process consumes it via `XREADGROUP` and dispatches to spawn / cancel / reconfigure handlers — no more "zombie installed at 14:00 invisible to the worker that started at 13:00" until the next restart.
+  - **Per-zombie cancel flag.** Each zombie thread observes a per-zombie atomic flag at the top of every loop iteration. `POST /kill` flips the flag and the thread exits within ~100ms, regardless of where it was in its event loop.
+  - **`zombiectl kill <zombie_id>` now POSTs to `/kill`** and requires an explicit zombie id (was previously a DELETE that defaulted to "kill all in workspace" when no id was passed — that footgun is gone).
+
+  ## API reference
+
+  - `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/kill` — 200 with `{zombie_id, status: "killed", queued_at}`. 404 if the zombie does not exist or is already killed (idempotent semantics fold into 404).
+  - `PATCH /v1/workspaces/{workspace_id}/zombies/{zombie_id}` — body `{config_json?: string}`. 200 with `{zombie_id, config_revision}` where `config_revision` is the new `updated_at` timestamp (strictly monotonic per zombie).
+  - `DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}` — removed. `POST /kill` replaces it with a clean verb.
+
+  ## CLI
+
+  - `zombiectl kill <zombie_id>` — POST to the new `/kill` endpoint. Argument is now required.
+</Update>
+
+<Update label="Apr 24, 2026" tags={["What's new", "Integrations"]}>
   ## `platform-ops` — flagship sample for fly.io + upstash + Slack
 
   A new sample lives at `samples/platform-ops/`. Point a chat at it and the agent polls your fly.io apps and logs (`GET /v1/apps`, `GET /v1/apps/{app}/logs`), reads upstash redis stats (`GET /v2/redis/stats/{db}`), correlates the two signals, and posts a plain-text diagnosis to a Slack channel. It's strictly read-only against fly and upstash; its one write path is the Slack post. Credentials are structured `{host, api_token}` / `{host, bot_token}` records in `zombie_vault`; raw token bytes are substituted into outbound HTTPS requests at the credential firewall, after the executor sandbox closes around the agent — they never reach the LLM context, logs, or database.
-
-  ## Upgrading
-
-  - **`samples/homelab/` is removed.** The kubectl-first homelab sample was superseded by `samples/platform-ops/`; fly.io's native API surface is enough for the first-customer demo and leaves no kubeconfig on the worker. Scripts that ran `zombiectl install --from samples/homelab` should switch to `--from samples/platform-ops` and re-onboard credentials for `fly`, `upstash`, and `slack`. The `kubectl_config` and `docker_socket` credentials are no longer referenced by any shipped sample.
 
   ## What's new
 
