@@ -7,6 +7,33 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="Apr 27, 2026" tags={["Bug fixes", "API", "CLI", "Security"]}>
+  ## Install actually works now: contract aligned, parser key matches the sample, doctor preflight tightened
+
+  Three small bugs were stacking up to make `zombiectl install --from <path>` impossible to use against a fresh workspace. The CLI was sending one shape; the API expected another. The shipped sample uses `tools:` in TRIGGER.md; the parser was looking for `skills:`. And both `install` and `doctor` were exempt from the local auth guard, so missing credentials surfaced as a confusing 401 from the server instead of a clean local "log in first" message. All three are fixed in one pass.
+
+  ## Upgrading
+
+  - **Install POST shape changed.** `POST /v1/workspaces/{ws}/zombies` now accepts `{trigger_markdown, source_markdown}`. The previous `{name, config_json, source_markdown}` shape is gone. The server is the single parser of TRIGGER.md frontmatter — `name` and the persisted `config_json` are derived server-side from the YAML between the `---` fences. If you have a script that POSTs directly to this endpoint, switch to sending the raw two markdown files. Pre-v1.0; no compat shim.
+  - **TRIGGER.md key renamed `skills:` → `tools:`.** The shipped sample (`samples/platform-ops/TRIGGER.md`) already used `tools:`; the parser now matches. If you have an older zombie spec with a top-level `skills:` array, rename that key to `tools:` before installing. The server returns `ERR_ZOMBIE_INVALID_CONFIG` with a hint when the canonical key is missing.
+  - **`zombiectl install` and `zombiectl doctor` now require `zombiectl login` first.** Previously they were exempt from the auth guard and produced opaque 401s on missing credentials. Now they fail locally with `AUTH_REQUIRED` before any HTTP call. Only `login` itself is exempt.
+
+  ## What's new
+
+  - **Doctor reports the three things that actually matter.** The new check set is `server_reachable` (GET /healthz with a 5s timeout), `workspace_selected` (local config has a current workspace), and `workspace_binding_valid` (your token is bound to that workspace, verified by a 200 from the workspace-scoped zombies list). Previous `healthz`/`readyz`/`credentials`/`workspace` checks are folded in or dropped — credentials is now covered by the auth guard, readyz overlaps healthz.
+  - **Doctor `--json` returns a stable schema.** `{ok: bool, api_url: string, checks: [{name, ok, detail}]}`. Skills and scripts can consume it without grep on prose. Each failed check carries a one-line `detail` pointing at the next concrete action.
+  - **Install response carries the canonical name.** `POST /zombies` now returns `{zombie_id, name, status}`. The CLI displays the server-derived name instead of guessing from the directory basename — copy/paste names match what the server stored.
+
+  ## API reference
+
+  - `POST /v1/workspaces/{workspace_id}/zombies` — body `{trigger_markdown: string (≤64KB), source_markdown: string (≤64KB)}`. 201 with `{zombie_id, name, status}`. 400 `ERR_ZOMBIE_INVALID_CONFIG` if the frontmatter parse fails (missing `name:`, missing `tools:`, missing `---` fences, etc.). 400 `ERR_INVALID_REQUEST` with `MSG_ZOMBIE_TRIGGER_REQUIRED` if `trigger_markdown` is empty or oversized.
+
+  ## CLI
+
+  - `zombiectl install --from <path>` — POSTs `{trigger_markdown, source_markdown}` (the previous `{source_markdown, trigger_markdown}` shape was rejected by the API). The display name in `🎉 <name> is live.` comes from the server response, falling back to the directory basename only if the server omits it.
+  - `zombiectl doctor` — three checks (`server_reachable`, `workspace_selected`, `workspace_binding_valid`). Per-check 5s timeout, exit 0 on all-green and exit 1 on any failure. Now requires authentication; run `zombiectl login` first.
+</Update>
+
 <Update label="Apr 26, 2026" tags={["What's new", "API", "CLI"]}>
   ## Worker substrate — install a zombie, see it work in seconds
 
