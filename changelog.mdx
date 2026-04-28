@@ -7,6 +7,41 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="Apr 28, 2026" tags={["Breaking", "What's new", "API", "CLI", "UI"]}>
+  ## Streaming substrate: every event has provenance, operators can steer, and live activity tails the dashboard
+
+  Three things converge in this release. First, every event a zombie processes — operator steer, GitHub webhook, scheduled cron, M41 chunked continuation, M47 gate-resolved continuation — now lands on a single Redis stream with a normalized envelope and an `actor` field that carries provenance forward. Second, every event start and end is durably persisted in `core.zombie_events` with the request payload, the response, token count, wall time, and failure label, queryable through a new history endpoint with cursor pagination, actor glob filters, and a humanized `since=` parameter. Third, the dashboard now ships a live activity panel that streams tool calls, response chunks, and completion frames over Server-Sent Events with a sub-200 ms publish-to-receive budget.
+
+  Operators get two new CLI subcommands. `zombiectl steer {id} "<message>"` POSTs to the new ingress, opens the SSE stream, and prints `[claw]` chunks as they arrive — Ctrl-C closes the watcher without killing the zombie. `zombiectl events {id}` paginates the history with `--actor=`, `--since=`, `--json`, and `--cursor=` filters.
+
+  ## Upgrading
+
+  - **`POST /steer` body and response shape changed.** The endpoint now does a direct `XADD` on the per-zombie event stream and returns `{event_id}` so callers can correlate. The previous SET/GETDEL key-poll path is gone; the legacy `zombie:{id}:steer` Redis key is no longer touched. If you have a script reading the steer key directly to detect inflight steers, switch to either the SSE stream or the events history endpoint.
+  - **`GET /v1/.../zombies/{id}/activity` is removed.** Both the per-zombie variant and the workspace-aggregate variant. Replace per-zombie activity reads with `GET /v1/workspaces/{ws}/zombies/{id}/events`. Replace workspace-aggregate reads with `GET /v1/workspaces/{ws}/events?zombie_id={id}` for the drill-down or omit `zombie_id` for the workspace-wide feed. Both responses now carry `actor`, `status`, `response_text`, `tokens`, and `wall_ms` instead of the old `event_type`/`detail` shape. `zombiectl logs` automatically uses the new endpoint; if you have direct API consumers, switch the URL and update the row parser.
+  - **`core.activity_events` table is dropped.** Pre-v2.0 teardown — no migration. Anything that read this table directly will break; switch to `core.zombie_events`. The new table's primary key is composite `(zombie_id, event_id)` to support idempotent replay under XAUTOCLAIM redelivery.
+  - **Executor RPC framing version bumped to v2.** Worker and executor binaries must upgrade together — they perform a HELLO handshake on connect and abort with `executor.rpc_version_mismatch` on a mismatch. Roll the executor first, then the worker.
+
+  ## What's new
+
+  - **One ingress, one durable record per event.** Every event landing on `zombie:{id}:events` produces exactly one new row in `core.zombie_events` (mutable, lifecycle-tracked), one new row in `zombie_execution_telemetry` (immutable billing audit), and one mutated row in `core.zombie_sessions`. All three reference the same `event_id`, so a single join key threads narrative, billing, and session state. Replays are idempotent via `ON CONFLICT DO NOTHING` on the composite key plus a unique constraint on telemetry.
+  - **Continuation actors stay flat with origin tags.** When M41 chunks a long response or M47 resolves a blocked gate, the new event re-enters the stream with `actor=continuation:<original_actor>` — never `continuation:continuation:...` no matter how deep the chain. A single `actor LIKE '%steer:kishore'` filter finds the origin and every continuation in one pass. Each continuation's `resumes_event_id` points at its immediate parent, so a recursive CTE walks the chain back to its origin.
+  - **`gate_blocked` events are visible but unresolvable until M47 ships.** The row enters terminal state with `status='gate_blocked'`, `failure_label` populated, and an XACK so the worker doesn't redeliver. Operators can see stranded events via `GET /events?actor=...`. The admin-resume fallback was deliberately dropped from this release; resolution is owned by the upcoming Approval Inbox.
+  - **Dashboard live panel.** `/zombies/{id}` renders the new `<LiveEventsPanel />` above the event history table. Native `EventSource` connects to a same-origin Next Route Handler that mints an API-audience JWT server-side and proxies the upstream stream — the browser never holds the JWT, the backend never sees a cookie. Reconnects with exponential backoff capped at 15 s; rolling buffer of the last 20 frames.
+
+  ## API reference
+
+  - `POST /v1/workspaces/{ws}/zombies/{id}/steer` — body `{message: string (≤8192 chars)}`. 202 with `{status: "accepted", event_id: string}`. The `event_id` is the Redis stream entry id; CLIs and dashboards correlate the SSE feed to this id.
+  - `GET /v1/workspaces/{ws}/zombies/{id}/events?cursor=&actor=&since=&limit=` — paginated history. `actor` accepts globs (`steer:*`, `webhook:*`) and exact matches (`webhook:github`). `since` accepts Go-style durations (`15s`, `30m`, `2h`, `7d`) or RFC 3339 timestamps (`2026-04-25T08:00:00Z`). Default `limit=50`, max 200. `since` and `cursor` are mutually exclusive — supplying both returns 400.
+  - `GET /v1/workspaces/{ws}/events?cursor=&actor=&zombie_id=&since=&limit=` — workspace-aggregate history. Same parameter shape as the per-zombie variant; items carry an extra `zombie_id` so the workspace overview can group by zombie. Replaces the deleted `/activity` endpoint.
+  - `GET /v1/workspaces/{ws}/zombies/{id}/events/stream` — SSE live tail. `Content-Type: text/event-stream`. Frame kinds: `event_received`, `tool_call_started`, `tool_call_progress` (~2s heartbeat for long tool calls), `chunk`, `tool_call_completed`, `event_complete`. Per-connection sequence ids reset to 0 on every new SUBSCRIBE; the server ignores the `Last-Event-ID` request header. After a disconnect, clients backfill via `GET /events?since=<last_seen>` then reopen the stream.
+
+  ## CLI
+
+  - `zombiectl steer {id} "<message>"` — batch mode. POSTs the message, opens the SSE stream, filters frames on the returned `event_id`, prints `[claw] <chunk>` as response chunks arrive, exits 0 on `event_complete` with `status=processed` and non-zero on `agent_error`. Falls back to polling `GET /events?since=<event_id>` if the SSE drops, with a 60-second deadline. Interactive REPL mode (no message argument) is deferred to a follow-up release; calling `steer {id}` without a message currently exits 2 with a helpful pointer.
+  - `zombiectl events {id}` — paginated history print. `--actor=steer`, `--actor=webhook:github`, `--since=2h`, `--since=2026-04-25T08:00:00Z`, `--json` (raw records for piping), `--cursor=<token>` (resume from a previous page). Default 50 events per page; the next-cursor hint prints below the last row when more results exist.
+  - `zombiectl logs {id}` — repointed at the new events endpoint (the activity stream is gone). Same flag shape; row format now shows `actor` + `response_text` summary instead of `event_type` + `detail`.
+</Update>
+
 <Update label="Apr 27, 2026" tags={["Internal"]}>
   ## Tightened internal Zig surface area
 
