@@ -7,6 +7,33 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="Apr 29, 2026" tags={["What's new", "API", "UI"]}>
+  ## Approval inbox: pending gates surface in Mission Control, resolve from the browser
+
+  Approval gates used to flow only through Slack DMs. Operators looking at Mission Control saw a "healthy" zombie even when it was stalled at a gate. The inbox closes that loop. Every pending gate now surfaces in a workspace-wide `/approvals` list and on each zombie's detail page, with the proposed action, blast-radius assessment, evidence, and a timeout countdown rendered next to Approve and Deny buttons. Resolutions go through a single channel-agnostic core shared by Slack and Mission Control, so a click in either place makes the other channel's stale button no-op cleanly with the original outcome and resolver attribution. A background sweeper auto-denies any pending gate whose 24-hour timeout has elapsed, attributing the resolution to `system:timeout` so operators can tell auto-denials apart from manual ones.
+
+  ## What's new
+
+  - **`/approvals` page.** Workspace-wide list of pending gates, sorted oldest-first (oldest is most urgent). Each row shows the zombie name, gate kind badge, proposed-action one-liner, blast-radius callout, age, and timeout countdown, with inline Approve and Deny buttons. The list refreshes every 5 seconds; resolutions remove the row optimistically. Empty workspaces render a clean "No pending approvals" state.
+  - **`/approvals/{gate_id}` detail page.** Full proposed-action prose, evidence rendered as expandable JSON, blast-radius callout, key/value context grid (zombie, tool, action, kind, requested-at, auto-deny-at, action id), and a Resolve panel with an optional reason textarea. Once resolved, the page flips to a Resolution panel showing `Resolved as <outcome> by <who> at <when>`.
+  - **Per-zombie Pending approvals section.** The zombie detail page gains a "Pending approvals" panel filtered to that zombie, plus a destructive-variant badge in the page header showing `N pending approval(s)` (or `50+` past the page-size).
+  - **Sidebar nav.** New "Approvals" entry between Credentials and Events.
+  - **Slack and Mission Control parity.** Slack callbacks and Mission Control clicks now share one resolve core. The schema-level append-only trigger plus the `WHERE status='pending'` precondition give at-most-one-resolution guarantees — the loser sees 409 with the original outcome and resolver attribution, never silent overwrite.
+  - **Auto-timeout sweeper.** A background thread on the API process scans `core.zombie_approval_gates` every 60 seconds for pending rows whose `timeout_at` has passed, and transitions them to `timed_out` via the same resolve core. Worker treats `timed_out` as `denied` for safety on destructive operations. Default timeout is 24 hours.
+
+  ## API reference
+
+  - `GET /v1/workspaces/{ws}/approvals?status=&zombie_id=&gate_kind=&cursor=&limit=` — paginated list. Default `status=pending`, `limit=50`, max 200. Cursor encodes `(requested_at, gate_id)` so concurrent inserts don't cause silent skips. Response shape: `{ items: ApprovalGate[], next_cursor: string|null }`. Filterable by `zombie_id` and `gate_kind`.
+  - `GET /v1/workspaces/{ws}/approvals/{gate_id}` — single-row read. 404 when the gate doesn't exist OR belongs to a different workspace (no information leak).
+  - `POST /v1/workspaces/{ws}/approvals/{gate_id}:approve` — body `{reason?: string ≤ 4096}`. 200 with `{gate_id, action_id, outcome: "approved", resolved_at, resolved_by}`. 409 `UZ-APPROVAL-006` with the same shape when another channel got there first; the body's `outcome` and `resolved_by` reflect the original resolver. 404 on unknown gate id (including cross-workspace).
+  - `POST /v1/workspaces/{ws}/approvals/{gate_id}:deny` — same shape. `outcome` is `denied` on success.
+  - `ApprovalGate` shape includes the new operator-visible fields (`gate_kind`, `proposed_action`, `evidence` as JSONB, `blast_radius`, `timeout_at`, `resolved_by`) on top of the existing audit fields.
+
+  ## Bug fixes
+
+  - **Slack and Mission Control race no longer overwrites silently.** Before this release, the Slack callback wrote the Redis decision key directly without a DB precondition; a Mission Control click that happened to land first could be overwritten by the Slack click moments later. Both paths now go through the same DB UPDATE WHERE status='pending' atomic transition; the loser observes 409 with the original outcome.
+</Update>
+
 <Update label="Apr 29, 2026" tags={["Internal", "Performance"]}>
   ## Streaming substrate hot-path cleanup
 
