@@ -67,8 +67,7 @@
               "operator/observability/posthog-events",
               "operator/observability/error-codes",
               "operator/operations/doctor",
-              "operator/operations/fleet",
-              "operator/operations/reconcile"
+              "operator/operations/fleet"
             ]
           },
           {

@@ -44,7 +44,7 @@ There is no degraded mode in production. Either the full sandbox is enforced, or
 
 ## Lease-based liveness
 
-Each run has a lease — a bounded time window during which the worker holds exclusive ownership. If the worker crashes or becomes unresponsive, the lease eventually expires, and the reconciler marks the run as failed.
+Each run has a lease — a bounded time window during which the worker holds exclusive ownership. If the worker crashes or becomes unresponsive, the lease eventually expires, and the in-process executor lease manager reaps the orphaned session and marks the run as failed.
 
 Leases prevent zombie runs from consuming resources indefinitely. They also prevent two workers from accidentally working on the same run.
 
