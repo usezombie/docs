@@ -19,7 +19,8 @@
               "index",
               "quickstart",
               "how-it-works",
-              "concepts"
+              "concepts",
+              "memory"
             ]
           },
           {
@@ -46,6 +47,28 @@
             "pages": [
               "billing/plans",
               "billing/budgets"
+            ]
+          },
+          {
+            "group": "Self-hosting",
+            "pages": [
+              "operator/deployment/architecture",
+              "operator/deployment/api-server",
+              "operator/deployment/executor",
+              "operator/deployment/worker",
+              "operator/configuration/environment",
+              "operator/configuration/credentials",
+              "operator/configuration/sandbox",
+              "operator/security/model",
+              "operator/security/rbac",
+              "operator/security/sandbox",
+              "operator/observability/overview",
+              "operator/observability/metrics",
+              "operator/observability/posthog-events",
+              "operator/observability/error-codes",
+              "operator/operations/doctor",
+              "operator/operations/fleet",
+              "operator/operations/reconcile"
             ]
           },
           {

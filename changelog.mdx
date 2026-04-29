@@ -7,59 +7,115 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
-<Update label="Apr 24, 2026" tags={["What's new", "Breaking", "Integrations"]}>
-  ## `platform-ops` — flagship sample for fly.io + upstash + Slack
+<Update label="Apr 28, 2026" tags={["Breaking", "What's new", "API", "CLI", "UI"]}>
+  ## Streaming substrate: every event has provenance, operators can steer, and live activity tails the dashboard
 
-  A new sample lives at `samples/platform-ops/`. Point a chat at it and the agent polls your fly.io apps and logs (`GET /v1/apps`, `GET /v1/apps/{app}/logs`), reads upstash redis stats (`GET /v2/redis/stats/{db}`), correlates the two signals, and posts a plain-text diagnosis to a Slack channel. It's strictly read-only against fly and upstash; its one write path is the Slack post. Credentials are structured `{host, api_token}` / `{host, bot_token}` records in `zombie_vault`; raw token bytes are substituted into outbound HTTPS requests at the tool bridge, after the executor sandbox closes around the agent — they never reach the LLM context, logs, or database.
+  Three things converge in this release. First, every event a zombie processes — operator steer, GitHub webhook, scheduled cron, chunked continuation for long responses, gate-resolved continuation — now lands on a single Redis stream with a normalized envelope and an `actor` field that carries provenance forward. Second, every event start and end is durably persisted in `core.zombie_events` with the request payload, the response, token count, wall time, and failure label, queryable through a new history endpoint with cursor pagination, actor glob filters, and a humanized `since=` parameter. Third, the dashboard now ships a live activity panel that streams tool calls, response chunks, and completion frames over Server-Sent Events with a sub-200 ms publish-to-receive budget.
+
+  Operators get two new CLI subcommands. `zombiectl steer {id} "<message>"` POSTs to the new ingress, opens the SSE stream, and prints `[claw]` chunks as they arrive — Ctrl-C closes the watcher without killing the zombie. `zombiectl events {id}` paginates the history with `--actor=`, `--since=`, `--json`, and `--cursor=` filters.
 
   ## Upgrading
 
-  - **`samples/homelab/` is removed.** The kubectl-first homelab sample was superseded by `samples/platform-ops/`; fly.io's native API surface is enough for the first-customer demo and leaves no kubeconfig on the worker. Scripts that ran `zombiectl install --from samples/homelab` should switch to `--from samples/platform-ops` and re-onboard credentials for `fly`, `upstash`, and `slack`. The `kubectl_config` and `docker_socket` credentials are no longer referenced by any shipped sample.
+  - **`POST /steer` body and response shape changed.** The endpoint now does a direct `XADD` on the per-zombie event stream and returns `{event_id}` so callers can correlate. The previous SET/GETDEL key-poll path is gone; the legacy `zombie:{id}:steer` Redis key is no longer touched. If you have a script reading the steer key directly to detect inflight steers, switch to either the SSE stream or the events history endpoint.
+  - **`GET /v1/.../zombies/{id}/activity` is removed.** Both the per-zombie variant and the workspace-aggregate variant. Replace per-zombie activity reads with `GET /v1/workspaces/{ws}/zombies/{id}/events`. Replace workspace-aggregate reads with `GET /v1/workspaces/{ws}/events?zombie_id={id}` for the drill-down or omit `zombie_id` for the workspace-wide feed. Both responses now carry `actor`, `status`, `response_text`, `tokens`, and `wall_ms` instead of the old `event_type`/`detail` shape. `zombiectl logs` automatically uses the new endpoint; if you have direct API consumers, switch the URL and update the row parser.
+  - **`core.activity_events` table is dropped.** Pre-v2.0 teardown — no migration. Anything that read this table directly will break; switch to `core.zombie_events`. The new table's primary key is composite `(zombie_id, event_id)` to support idempotent replay under XAUTOCLAIM redelivery.
+  - **Executor RPC framing version bumped to v2.** Worker and executor binaries must upgrade together — they perform a HELLO handshake on connect and abort with `executor.rpc_version_mismatch` on a mismatch. Roll the executor first, then the worker.
 
   ## What's new
 
-  - `samples/platform-ops/` ships with `SKILL.md` (diagnostic prompt, budget prose ≤ $8/month, `http_request` as the one tool, `cron_add` gated on the operator explicitly asking for recurring polling), `TRIGGER.md` (`trigger.type: chat`, the six NullClaw primitives actually used, three-host network allowlist, $1/day + $8/month budget caps), and a `README.md` operator walkthrough covering install, chat, an example diagnosis, optional self-scheduling, and credential hygiene.
-  - Three credential shapes land alongside: `fly = {host, api_token}`, `upstash = {host, api_token}`, `slack = {host, bot_token}`. Add them via `zombiectl credential add <name> --host <host> --api-token <token>` (use `--bot-token` for `slack`).
-  - Install works today via `zombiectl install --from samples/platform-ops`. Chatting with the zombie requires the worker + executor updates landing in the next release train — until then the install succeeds but the zombie sits idle waiting for a chat pipeline to reach it.
-  - Architecture doc refresh: `docs/ARCHITECTURE_ZOMBIE_EVENT_FLOW.md` now carries three mermaid sequence diagrams (install + first wake, chat turn with tool calls to fly / upstash / slack, kill) plus the full step-by-step walk, and drops duplicated prose sections. Platform-ops is the worked example throughout.
-</Update>
+  - **One ingress, one durable record per event.** Every event landing on `zombie:{id}:events` produces exactly one new row in `core.zombie_events` (mutable, lifecycle-tracked), one new row in `zombie_execution_telemetry` (immutable billing audit), and one mutated row in `core.zombie_sessions`. All three reference the same `event_id`, so a single join key threads narrative, billing, and session state. Replays are idempotent via `ON CONFLICT DO NOTHING` on the composite key plus a unique constraint on telemetry.
+  - **Continuation actors stay flat with origin tags.** When chunking splits a long response or a blocked gate is resolved, the new event re-enters the stream with `actor=continuation:<original_actor>` — never `continuation:continuation:...` no matter how deep the chain. A single `actor LIKE '%steer:kishore'` filter finds the origin and every continuation in one pass. Each continuation's `resumes_event_id` points at its immediate parent, so a recursive CTE walks the chain back to its origin.
+  - **`gate_blocked` events are visible but unresolvable until the Approval Inbox ships.** The row enters terminal state with `status='gate_blocked'`, `failure_label` populated, and an XACK so the worker doesn't redeliver. Operators can see stranded events via `GET /events?actor=...`. The admin-resume fallback was deliberately dropped from this release; resolution is owned by the upcoming Approval Inbox.
+  - **Dashboard live panel.** `/zombies/{id}` renders the new `<LiveEventsPanel />` above the event history table. Native `EventSource` connects to a same-origin Next Route Handler that mints an API-audience JWT server-side and proxies the upstream stream — the browser never holds the JWT, the backend never sees a cookie. Reconnects with exponential backoff capped at 15 s; rolling buffer of the last 20 frames.
 
-<Update label="Apr 23, 2026" tags={["Breaking", "What's new", "CLI"]}>
-  ## One command installs a zombie
+  ## API reference
 
-  `zombiectl install --from <path>` is now the only way to install. It reads `SKILL.md` and `TRIGGER.md` from the directory you point at, registers the zombie, and the zombie is live before the command returns — no separate start step, no follow-up `zombiectl up`. The output is deliberately minimal:
-
-  ```
-  $ zombiectl install --from samples/homelab
-  🎉 homelab is live.
-    Zombie ID: zom_01xyz
-  ```
-
-  Use `zombiectl status` or `zombiectl list` to fetch the webhook URL when you need it for external wiring. In scripts, `--json` still returns `zombie_id`, `webhook_url`, and `name` in one object.
-
-  ## Upgrading
-
-  - **`zombiectl up` is removed.** It used to POST the zombie dir in cwd to the server. That step is now part of `install --from`. Replace `zombiectl install <template>` followed by edits followed by `zombiectl up` with a single `zombiectl install --from <path>` that points at a directory you authored directly. Any script hitting `zombiectl up` now gets the unknown-command branch.
-  - **Bundled templates (`zombiectl install lead-collector` / `slack-bug-fixer`) are removed.** The `zombiectl/templates/` directory no longer ships. Samples in `samples/` (e.g. `samples/homelab`) are the new starting point — clone one, edit, install.
-  - **Install no longer prints the webhook URL in pretty mode.** If your flow piped the install output to grab the URL, switch to `zombiectl status --json | jq -r '.zombies[] | select(.name=="<name>") | .webhook_url'` (or keep using `--json` on install and read `.webhook_url` from the JSON response).
+  - `POST /v1/workspaces/{ws}/zombies/{id}/steer` — body `{message: string (≤8192 chars)}`. 202 with `{status: "accepted", event_id: string}`. The `event_id` is the Redis stream entry id; CLIs and dashboards correlate the SSE feed to this id.
+  - `GET /v1/workspaces/{ws}/zombies/{id}/events?cursor=&actor=&since=&limit=` — paginated history. `actor` accepts globs (`steer:*`, `webhook:*`) and exact matches (`webhook:github`). `since` accepts Go-style durations (`15s`, `30m`, `2h`, `7d`) or RFC 3339 timestamps (`2026-04-25T08:00:00Z`). Default `limit=50`, max 200. `since` and `cursor` are mutually exclusive — supplying both returns 400.
+  - `GET /v1/workspaces/{ws}/events?cursor=&actor=&zombie_id=&since=&limit=` — workspace-aggregate history. Same parameter shape as the per-zombie variant; items carry an extra `zombie_id` so the workspace overview can group by zombie. Replaces the deleted `/activity` endpoint.
+  - `GET /v1/workspaces/{ws}/zombies/{id}/events/stream` — SSE live tail. `Content-Type: text/event-stream`. Frame kinds: `event_received`, `tool_call_started`, `tool_call_progress` (~2s heartbeat for long tool calls), `chunk`, `tool_call_completed`, `event_complete`. Per-connection sequence ids reset to 0 on every new SUBSCRIBE; the server ignores the `Last-Event-ID` request header. After a disconnect, clients backfill via `GET /events?since=<last_seen>` then reopen the stream.
 
   ## CLI
 
-  - `zombiectl install --from <path>` — registers the zombie at the given path. `SKILL.md` and `TRIGGER.md` are required. Typed errors on missing path / missing file: `ERR_PATH_NOT_FOUND`, `ERR_SKILL_MISSING`, `ERR_TRIGGER_MISSING`. Exit 2 for usage errors (`zombiectl install` with no flag; legacy `zombiectl install <name>` without `--from`).
-  - `zombiectl status` empty-list hint now points at `zombiectl install --from <path>` instead of the old `<template>` form.
+  - `zombiectl steer {id} "<message>"` — batch mode. POSTs the message, opens the SSE stream, filters frames on the returned `event_id`, prints `[claw] <chunk>` as response chunks arrive, exits 0 on `event_complete` with `status=processed` and non-zero on `agent_error`. Falls back to polling `GET /events?since=<event_id>` if the SSE drops, with a 60-second deadline. Interactive REPL mode (no message argument) is deferred to a follow-up release; calling `steer {id}` without a message currently exits 2 with a helpful pointer.
+  - `zombiectl events {id}` — paginated history print. `--actor=steer`, `--actor=webhook:github`, `--since=2h`, `--since=2026-04-25T08:00:00Z`, `--json` (raw records for piping), `--cursor=<token>` (resume from a previous page). Default 50 events per page; the next-cursor hint prints below the last row when more results exist.
+  - `zombiectl logs {id}` — repointed at the new events endpoint (the activity stream is gone). Same flag shape; row format now shows `actor` + `response_text` summary instead of `event_type` + `detail`.
+</Update>
 
+<Update label="Apr 27, 2026" tags={["Bug fixes", "API", "CLI", "Security"]}>
+  ## Install actually works now: contract aligned, parser key matches the sample, doctor preflight tightened
+
+  Three small bugs were stacking up to make `zombiectl install --from <path>` impossible to use against a fresh workspace. The CLI was sending one shape; the API expected another. The shipped sample uses `tools:` in TRIGGER.md; the parser was looking for `skills:`. And both `install` and `doctor` were exempt from the local auth guard, so missing credentials surfaced as a confusing 401 from the server instead of a clean local "log in first" message. All three are fixed in one pass.
+
+  ## Upgrading
+
+  - **Install POST shape changed.** `POST /v1/workspaces/{ws}/zombies` now accepts `{trigger_markdown, source_markdown}`. The previous `{name, config_json, source_markdown}` shape is gone. The server is the single parser of TRIGGER.md frontmatter — `name` and the persisted `config_json` are derived server-side from the YAML between the `---` fences. If you have a script that POSTs directly to this endpoint, switch to sending the raw two markdown files. Pre-v1.0; no compat shim.
+  - **TRIGGER.md key renamed `skills:` → `tools:`.** The shipped sample (`samples/platform-ops/TRIGGER.md`) already used `tools:`; the parser now matches. If you have an older zombie spec with a top-level `skills:` array, rename that key to `tools:` before installing. The server returns `ERR_ZOMBIE_INVALID_CONFIG` with a hint when the canonical key is missing.
+  - **`zombiectl install` and `zombiectl doctor` now require `zombiectl login` first.** Previously they were exempt from the auth guard and produced opaque 401s on missing credentials. Now they fail locally with `AUTH_REQUIRED` before any HTTP call. Only `login` itself is exempt.
+
+  ## What's new
+
+  - **Doctor reports the three things that actually matter.** The new check set is `server_reachable` (GET /healthz with a 5s timeout), `workspace_selected` (local config has a current workspace), and `workspace_binding_valid` (your token is bound to that workspace, verified by a 200 from the workspace-scoped zombies list). Previous `healthz`/`readyz`/`credentials`/`workspace` checks are folded in or dropped — credentials is now covered by the auth guard, readyz overlaps healthz.
+  - **Doctor `--json` returns a stable schema.** `{ok: bool, api_url: string, checks: [{name, ok, detail}]}`. Skills and scripts can consume it without grep on prose. Each failed check carries a one-line `detail` pointing at the next concrete action.
+  - **Install response carries the canonical name.** `POST /zombies` now returns `{zombie_id, name, status}`. The CLI displays the server-derived name instead of guessing from the directory basename — copy/paste names match what the server stored.
+
+  ## API reference
+
+  - `POST /v1/workspaces/{workspace_id}/zombies` — body `{trigger_markdown: string (≤64KB), source_markdown: string (≤64KB)}`. 201 with `{zombie_id, name, status}`. 400 `ERR_ZOMBIE_INVALID_CONFIG` if the frontmatter parse fails (missing `name:`, missing `tools:`, missing `---` fences, etc.). 400 `ERR_INVALID_REQUEST` with `MSG_ZOMBIE_TRIGGER_REQUIRED` if `trigger_markdown` is empty or oversized.
+
+  ## CLI
+
+  - `zombiectl install --from <path>` — POSTs `{trigger_markdown, source_markdown}` (the previous `{source_markdown, trigger_markdown}` shape was rejected by the API). The display name in `🎉 <name> is live.` comes from the server response, falling back to the directory basename only if the server omits it.
+  - `zombiectl doctor` — three checks (`server_reachable`, `workspace_selected`, `workspace_binding_valid`). Per-check 5s timeout, exit 0 on all-green and exit 1 on any failure. Now requires authentication; run `zombiectl login` first.
+</Update>
+
+<Update label="Apr 26, 2026" tags={["What's new", "API", "CLI"]}>
+  ## Worker substrate — install a zombie, see it work in seconds
+
+  Zombies installed via `POST /v1/workspaces/{ws}/zombies` are now claimed by a worker thread within ~1s of the 201 — no worker restart needed. A new `POST /v1/workspaces/{ws}/zombies/{id}/kill` aborts an in-flight zombie cleanly and propagates the cancel to the executor, replacing the legacy `DELETE /…/zombies/{id}` shortcut. A new `PATCH /v1/workspaces/{ws}/zombies/{id}` updates a zombie's config and signals the worker to pick up the new revision on its next loop iteration. SIGTERM on the worker now triggers a graceful drain instead of cutting in-flight events mid-call.
+
+  ## What's new
+
+  - **Atomic install path.** The create endpoint now does INSERT into `core.zombies` + `XGROUP CREATE MKSTREAM zombie:{id}:events` + `XADD zombie:control * type=zombie_created` synchronously before returning 201. By the time the API responds, the per-zombie data stream and the control-plane signal both exist; a webhook arriving 1ms after the 201 finds the consumer group already.
+  - **Fleet-wide control plane.** A new Redis stream `zombie:control` carries lifecycle signals (created / status_changed / config_changed / drain_request). One watcher thread per worker process consumes it via `XREADGROUP` and dispatches to spawn / cancel / reconfigure handlers — no more "zombie installed at 14:00 invisible to the worker that started at 13:00" until the next restart.
+  - **Per-zombie cancel flag.** Each zombie thread observes a per-zombie atomic flag at the top of every loop iteration. `POST /kill` flips the flag and the thread exits within ~100ms, regardless of where it was in its event loop.
+  - **`zombiectl kill <zombie_id>` now POSTs to `/kill`** and requires an explicit zombie id (was previously a DELETE that defaulted to "kill all in workspace" when no id was passed — that footgun is gone).
+
+  ## API reference
+
+  - `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/kill` — 200 with `{zombie_id, status: "killed", queued_at}`. 404 if the zombie does not exist or is already killed (idempotent semantics fold into 404).
+  - `PATCH /v1/workspaces/{workspace_id}/zombies/{zombie_id}` — body `{config_json?: string}`. 200 with `{zombie_id, config_revision}` where `config_revision` is the new `updated_at` timestamp (strictly monotonic per zombie).
+  - `DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}` — removed. `POST /kill` replaces it with a clean verb.
+
+  ## CLI
+
+  - `zombiectl kill <zombie_id>` — POST to the new `/kill` endpoint. Argument is now required.
+</Update>
+
+<Update label="Apr 24, 2026" tags={["What's new", "Integrations"]}>
+  ## `platform-ops` — flagship zombie for GitHub Actions deploy failures
+
+  A new zombie lives at `samples/platform-ops/`. It wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed run's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. Same zombie is reachable manually via `zombiectl steer {id}` for a morning health check or any operator-driven investigation. Read-only against GitHub, Fly, and Upstash; its one write path is the Slack post. Credentials are structured `{host, api_token}` / `{host, bot_token}` records in the workspace vault; raw token bytes are substituted into outbound HTTPS requests at the credential firewall, after the executor sandbox closes around the agent — they never reach the LLM context, logs, or database.
+
+  ## What's new
+
+  - `samples/platform-ops/` ships with `SKILL.md` (diagnosis prompt, evidence-gathering flow, budget prose ≤ $8/month, `http_request` as the primary tool, `cron_add` gated on the operator asking for recurring polling), `TRIGGER.md` (`trigger.type: webhook` for GitHub Actions plus manual steer, the built-in tools actually used, network allowlist for `api.github.com` / `api.fly.io` / `api.upstash.com` / `slack.com`, $1/day + $8/month budget caps), and a `README.md` operator walkthrough covering install, wiring the GitHub Actions webhook, chatting, an example diagnosis, and credential hygiene.
+  - Four credential shapes land alongside: `github = {host, api_token}`, `fly = {host, api_token}`, `upstash = {host, api_token}`, `slack = {host, bot_token}`. Add them via `zombiectl credential add <name> --host <host> --api-token <token>` (use `--bot-token` for `slack`).
+  - Install works via `zombiectl install --from samples/platform-ops`. The webhook URL printed at install time is the one to paste into your GitHub repo's webhook settings (filter to `workflow_run`).
+  - Sandbox: bwrap + landlock + cgroups on Linux; the agent runs in a locked-down process with network deny-by-default and only the `network.allow` hosts reachable.
+  - Every event lands in `core.zombie_events` with `actor=webhook:github` (deploy-failure firing) or `actor=steer:<operator>` (manual investigation), so the timeline reads cleanly regardless of who poked the zombie.
 </Update>
 
 <Update label="Apr 22, 2026" tags={["What's new", "Breaking", "UI", "API", "CLI"]}>
-  ## Mission Control dashboard — full lifecycle in the browser; kill switch moves to DELETE
+  ## Mission Control — full lifecycle in the browser; kill switch moves to DELETE
 
-  The operator dashboard reaches its first "I can run my day from here" shape. Sign in to `app.usezombie.com` and you get an overview page with live status tiles + recent activity, a zombies list with cursor pagination and in-view search, an install form, and a per-zombie detail page that shows the webhook URL, the full config, and a one-click kill switch. Firewall, credentials, and settings pages are in place as placeholders; they'll fill in as the underlying features ship.
+  Mission Control reaches its first "I can run my day from here" shape. Sign in to `app.usezombie.com` and you get an overview page with live status tiles + recent activity, a zombies list with cursor pagination and in-view search, an install form, and a per-zombie detail page that shows the webhook URL, the full config, and a one-click kill switch. Firewall, credentials, and settings pages are in place as placeholders; they'll fill in as the underlying features ship.
 
   Multi-workspace operators get a workspace switcher in the header. Selecting a workspace persists the choice in a cookie and revalidates the current page — no sign-out or token reissue required.
 
   We also cleaned up the kill-switch endpoint while we were in the neighborhood: the zombie routes no longer carry action verbs in their paths. Any caller hitting the legacy kill endpoint must migrate; details under *Upgrading*.
 
-  Credit exhaustion is now operator-visible in the dashboard. When a tenant's balance hits zero, a destructive banner appears above the zombies list and a "Balance exhausted" badge renders on each zombie's detail page — both driven by the `is_exhausted` / `exhausted_at` fields on `GET /v1/tenants/me/billing`.
+  Credit exhaustion is now operator-visible in Mission Control. When a tenant's balance hits zero, a destructive banner appears above the zombies list and a "Balance exhausted" badge renders on each zombie's detail page — both driven by the `is_exhausted` / `exhausted_at` fields on `GET /v1/tenants/me/billing`.
 
   ## Upgrading
 
@@ -117,15 +173,15 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   ## CLI
 
-  - `zombiectl --help` now surfaces the full `zombie` command group — `install | up | status | kill | logs | credential` — alongside the existing `login / workspace / specs / doctor` commands.
-  - `zombiectl zombie list [--workspace-id ID] [--cursor C] [--limit N] [--json]` — new subcommand that mirrors the `/zombies` list in the dashboard (cursor-paginated, honours the same `limit ≤ 100` clamp).
-  - `zombiectl workspace show [--workspace-id ID]` — new subcommand that mirrors the `/settings` page (prints workspace ID, name, and active-workspace status).
-  - **Active workspace is now persistent.** `zombiectl workspace use <workspace_id>` writes it to `~/.config/zombiectl/config.json`; subsequent commands (`zombie list`, `zombie status`, `workspace show`, etc.) default to it when `--workspace-id` is omitted. The UI's `active_workspace_id` cookie and the CLI's config file stay independent — setting one doesn't affect the other.
-  - `zombiectl zombie up` still prints the `🎉 Woohoo! Your zombie is installed and ready to run.` success line (unchanged).
-  - `zombiectl zombie kill` is unaffected by the kill-switch path rename — it continues to call `DELETE /zombies/{id}` (full delete, not the current-run kill) as it always did.
+  - `zombiectl --help` now surfaces the full zombie-lifecycle commands — `install | up | status | kill | logs | credential` — alongside the existing `login / workspace / specs / doctor` commands.
+  - `zombiectl list [--workspace-id ID] [--cursor C] [--limit N] [--json]` — new subcommand that mirrors the `/zombies` list in Mission Control (cursor-paginated, honours the same `limit ≤ 100` clamp).
+  - `zombiectl workspace show [--workspace-id ID]` — new subcommand that mirrors the Mission Control `/settings` page (prints workspace ID, name, and active-workspace status).
+  - **Active workspace is now persistent.** `zombiectl workspace use <workspace_id>` writes it to `~/.config/zombiectl/workspaces.json`; subsequent commands (`zombiectl list`, `zombiectl status`, `workspace show`, etc.) default to it when `--workspace-id` is omitted. Mission Control's `active_workspace_id` cookie and the CLI's config file stay independent — setting one doesn't affect the other.
+  - `zombiectl up` still prints the `🎉 Woohoo! Your zombie is installed and ready to run.` success line (unchanged).
+  - `zombiectl kill` is unaffected by the kill-switch path rename — it continues to call `DELETE /zombies/{id}` (full delete, not the current-run kill) as it always did.
 </Update>
 
-<Update label="v0.27.0 — Apr 22, 2026" tags={["What's new", "Breaking", "API", "Security", "Billing"]}>
+<Update label="Apr 22, 2026" tags={["What's new", "Breaking", "API", "Security", "Billing"]}>
   ## Admin-by-env-var is gone; credit exhaustion is now observable
 
   The env-var `API_KEY` bypass that minted an admin principal with no tenant and no audit identity has been removed. Admin authentication now flows exclusively through Clerk sessions with `publicMetadata.role=admin` — set once per operator in the Clerk Dashboard, revoked instantly from the same place, and carried into every request JWT. Programmatic admin access uses a tenant-minted `zmb_t_…` key from `POST /v1/api-keys` (shipped in v0.26.0). Separately, the tenant billing response now surfaces credit exhaustion, and a new policy knob lets operators decide what the worker does when a tenant hits zero.
@@ -151,7 +207,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   The OpenAPI schema lists both as required with `exhausted_at` nullable.
 </Update>
 
-<Update label="v0.26.1 — Apr 22, 2026" tags={["Bug fixes", "What's new", "Observability"]}>
+<Update label="Apr 22, 2026" tags={["Bug fixes", "What's new", "Observability"]}>
   ## Observability: per-workspace + per-zombie token counter now wired, OTLP histograms now exported
 
   Two observability paths that looked live but weren't are now actually live. The per-workspace Prometheus token counter is now emitted on every successful zombie delivery, and a new `zombie_id` label lets you slice the same counter by zombie. The OTLP JSON exporter now forwards histogram data points (`_bucket`, `_sum`, `_count`) instead of silently dropping them.
@@ -168,7 +224,25 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   - Removed the `zombie_gate_repair_loops_by_workspace_total` and `zombie_gate_repair_loops_total` counters (plus their helpers) — gate-repair is a pipeline-era concept with no zombie-era call site, so these counters always read zero and misled operators into expecting data that could never appear.
 </Update>
 
-<Update label="v0.26.0 — Apr 21, 2026" tags={["What's new", "API", "Billing"]}>
+<Update label="Apr 22, 2026" tags={["What's new", "UI", "CLI", "Integrations"]}>
+  ## Docs follow-up — rewritten for the v2 MVP
+
+  The `docs.usezombie.com` site has been rewritten end-to-end against the current product. The new quickstart walks a fresh operator from Clerk sign-up to a live zombie firing webhook events in under ten minutes, against the shared $10 tenant balance introduced earlier this month. Stale pre-Clerk vocabulary — redemption flows, legacy "lead-collector"-centric examples — has been cleared from every page outside the historical changelog entries that predate this release.
+
+  ## What's new
+
+  - **New quickstart.** Sign up → dashboard → create zombie → copy webhook URL → `curl` trigger → verify the credit debit in the billing UI. End-to-end in one page.
+  - **New CLI reference** at [`/cli/zombiectl`](/cli/zombiectl) — every `zombiectl` command with copyable examples.
+  - **Self-hosting section** under [`/operator`](/operator/deployment/architecture) — deployment architecture, configuration, security, observability, and operations pages for running the control plane yourself.
+  - **Concepts page updated** to cover the four nouns (tenant, workspace, zombie, skill) and the tenant-scoped credit model.
+  - **Billing pages** rewritten around the single-wallet, multi-workspace model.
+
+  ## CLI
+
+  No binary changes in this release — the docs now accurately describe the shipped CLI surface (`zombiectl install | up | status | logs | kill | credential`). Event triggering is documented as `curl` against the webhook URL, not a CLI subcommand.
+</Update>
+
+<Update label="Apr 21, 2026" tags={["What's new", "API", "Billing"]}>
   ## Tenant-scoped billing
 
   Billing now lives at the tenant, not the workspace. Every new signup gets exactly one `billing.tenant_billing` row at `plan_tier=free`, `plan_sku=free_default`, and a 1000¢ free-credit balance. Any zombie run in any workspace owned by that tenant debits the same shared balance — creating a second workspace no longer grants additional credits, and plan changes no longer have to fan out across workspace rows. Per-workspace credit state and the workspace-scoped billing lifecycle endpoints are removed.
@@ -203,7 +277,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Auth: Bearer Clerk JWT (operator or admin). Returns `401 UZ-AUTH-001` without a valid token.
 </Update>
 
-<Update label="v0.25.0 — Apr 21, 2026" tags={["What's new", "API", "Security", "Integrations", "Observability"]}>
+<Update label="Apr 21, 2026" tags={["What's new", "API", "Security", "Integrations", "Observability"]}>
   ## Clerk-powered signup
 
   New users can now sign up through Clerk and have their account provisioned automatically. A Clerk `user.created` webhook delivered to `POST /v1/webhooks/clerk` atomically creates a tenant, a user record bound to the Clerk OIDC subject, an owner membership, and a default workspace with a Heroku-style name (`jolly-harbor-482`) and a 0-cent credit state. Replayed webhooks are idempotent — a re-delivered `user.created` returns the existing workspace with `created: false` and makes no new writes.
@@ -220,7 +294,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Three new Prometheus counters on `/metrics` (six time series): `zombie_signup_bootstrapped_total`, `zombie_signup_replayed_total`, and `zombie_signup_failed_total` with `reason` label (`bad_sig`, `stale_ts`, `missing_email`, `db_error`). One new PostHog event, `signup_bootstrapped`, with `distinct_id = oidc_subject` so funnels stitch across retries; email domain included, full email never is. Server log lines (`clerk.bad_sig`, `clerk.stale_ts`, `clerk.bad_request`) flow through the existing OTLP log exporter. The operator metrics reference ([Metrics reference](/operator/observability/metrics)) has been reconciled against the live exporter.
 </Update>
 
-<Update label="v0.24.0 — Apr 19, 2026" tags={["Improvements", "UI", "Performance"]}>
+<Update label="Apr 19, 2026" tags={["Improvements", "UI", "Performance"]}>
   ## Unified design system across the dashboard and marketing site
 
   Buttons, cards, dialogs, inputs, and other UI primitives now come from a single `@usezombie/design-system` package. The dashboard and marketing site share one source of truth — tweak a variant once, both surfaces update.
@@ -228,19 +302,19 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   The new `/agents` page adds an interactive hero and animated terminal. Landing JS is under 90 kB gzipped, with a `size-limit` CI gate guarding bundle size. PostHog loads on idle so first paint is no longer blocked.
 </Update>
 
-<Update label="v0.23.0 — Apr 19, 2026" tags={["Improvements", "CLI", "API"]}>
+<Update label="Apr 19, 2026" tags={["Improvements", "CLI", "API"]}>
   ## One credential surface for zombies
 
   Workspace credentials now flow through a single path: `zombiectl credential add` writes to the workspace vault, and that's what every zombie reads at runtime. No parallel surfaces, no guessing which command owns a given secret.
 </Update>
 
-<Update label="v0.22.0 — Apr 19, 2026" tags={["Improvements", "CLI"]}>
+<Update label="Apr 19, 2026" tags={["Improvements", "CLI"]}>
   ## Zombie lifecycle is the unified product model
 
   The CLI and API now speak one language: `zombiectl install → up → status → logs → kill`. `zombiectl --help` is shorter, the API surface is tighter, and the docs, product, and code all describe the same thing. See [Zombies](/zombies/overview).
 </Update>
 
-<Update label="v0.21.0 — Apr 18, 2026" tags={["Docs"]}>
+<Update label="Apr 18, 2026" tags={["Docs"]}>
   ## Docs reshaped around the zombie lifecycle
 
   A new [Zombies](/zombies/overview) section walks through installing a template, adding credentials, running, observing, and killing a zombie. Pages describing the legacy v1 pipeline have been retired; the old `/specs/*` and `/runs/*` URLs now 404.
@@ -248,7 +322,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   New pages: [overview](/zombies/overview), [install](/zombies/install), [running](/zombies/running), [credentials](/zombies/credentials), [webhooks](/zombies/webhooks), [skills](/zombies/skills), [templates](/zombies/templates).
 </Update>
 
-<Update label="v0.20.0 — Apr 18, 2026" tags={["New", "API", "Security"]}>
+<Update label="Apr 18, 2026" tags={["New", "API", "Security"]}>
   ## Tenant API keys
 
   Tenant admins can now mint named, rotatable API keys via `POST /v1/api-keys` — scoped to the tenant, revocable, and audited. Raw keys (`zmb_t_…`) are shown once on creation; only the hash is stored. The legacy `API_KEY` env var still works as a bootstrap fallback.
@@ -256,7 +330,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Workspace-scoped **external agent keys** were renamed to **agent keys**: `/v1/workspaces/{ws}/external-agents` → `/v1/workspaces/{ws}/agent-keys`.
 </Update>
 
-<Update label="v0.19.0 — Apr 18, 2026" tags={["New", "Security", "Integrations"]}>
+<Update label="Apr 18, 2026" tags={["New", "Security", "Integrations"]}>
   ## Unified webhook authentication — seven first-class providers
 
   Every per-zombie webhook flows through one fail-closed middleware that handles URL-embedded secrets, Bearer tokens, HMAC signatures, and Svix multi-signature rotation with constant-time comparisons.
@@ -264,7 +338,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Seven providers ship first-class: **agentmail**, **Grafana**, **Slack**, **GitHub**, **Linear**, **Jira**, and **Clerk** (via Svix). Onboarding takes one field in `TRIGGER.md`; secrets are workspace-vaulted and rotate without a zombie redeploy. See [Webhooks](/zombies/webhooks).
 </Update>
 
-<Update label="v0.18.0 — Apr 16, 2026" tags={["New", "API", "UI"]}>
+<Update label="Apr 16, 2026" tags={["New", "API", "UI"]}>
   ## Operator dashboard foundation
 
   Workspace-wide **activity feed**, **operator kill switch** for runaway zombies, and **per-zombie billing summary** that mirrors the workspace view. Billing numbers now come from real execution telemetry (previously zeroed since v0.10).
@@ -272,31 +346,31 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Ships with six accessible React primitives — `StatusCard`, `EmptyState`, `Pagination`, `DataTable`, `ConfirmDialog`, `ActivityFeed` — and Tailwind v4 semantic design tokens.
 </Update>
 
-<Update label="v0.17.0 — Apr 16, 2026" tags={["Improvements", "API"]}>
+<Update label="Apr 16, 2026" tags={["Improvements", "API"]}>
   ## Consistent pagination and full OpenAPI coverage
 
   Every list endpoint returns the same `{ items, total, cursor? }` envelope so SDK generators can emit a single `Paginated<T>` type. Memory reads moved to `GET`, and `openapi.json` now documents every route the server exposes — 26 previously undocumented operations are authored in.
 </Update>
 
-<Update label="v0.16.0 — Apr 16, 2026" tags={["Improvements", "API", "Security"]}>
+<Update label="Apr 16, 2026" tags={["Improvements", "API", "Security"]}>
   ## Workspace-scoped REST paths
 
   Identity — workspace, zombie, grant — is now always in the URL path (`/v1/workspaces/{ws}/zombies/{id}`), and query parameters are reserved for pagination and search. Every handler authorizes workspace membership after authentication; cross-workspace lookups return `404`, so the API does not leak the existence of resources you cannot see.
 </Update>
 
-<Update label="v0.15.0 — Apr 15, 2026" tags={["New", "API"]}>
+<Update label="Apr 15, 2026" tags={["New", "API"]}>
   ## Live zombie steering
 
   Redirect a running zombie mid-execution without killing it. `POST /v1/workspaces/{ws}/zombies/{id}/steer` injects a message into the zombie's event stream — delivered mid-execution if the zombie is running, queued otherwise (300-second TTL).
 </Update>
 
-<Update label="v0.14.0 — Apr 12, 2026" tags={["New", "Memory", "API"]}>
+<Update label="Apr 12, 2026" tags={["New", "Memory", "API"]}>
   ## Persistent zombie memory
 
   Zombies remember facts across executions. Memory is row-scoped per zombie and persists in Postgres — a lead-collector zombie doesn't re-research the same lead, a support zombie doesn't re-ask customers their plan. Tools: `memory_store`, `memory_recall`, `memory_list`, `memory_forget`.
 </Update>
 
-<Update label="v0.13.0 — Apr 12, 2026" tags={["New", "Integrations", "API"]}>
+<Update label="Apr 12, 2026" tags={["New", "Integrations", "API"]}>
   ## Integration grants + credentialed proxy
 
   Zombies — internal or external (LangGraph, CrewAI) — call external services through UseZombie's credentialed proxy. Credentials never leave the platform: injected server-side, stripped from response echoes, and logged to the activity stream.
@@ -304,41 +378,31 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   A zombie requests a grant, humans approve once via Slack/Discord/dashboard, and the grant is reusable until revoked. Launch providers: Slack, Gmail/AgentMail, Discord, Grafana. New CLI: `zombiectl agent create|list|delete`, `zombiectl grant list|revoke`.
 </Update>
 
-<Update label="v0.12.0 — Apr 12, 2026" tags={["New", "Observability", "API"]}>
+<Update label="Apr 12, 2026" tags={["New", "Observability", "API"]}>
   ## Zombie execution telemetry
 
   Every event delivery records `token_count`, `time_to_first_token_ms`, `wall_seconds`, and `credit_deducted_cents`, queryable per-zombie via `GET /v1/workspaces/{ws}/zombies/{id}/telemetry`. Each delivery also emits an OpenTelemetry `zombie.delivery` span that lines up correctly in Grafana Tempo.
 </Update>
 
-<Update label="v0.11.0 — Apr 12, 2026" tags={["New", "Integrations"]}>
+<Update label="Apr 12, 2026" tags={["New", "Integrations"]}>
   ## Slack plugin
 
   Connect Slack via "Add to Slack" OAuth or `zombiectl credential add slack`. Bot tokens live in the vault; events and interactions are HMAC-verified with constant-time comparison. Any zombie with a `slack_event` trigger fires automatically on matching messages.
 </Update>
 
-<Update label="v0.10.0 — Apr 12, 2026" tags={["New", "Observability"]}>
+<Update label="Apr 12, 2026" tags={["New", "Observability"]}>
   ## Zombie observability
 
   Every trigger and delivery shows up in Grafana and PostHog. Prometheus exposes `zombies_triggered_total`, `zombies_completed_total`, `zombies_failed_total`, `zombie_tokens_total`, and a `zombie_execution_seconds` histogram; PostHog fires `zombie_triggered` and `zombie_completed` with tokens, wall-time, and exit status.
 </Update>
 
-<Update label="v0.9.0 — Apr 12, 2026" tags={["New", "Billing"]}>
+<Update label="Apr 12, 2026" tags={["New", "Billing"]}>
   ## Zombie credit metering
 
   Free-plan zombies deduct from `consumed_credit_cents` after each successful delivery at 1 cent per agent-second; Scale is unlimited and short-circuits without a DB write. Crash replay is idempotent on `event_id`, and a DB hiccup never drops or double-charges an event.
 </Update>
 
-<Update label="v0.8.1 — Apr 11, 2026" tags={["Internal"]}>
-  ## Scoring infrastructure removed (M10_004)
-
-  The legacy agent scoring pipeline had no callers after the zombie execution model replaced
-  it. All dead code has been removed: scoring Prometheus gauges, PostHog scoring events,
-  scoring atomic counters, and the scoring duration histogram. The billing summary endpoint
-  (`GET /v1/workspaces/:id/billing/summary`) now returns zeros correctly instead of 500-ing
-  against dropped tables. No user-visible API changes.
-</Update>
-
-<Update label="v0.8.0 — April 11, 2026" tags={["New releases", "Zombies", "API"]}>
+<Update label="April 11, 2026" tags={["New releases", "Zombies", "API"]}>
   ## Zombie directory format, AI Firewall, error standardization, pipeline v1 removal
 
   ### Zombie directory format
@@ -378,7 +442,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   `hx.zig` wrapper. Handlers contain only business logic. No user-visible behavior change.
 </Update>
 
-<Update label="v0.5.0 — April 11, 2026" tags={["New releases", "Zombies"]}>
+<Update label="April 11, 2026" tags={["New releases", "Zombies"]}>
   ## Lead Zombie — v2 core ships
 
   UseZombie is now a runtime for always-on agents. Two commands, running agent:
@@ -437,7 +501,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   - Fixed UTF-8 truncation splitting multi-byte characters in session context
 </Update>
 
-<Update label="v0.4.0 — April 6, 2026" tags={["New releases", "Improvements"]}>
+<Update label="April 6, 2026" tags={["New releases", "Improvements"]}>
   ## Steer running agents mid-run
 
   Interrupt a running agent without aborting it. Send a message via `zombiectl runs interrupt <run_id> <message>` or `POST /v1/runs/{id}:interrupt` — the agent picks it up at the next gate checkpoint. Two modes: **queued** (next checkpoint) and **instant** (IPC delivery).

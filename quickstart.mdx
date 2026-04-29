@@ -1,140 +1,157 @@
 ---
 title: Quickstart
-description: Install a zombie and have your agent running with two commands.
+description: Sign up, run your first zombie, verify credits in under ten minutes.
 ---
 
-<Steps>
-  <Step title="Install zombiectl">
-    ```bash
-    npm install -g @usezombie/zombiectl
-    zombiectl --version
-    ```
-  </Step>
+This walks you from a fresh browser tab to your first executed zombie run. You need a terminal with `curl`, a GitHub or Google account for sign-in, and the `zombiectl` CLI installed. No database, no Docker, no ngrok.
 
-  <Step title="Log in">
-    ```bash
-    zombiectl login
-    ```
+## Step 1. Sign up and claim $10 in credits
 
-    Opens your browser for authentication. Your session is stored locally.
+Open [app.usezombie.com](https://app.usezombie.com) and sign up with GitHub, Google, or email. Clerk runs the auth flow — nothing to redeem, no gates to clear.
 
-    <Tip>
-      Prefer a GUI? The same workflow is available at [app.usezombie.com](https://app.usezombie.com) — overview dashboard, zombies list with search, install form, detail page with kill switch. The CLI and dashboard stay in sync.
-    </Tip>
-  </Step>
+<Tip>
+  Prefer a GUI? The same workflow is available in **Mission Control** at [app.usezombie.com](https://app.usezombie.com) — overview page, zombies list with search, install form, detail page with kill switch. The CLI and Mission Control stay in sync.
+</Tip>
 
-  <Step title="Select a workspace">
-    ```bash
-    zombiectl workspace list           # see what you have
-    zombiectl workspace use ws_abc123  # make it active
-    zombiectl workspace show           # confirm
-    ```
+Your tenant is created on first sign-in with a **$10 (1000¢) balance** seeded automatically. Credits are **tenant-scoped**, shared across every workspace under the tenant — you can create as many workspaces as you like without fragmenting the balance.
 
-    `workspace use` persists the choice to `~/.config/zombiectl/workspaces.json`; every later command that accepts `--workspace-id` defaults to it. The dashboard has its own workspace switcher — the two are independent, so you can point the CLI and the browser at different workspaces if you want.
+The dashboard header shows the live balance in the top right. Keep the tab open; you'll watch it tick down after Step 4.
 
-    If you haven't added a workspace yet, use `zombiectl workspace add <repo-url>` to connect one.
-  </Step>
+## Step 2. Install `zombiectl` and log in
 
-  <Step title="Install a zombie template">
-    ```bash
-    zombiectl install lead-collector
-    ```
+```bash
+npm install -g @usezombie/zombiectl
+zombiectl --version
+zombiectl login
+```
 
-    This creates a `lead-collector/` directory in your current directory containing two files:
-    `SKILL.md` (agent instructions) and `TRIGGER.md` (deployment config — trigger, skills,
-    credentials, budget, network allowlist).
+`zombiectl login` opens a browser tab, completes the Clerk flow, and writes an authenticated session to `~/.config/usezombie/credentials.json`.
 
-    Open `TRIGGER.md` to see what's inside:
+Check that the CLI is wired to your tenant:
 
-    ```markdown TRIGGER.md
-    ---
-    name: lead-collector
-    trigger:
-      type: webhook
-      source: agentmail
-      event: message.received
-    credentials:
-      - agentmail_api_key
-    budget:
-      daily_dollars: 5.0
-      monthly_dollars: 29.0
-    network:
-      allow:
-        - api.agentmail.to
-    ---
+```bash
+zombiectl workspace list
+```
 
-    This zombie qualifies inbound sales email.
-    ```
+If the list is empty, create your first workspace by binding a GitHub repository:
 
-    The companion `SKILL.md` carries the agent instructions in natural language — who the
-    agent is, what events it receives, what to do with each.
+```bash
+zombiectl workspace add https://github.com/your-user/your-repo
+```
 
-  </Step>
+This opens the UseZombie GitHub App install flow in your browser, finishes the binding, and sets the new workspace as current. See the [workspaces guide](/workspaces/managing) for the full reference.
 
-  <Step title="Add credentials">
-    ```bash
-    zombiectl credential add agentmail_api_key --value=$AGENTMAIL_KEY
-    ```
+If you manage more than one workspace, pick the one you want the CLI pointed at:
 
-    Credentials are stored encrypted in the UseZombie vault — your agent never sees them.
-    The firewall injects them per-request, outside the sandbox boundary.
-  </Step>
+```bash
+zombiectl workspace use ws_abc123   # make it active
+zombiectl workspace show            # confirm
+```
 
-  <Step title="Start the zombie">
-    ```bash
-    zombiectl up
-    ```
+`workspace use` persists the choice to `~/.config/zombiectl/workspaces.json`; every later command that accepts `--workspace-id` defaults to it when the flag is omitted. Mission Control's own workspace switcher is backed by a cookie and stays independent — you can point the CLI at staging while the browser watches production.
 
-    This uploads your config, provisions a webhook endpoint, and starts the persistent agent
-    process in the UseZombie cloud. Within seconds your zombie is live and waiting for events.
+## Step 3. Create a zombie
 
-    You will see output like:
+Scaffold a zombie from a bundled template. The `slack-bug-fixer` template is the smallest happy-path starter:
 
-    ```
-    ✓ zombie created  id=019abc12-8d3a-7f13-8abc-2b3e1e0a6f11
-    ✓ webhook live    POST https://hooks.usezombie.com/v1/webhooks/019abc12-8d3a-7f13-8abc-2b3e1e0a6f11
-    ✓ agent running   status=alive
-    ```
-  </Step>
+```bash
+zombiectl install slack-bug-fixer
+cd slack-bug-fixer
+```
 
-  <Step title="Send a test event">
-    ```bash
-    curl -X POST https://hooks.usezombie.com/v1/webhooks/<your-zombie-id> \
-      -H "Authorization: Bearer your-webhook-token" \
-      -H "Content-Type: application/json" \
-      -d '{"event_id":"test-001","type":"email.received","data":{"from":"alice@example.com","subject":"Demo request"}}'
-    ```
-  </Step>
+Two files land in the new directory:
 
-  <Step title="Check status and logs">
-    ```bash
-    zombiectl status
-    zombiectl logs --zombie <your-zombie-id>
-    ```
+```
+slack-bug-fixer/
+├── SKILL.md      # agent instructions (natural language)
+└── TRIGGER.md    # trigger, skills, credentials, budget
+```
 
-    The zombie ID appears in the `zombiectl up` output (`zm_01…`). `zombiectl logs` streams the activity stream — every event received, every action taken, every
-    credential used — with timestamps and token counts.
-  </Step>
+Open `TRIGGER.md` and tighten the budget if you want — the default is `$5/day, $29/month`, which is plenty for the smoke test.
 
-  <Step title="Kill it when you're done">
-    ```bash
-    zombiectl kill lead-collector
-    ```
+If you want to explore other starting points, see the [flagship platform-ops zombie](/zombies/templates) or the full [zombies index](/zombies/overview).
 
-    The zombie stops immediately. No lingering processes, no billing after the kill.
-  </Step>
-</Steps>
+## Step 4. Start the zombie and copy its webhook URL
 
-## What's next?
+```bash
+zombiectl up
+```
+
+You'll see output like:
+
+```
+✓ zombie created  id=zm_019abc12-8d3a-7f13-8abc-2b3e1e0a6f11
+✓ webhook live    POST https://hooks.usezombie.com/v1/webhooks/019abc12-8d3a-7f13-8abc-2b3e1e0a6f11
+✓ agent running   status=alive
+```
+
+In the dashboard, the new zombie appears under **Zombies** → click in to see its detail page (logs tail, recent runs, skill calls). The webhook URL is also copyable from the detail page header.
+
+Export the zombie id for the next step:
+
+```bash
+export ZOMBIE_ID=<paste the id from the output above>
+```
+
+## Step 5. Trigger the zombie with curl
+
+Fire a synthetic webhook event at your zombie:
+
+```bash
+curl -X POST https://hooks.usezombie.com/v1/webhooks/$ZOMBIE_ID \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_id": "demo-001",
+    "type": "message.received",
+    "data": {"from": "alice@example.com", "subject": "Smoke test"}
+  }'
+```
+
+The HTTP response comes back in milliseconds with `{"accepted": true}` — ingestion is fast because execution happens in the background. Watch the dashboard detail page: within a few seconds the new event appears in the activity stream, the agent reasons, and the run completes.
+
+Read logs from the CLI if you prefer:
+
+```bash
+zombiectl logs --zombie $ZOMBIE_ID --limit 50
+```
+
+The output is paginated — re-run with `--cursor <next_cursor>` to see older events.
+
+## Step 6. Verify the credit deduction
+
+Refresh the dashboard header. Your tenant balance has dropped by the cost of the run — typically a few cents. The **Billing** page ([app.usezombie.com/billing](https://app.usezombie.com/billing)) shows the debit line-item, linked back to the run ID you just triggered.
+
+Or via CLI:
+
+```bash
+zombiectl workspace billing
+```
+
+You now have a live zombie, a completed run, and a verifiable credit deduction. Kill the zombie when you're done:
+
+```bash
+zombiectl kill slack-bug-fixer
+```
+
+## What's next
 
 <CardGroup cols={3}>
-  <Card title="How it works" icon="diagram-project" href="/how-it-works">
-    Understand the credential firewall and sandbox model.
+  <Card title="platform-ops zombie" icon="github" href="/zombies/templates">
+    The flagship sample — wakes on a GitHub Actions deploy failure, posts an evidenced diagnosis to Slack.
   </Card>
   <Card title="Key concepts" icon="book" href="/concepts">
-    Zombies, triggers, skills, credentials, and the kill switch.
+    Tenants, workspaces, zombies, skills — how they relate and how credits flow.
   </Card>
   <Card title="CLI reference" icon="rectangle-terminal" href="/cli/zombiectl">
-    Full command reference for zombiectl.
+    Every `zombiectl` command you'll use day-to-day.
+  </Card>
+  <Card title="Self-hosted operator" icon="server" href="/operator/deployment/architecture">
+    Run the full control plane inside your own network.
+  </Card>
+  <Card title="Add a credential" icon="key" href="/zombies/credentials">
+    Wire real API keys — they never leave the vault.
+  </Card>
+  <Card title="Billing and credits" icon="dollar-sign" href="/billing/plans">
+    Tenant-scoped wallet, debit timing, usage-based Scale plan.
   </Card>
 </CardGroup>

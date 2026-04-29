@@ -8,12 +8,12 @@ description: "Scaffold a zombie from a bundled template with `zombiectl install`
 `zombiectl install <template>` is the first command in a zombie's lifecycle. It writes a local directory containing two editable files — `SKILL.md` and `TRIGGER.md` — scaffolded from a bundled template. Nothing is uploaded, no API calls are made, and no authentication is required. You edit the files, then `zombiectl up` takes it from there.
 
 ```bash
-zombiectl install lead-collector
+zombiectl install slack-bug-fixer
 ```
 
 ```
-✓ lead-collector installed.
-  Created lead-collector/
+✓ slack-bug-fixer installed.
+  Created slack-bug-fixer/
     SKILL.md   — agent instructions (edit this)
     TRIGGER.md — deployment config
 
@@ -24,21 +24,21 @@ Next steps:
 
 ## Bundled templates
 
-Two templates ship with `zombiectl` today. Each is a complete, deployable starting point.
+The `zombiectl` binary ships a small set of templates intended as MVP starting points. Each is a complete, deployable scaffold.
 
 | Template | What it does | Skills used |
 |----------|--------------|-------------|
-| `lead-collector` | Receives inbound email via a webhook, qualifies the sender, drafts a short reply. | `agentmail` |
+| `platform-ops` | The flagship v2 sample. Wakes on a GitHub Actions deploy-failure webhook, gathers evidence from GH run logs + Fly + Upstash, posts an evidenced diagnosis to Slack. Read-only against GitHub, Fly, and Upstash. See [zombie templates](/zombies/templates). | `github`, `fly`, `upstash`, `slack` |
 | `slack-bug-fixer` | Watches a Slack channel, identifies bug reports, opens a PR against the linked repo. | `slack`, `github` |
 
-List of available templates is embedded in the CLI; run `zombiectl install` without an argument to see the current set in the error output.
+Run `zombiectl install` with no argument to see the current bundled set in the error output.
 
 ## File layout
 
 The installed directory contains two files. Both are plain text; both are designed to be edited.
 
 ```
-lead-collector/
+slack-bug-fixer/
 ├── SKILL.md      # agent instructions (natural language)
 └── TRIGGER.md    # machine-readable config + deployment metadata
 ```
@@ -48,16 +48,17 @@ lead-collector/
 A markdown file with free-form agent instructions. Write it as if you were onboarding a smart colleague to the job: who they are, what events they will receive, what to do with each, what tone to use, what to avoid.
 
 ```markdown SKILL.md
-You are a lead qualification agent.
+You are a bug-triage agent.
 
-When an email arrives:
-1. Read the sender and subject line.
-2. If it looks like a real sales inquiry, reply with a short acknowledgement
-   and tag the thread with `qualified`.
-3. If it looks like noise, ignore it and log the reason.
-4. Record what you did in the activity stream.
+When a Slack message arrives in #bugs:
+1. Read the message and any thread replies.
+2. If it describes a reproducible bug, open a PR against the linked repo
+   with a failing test and a proposed fix.
+3. Reply in-thread with the PR URL and a one-line summary.
+4. If it isn't a bug (question, feature request, noise), tag the thread
+   with `:not-a-bug:` and stop.
 
-Never promise a demo time. Never quote prices.
+Never close or merge PRs. Never speak outside the thread.
 ```
 
 ### `TRIGGER.md`
@@ -66,25 +67,30 @@ A markdown file with YAML frontmatter that configures how the zombie receives ev
 
 ```markdown TRIGGER.md
 ---
-name: lead-collector
+name: slack-bug-fixer
 trigger:
   type: webhook
-  source: agentmail
-  event: message.received
+  source: slack
+  event: message.posted
+skills:
+  - slack
+  - github
 credentials:
-  - agentmail_api_key
+  - slack_bot_token
+  - github_pat
 budget:
   daily_dollars: 5.0
   monthly_dollars: 29.0
 network:
   allow:
-    - api.agentmail.to
+    - slack.com
+    - api.github.com
 ---
 
-This zombie qualifies inbound sales email.
+This zombie triages bug reports in a Slack channel.
 ```
 
-The `name` field becomes the zombie's display name. The `trigger.source` field identifies the upstream provider and determines the webhook signature scheme for first-class integrations (`agentmail`, `slack`, `github`, `linear`, `jira`, `grafana`, `clerk`). The `credentials:` list names the vault keys the zombie will read at event time — every entry must exist in the workspace vault before `zombiectl up` succeeds. The `network.allow:` list is an outbound hostname allowlist enforced by the credential firewall.
+The `name` field becomes the zombie's display name. The `trigger.source` field identifies the upstream provider and determines the webhook signature scheme for first-class integrations (`slack`, `github`, `linear`, `jira`, `grafana`, `clerk`, `custom`). The `credentials:` list names the vault keys the zombie will read at event time — every entry must exist in the workspace vault before `zombiectl up` succeeds. The `network.allow:` list is an outbound hostname allowlist enforced by the credential firewall.
 
 See [Writing skills](/zombies/skills) for the full `TRIGGER.md` reference, and [Templates](/zombies/templates) for the anatomy of a bundled template.
 
@@ -111,7 +117,8 @@ You have two reasonable next moves:
 2. **Add credentials first** via `zombiectl credential add`, then `zombiectl up`. Either order works — but `zombiectl up` refuses to deploy until every key listed under `credentials:` is present in the vault.
 
 ```bash
-zombiectl credential add agentmail_api_key --value=$AGENTMAIL_KEY
+zombiectl credential add slack_bot_token --value=$SLACK_BOT_TOKEN
+zombiectl credential add github_pat --value=$GITHUB_PAT
 zombiectl up
 ```
 

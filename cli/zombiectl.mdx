@@ -49,10 +49,10 @@ zombiectl logout
 Scaffold a zombie from a bundled template into the current directory. Writes `SKILL.md` and `TRIGGER.md`. No API call, no authentication required.
 
 ```bash
-zombiectl install lead-collector
+zombiectl install slack-bug-fixer
 ```
 
-Bundled templates today: `lead-collector`, `slack-bug-fixer`. See [Templates](/zombies/templates).
+Bundled templates include `slack-bug-fixer` and the flagship `homelab` zombie. See [Templates](/zombies/templates).
 
 ### `zombiectl up`
 
@@ -94,7 +94,7 @@ zombiectl status
 Stop a zombie by name.
 
 ```bash
-zombiectl kill lead-collector
+zombiectl kill slack-bug-fixer
 ```
 
 ### `zombiectl logs --zombie <id>`
@@ -163,11 +163,11 @@ Set the active workspace persistently. Writes `current_workspace_id` to `~/.conf
 zombiectl workspace use ws_abc123
 ```
 
-Errors out if the id isn't in the local list (run `zombiectl workspace list` first). The dashboard's own `active_workspace_id` cookie and the CLI config are independent — switching one does not affect the other. See [Workspaces overview](/workspaces/overview).
+Errors out if the id isn't in the local list (run `zombiectl workspace list` first). Mission Control's own `active_workspace_id` cookie and the CLI config are independent — switching one does not affect the other. See [Workspaces overview](/workspaces/overview).
 
 ### `zombiectl workspace show`
 
-Show the active workspace (or a specific one via `--workspace-id`) — mirrors the dashboard **Settings** page.
+Show the active workspace (or a specific one via `--workspace-id`) — mirrors the Mission Control **Settings** page.
 
 ```bash
 zombiectl workspace show
@@ -177,7 +177,7 @@ Prints the workspace id, active marker, repo URL, and default branch. Use `--jso
 
 ### `zombiectl workspace credentials`
 
-Workspace-level credential vault surface. Paired with the dashboard `/credentials` placeholder — both sides are placeholders today. The backing vault ships in a future release; for per-zombie credential overrides available now, see [`zombiectl credential add`](#zombiectl-credential-add-name-value-value).
+Workspace-level credential vault surface. Paired with the Mission Control `/credentials` placeholder — both sides are placeholders today. The backing vault ships in a future release; for per-zombie credential overrides available now, see the [credentials section above](#credentials).
 
 ```bash
 zombiectl workspace credentials

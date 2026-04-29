@@ -39,9 +39,10 @@ zombiectl logs --zombie zm_01JABC...
 Every zombie belongs to exactly one **workspace**. The workspace is the boundary for:
 
 - **Credentials** — the vault that zombies read from when they invoke skills. See [Credentials](/zombies/credentials).
-- **Billing** — token and execution cost are attributed to the workspace that owns the zombie.
 - **Access control** — teammates invited to a workspace can see, start, and kill its zombies; they cannot see zombies in other workspaces.
 - **Webhook namespace** — every zombie in a workspace gets its own unique URL under `https://hooks.usezombie.com/v1/webhooks/{zombie_id}`.
+
+Billing is **not** workspace-scoped. Every zombie run — no matter which workspace it lives in — debits the same tenant wallet. See [Key concepts](/concepts#credits) for the single-wallet model.
 
 The current workspace is set automatically by `zombiectl workspace add` or can be switched via `zombiectl workspace list` and the Mission Control dashboard.
 

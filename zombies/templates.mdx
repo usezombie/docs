@@ -8,50 +8,12 @@ description: "Bundled zombie templates — what each does, how they are structur
 A **template** is a pre-built zombie you can scaffold with one command:
 
 ```bash
-zombiectl install lead-collector
+zombiectl install slack-bug-fixer
 ```
 
-Two templates ship with `zombiectl` today. Each is a working, deployable zombie. Edit the files, drop in your credentials, `zombiectl up`.
+The CLI ships a small set of bundled templates. Each is a working, deployable zombie. Edit the files, drop in your credentials, `zombiectl up`.
 
 ## Bundled templates
-
-### `lead-collector`
-
-Receives inbound email via a webhook, classifies each message, and drafts a short acknowledgement for genuine sales inquiries.
-
-```
-lead-collector/
-├── SKILL.md         # "You are a lead qualification agent..."
-└── TRIGGER.md       # webhook trigger, source=agentmail, event=message.received
-```
-
-- **Trigger:** webhook, `source: agentmail`, `event: message.received`
-- **Credentials it expects:** `agentmail_api_key`
-- **Budget:** `daily_dollars: 5.0`, `monthly_dollars: 29.0`
-- **Network allowlist:** `api.agentmail.to`
-- **Chain:** hands off to `lead-enricher` after each event
-
-Typical event shape:
-
-```json
-{
-  "event_id": "msg-01JABC",
-  "type": "email.received",
-  "data": {
-    "from": "alice@example.com",
-    "subject": "Interested in a demo",
-    "body": "Hi — we are looking at tools like yours..."
-  }
-}
-```
-
-Scaffold and deploy:
-
-```bash
-zombiectl install lead-collector
-zombiectl credential add agentmail_api_key --value=$AGENTMAIL_KEY
-zombiectl up
-```
 
 ### `slack-bug-fixer`
 
@@ -92,6 +54,34 @@ zombiectl credential add slack_signing_secret  --value=$SLACK_SIGNING_SECRET
 zombiectl credential add github_token          --value=$GITHUB_TOKEN
 zombiectl up
 ```
+
+### `platform-ops`
+
+The flagship v2 sample. Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed run's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. Same zombie is reachable manually via `zombiectl steer {id}` for a morning health check. Read-only against GitHub, Fly, and Upstash; one write path (the Slack post).
+
+```
+platform-ops/
+├── SKILL.md         # diagnosis prompt, evidence-gathering flow, budget prose ≤ $8/month
+└── TRIGGER.md       # GitHub Actions webhook trigger, tools=[http_request], network allowlist, credential refs
+```
+
+- **Tools:** `http_request` as the primary tool; `cron_add` gated on the operator asking for recurring polling.
+- **Credentials it expects:** `github = {host, api_token}`, `fly = {host, api_token}`, `upstash = {host, api_token}`, `slack = {host, bot_token}`.
+- **Network allowlist:** `api.github.com`, `api.fly.io`, `api.upstash.com`, `slack.com`.
+- **Budgets:** $1/day, $8/month.
+
+Scaffold and deploy:
+
+```bash
+zombiectl install --from samples/platform-ops
+zombiectl credential add github  --host api.github.com  --api-token "$(op read 'op://github/api/token')"
+zombiectl credential add fly     --host api.fly.io      --api-token "$(op read 'op://fly/api/token')"
+zombiectl credential add upstash --host api.upstash.com --api-token "$(op read 'op://upstash/api/token')"
+zombiectl credential add slack   --host slack.com       --bot-token "$(op read 'op://slack/bot/token')"
+zombiectl up
+```
+
+Paste the webhook URL printed at install time into your GitHub repo's webhook settings, filtered to `workflow_run`.
 
 ## Writing your own template
 

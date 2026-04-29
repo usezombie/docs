@@ -100,13 +100,13 @@ sequenceDiagram
 
 ## Spend control
 
-Every workspace has configurable limits that prevent runaway costs:
+Limits stack at two levels — the zombie and the tenant — to prevent runaway costs.
 
-| Control | What it does |
-|---------|-------------|
-| Token budget | Max tokens per agent execution window |
-| Wall time limit | Max wall-clock time before forced stop |
-| Cost ceiling | Max USD spend per billing period |
-| Kill switch | Manual stop from CLI or Mission Control at any time |
+| Control | Scope | What it does |
+|---------|-------|-------------|
+| `daily_dollars` / `monthly_dollars` | Per zombie, declared in `TRIGGER.md` | When the ceiling is hit, the zombie stops processing new events. |
+| Per-event token + wall-clock caps | Per run, runtime-internal | Forced stop if a single execution runs away. |
+| Tenant wallet | Per tenant | When the shared balance hits zero, runs across every workspace stop. Debited only on completed runs. |
+| Kill switch | Any zombie | Manual `zombiectl kill <name>` or Mission Control stop, anytime. |
 
-When a limit is hit, the agent receives a graceful shutdown signal. The activity stream records the reason. No surprises on the invoice.
+When a limit is hit, the agent receives a graceful shutdown signal. The activity stream records the reason. No surprises on the invoice. See [Billing and cost control](/billing/plans) for the tenant-wallet model and [Budgets](/billing/budgets) for `TRIGGER.md` ceiling configuration.

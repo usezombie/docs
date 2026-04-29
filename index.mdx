@@ -1,61 +1,55 @@
 ---
 title: Introduction
-description: "Your agent is ready. You're not ready to trust it. We fix that."
+description: "The runtime for agents that touch real infrastructure — without giving them your credentials."
 ---
 
 <Tip>
   🧟 **Early Access Preview** · Pre-release — APIs, CLI, and behavior may change without notice before general availability.
 </Tip>
 
-## The problem
+## Why UseZombie exists
 
-You have a working agent. It can reply to emails, fix bugs, process payments, review PRs. But you won't let it run unsupervised because it has your API keys, you can't see what it did, there's no spend ceiling, and there's no kill switch. So you babysit it. Or you don't run it at all.
+You want an AI agent to debug your homelab, triage your side projects, or audit your self-hosted stack. You do not want to hand it your kubeconfig, your GitHub token, or your SSH keys.
 
-## What UseZombie does
+Giving an agent cluster-admin credentials is a risk that does not evaporate just because the model is well-behaved today. Hallucinations, prompt injections, and context-bleed into logs are real attack surfaces. A single `kubectl delete ns media` run at 3am by a well-meaning but confused agent is a very long evening.
 
-A **Zombie** is a preconfigured agent workflow that does one job and stays alive forever. You configure it: what tools it attaches, what credentials it uses, what budget it has, what triggers it. The agent intelligence is built in.
+UseZombie fixes this with three properties, together:
 
-<Card title="Get started in 2 minutes" icon="rocket" href="/quickstart" horizontal>
-  Install a zombie, add credentials, run `zombiectl up`.
+- **Tool policy in prose** — each zombie's `SKILL.md` is the system prompt. It tells the agent in plain English which verbs to use and which to avoid (e.g. "only `kubectl get`, `describe`, `logs`, `top`; never `delete`, `apply`, `secrets`"). No YAML allowlists, no per-skill sub-directories — the prose is the contract.
+- **Placeholder credentials** — the agent process never sees your real API token. It gets a UUID placeholder, and a proxy at the network boundary swaps it for the real secret outside the sandbox. Prompt-injection attacks that try to exfiltrate the token succeed only in repeating the placeholder.
+- **Customer-network workers** — the worker that actually executes tool calls runs inside your network (a Docker container in your homelab, a Pi behind your firewall, your laptop). The UseZombie control plane never routes to your cluster API.
+
+If you're thinking "this is what Microsandbox does for code execution" — yes, similar pattern, credit where it's due. UseZombie extends it with audit + approval layers aimed at homelab, ops, and developer-tool workloads.
+
+<Card title="Get started in ten minutes" icon="rocket" href="/quickstart" horizontal>
+  Sign up, install `zombiectl`, trigger your first zombie, watch credits tick.
 </Card>
 
-## Use cases
+## What you can run
 
-<Columns cols={2}>
-  <Card title="Lead Zombie" icon="envelope">
-    Handles inbound email, qualifies leads, replies with context, logs everything.
-  </Card>
-  <Card title="Slack Bug Fixer" icon="bug">
-    Monitors #bugs, finds the issue, opens a PR, replies in thread.
-  </Card>
-  <Card title="PR Zombie" icon="code-pull-request">
-    Reviews every PR, posts feedback, alerts on critical changes.
-  </Card>
-  <Card title="Ops Zombie" icon="server">
-    Watches infrastructure, alerts on incidents, runs diagnostics.
-  </Card>
-  <Card title="Hiring Zombie" icon="user-check">
-    Receives candidate profiles (resume PDF, GitHub PRs, Gmail), analyzes attachments for merit, sends a decision report on Discord.
+<Columns cols={1}>
+  <Card title="platform-ops" icon="github" href="/zombies/templates">
+    The flagship v2 zombie. Wakes on a GitHub Actions deploy-failure webhook, gathers evidence from the failed run, your hosting provider, and your data-plane, then posts an evidenced diagnosis to Slack. Same zombie is reachable manually via `zombiectl steer` for a morning health check. Read-only against GitHub, Fly, and Upstash; one write path (the Slack post).
   </Card>
 </Columns>
 
-## How it works
+## How the runtime works
 
 <Columns cols={2}>
   <Card title="Sandboxed runtime" icon="lock">
     bwrap + landlock isolation. Network deny-by-default. Only allowlisted domains reachable.
   </Card>
   <Card title="Credentials hidden" icon="shield-halved">
-    Agents never see API keys. The vault injects at the sandbox boundary. The agent makes a tool call, UseZombie makes the real API request.
+    Agents never see API keys. The vault injects at the boundary — the agent asks to call the tool, UseZombie makes the real request.
   </Card>
-  <Card title="Webhooks wired" icon="webhook">
-    Receive events from email, Slack, GitHub without ngrok or custom servers.
+  <Card title="Customer-network workers" icon="server">
+    Workers run where your infrastructure lives. Your credentials never leave your network.
   </Card>
   <Card title="Activity stream" icon="chart-line">
     Every action timestamped and queryable. `zombiectl logs` shows what happened, when, and why.
   </Card>
   <Card title="Spend ceiling" icon="gauge-high">
-    Per-day and per-month dollar budgets. One bad prompt never becomes an infinite burn.
+    Per-day and per-month dollar budgets. Tenant balance debited only on completed runs.
   </Card>
   <Card title="Kill switch" icon="power-off">
     `zombiectl kill` stops any agent mid-action. Checkpoint saved, no data lost.
@@ -65,22 +59,22 @@ A **Zombie** is a preconfigured agent workflow that does one job and stays alive
 ## Explore the docs
 
 <Columns cols={2}>
-  <Card title="How it works" icon="diagram-project" href="/how-it-works">
-    Understand the agent hosting model and credential firewall.
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Sign-up to first run in ten minutes.
   </Card>
   <Card title="Key concepts" icon="book" href="/concepts">
-    Zombies, triggers, skills, credential firewall, and kill switch.
+    Tenants, workspaces, zombies, skills — the four nouns.
   </Card>
   <Card title="CLI reference" icon="rectangle-terminal" href="/cli/zombiectl">
-    Full command reference for zombiectl.
-  </Card>
-  <Card title="API reference" icon="code" href="/api-reference/introduction">
-    REST API for agent management and event ingestion.
+    Every `zombiectl` command, with examples.
   </Card>
   <Card title="Operator guide" icon="server" href="/operator/deployment/architecture">
-    Deploy and operate the UseZombie control plane.
+    Run the control plane yourself.
   </Card>
-  <Card title="Contributing" icon="code-pull-request" href="https://github.com/usezombie/usezombie/blob/main/docs/CONTRIBUTING.md">
-    Contribute to UseZombie on GitHub.
+  <Card title="Billing and credits" icon="dollar-sign" href="/billing/plans">
+    $10 tenant wallet, debit timing, Scale plan.
+  </Card>
+  <Card title="GitHub" icon="github" href="https://github.com/usezombie/usezombie">
+    Source, issues, design partners welcome.
   </Card>
 </Columns>
