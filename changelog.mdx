@@ -42,12 +42,6 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   - `zombiectl logs {id}` — repointed at the new events endpoint (the activity stream is gone). Same flag shape; row format now shows `actor` + `response_text` summary instead of `event_type` + `detail`.
 </Update>
 
-<Update label="Apr 27, 2026" tags={["Internal"]}>
-  ## Tightened internal Zig surface area
-
-  An audit pass narrowed `pub` visibility on 355 symbols across the Zig backend that were not referenced outside their declaring file, and added explicit caller-owned-allocator doc-comments to 21 heap-owning structs whose ownership was implicit in their `deinit` signatures. No user-visible API or CLI behavior changes.
-</Update>
-
 <Update label="Apr 27, 2026" tags={["Bug fixes", "API", "CLI", "Security"]}>
   ## Install actually works now: contract aligned, parser key matches the sample, doctor preflight tightened
 
