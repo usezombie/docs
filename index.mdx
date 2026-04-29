@@ -29,7 +29,7 @@ If you're thinking "this is what Microsandbox does for code execution" — yes, 
 
 <Columns cols={1}>
   <Card title="platform-ops" icon="github" href="/zombies/templates">
-    The flagship v2 zombie. Wakes on a GitHub Actions deploy-failure webhook, gathers evidence from the failed run, your hosting provider, and your data-plane, then posts an evidenced diagnosis to Slack. Same zombie is reachable manually via `zombiectl steer` for a morning health check. Read-only against GitHub, Fly, and Upstash; one write path (the Slack post).
+    The flagship v2 zombie. Wakes on a GitHub Actions deploy-failure webhook, gathers evidence from the failed workflow, your hosting provider, and your data-plane, then posts an evidenced diagnosis to Slack. Same zombie is reachable manually via `zombiectl steer` for a morning health check. Read-only against GitHub, Fly, and Upstash; one write path (the Slack post).
   </Card>
 </Columns>
 

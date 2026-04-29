@@ -57,7 +57,7 @@ zombiectl up
 
 ### `platform-ops`
 
-The flagship v2 sample. Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed run's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. Same zombie is reachable manually via `zombiectl steer {id}` for a morning health check. Read-only against GitHub, Fly, and Upstash; one write path (the Slack post).
+The flagship v2 sample. Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed workflow's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. Same zombie is reachable manually via `zombiectl steer {id}` for a morning health check. Read-only against GitHub, Fly, and Upstash; one write path (the Slack post).
 
 ```
 platform-ops/
