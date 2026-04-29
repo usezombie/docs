@@ -67,15 +67,6 @@ Approval gate repair loops executed by the worker when a gate claim/lease is dis
 |---|---|---|
 | `zombie_gate_repair_exhausted_total` | Counter | Gate-repair runs that hit the iteration cap without converging. |
 
-## Side-effect outbox
-
-Dead-letter counter for the reconciler daemon.
-
-| Metric | Type | Description |
-|---|---|---|
-| `zombie_side_effect_outbox_dead_letter_total` | Counter | Outbox rows dead-lettered by reconciliation (stuck-pending cleanup). |
-| `zombie_reconcile_running` | Gauge | `1` if the reconcile daemon is live; `0` otherwise. |
-
 ## API server liveness
 
 | Metric | Type | Description |

@@ -12,9 +12,7 @@ graph TD
         CMD --> Serve[serve.zig]
         CMD --> WorkerCmd[worker.zig]
         CMD --> Doctor[doctor.zig]
-        CMD --> Run[run.zig]
         CMD --> Migrate[migrate.zig]
-        CMD --> Reconcile[reconcile.zig]
         Main --> HTTP[src/http/]
         Main --> Pipeline[src/pipeline/]
         Main --> Executor[src/executor/]
@@ -40,7 +38,7 @@ graph TD
 | Directory | Language | Description |
 |-----------|----------|-------------|
 | `src/` | Zig | zombied server and worker. The core of the platform. |
-| `src/cmd/` | Zig | CLI subcommands for zombied (`serve`, `worker`, `doctor`, `run`, `migrate`, `reconcile`). |
+| `src/cmd/` | Zig | CLI subcommands for zombied (`serve`, `worker`, `doctor`, `migrate`). |
 | `src/http/` | Zig | HTTP route handlers for the REST API. |
 | `src/pipeline/` | Zig | Spec parsing, gate evaluation, and scorecard generation. |
 | `src/executor/` | Zig | Run execution engine. Manages sandbox lifecycle and agent orchestration. |
