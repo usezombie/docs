@@ -7,6 +7,12 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="Apr 29, 2026" tags={["Internal", "Performance"]}>
+  ## Streaming substrate hot-path cleanup
+
+  Internal performance pass on the worker → live-tail pipe surfaced by the Apr 28, 2026 streaming substrate review. JSON encoding for activity frames now reuses a per-event scratch buffer, eliminating the per-frame heap alloc on chunk-heavy responses (chunk-encode benchmark drops from ~43µs to ~2µs). The executor transport parses each progress frame once instead of twice (~46% faster). Each worker now opens a dedicated Redis client for activity PUBLISH so the per-frame publish no longer contends with stream commands on the queue client's mutex. The per-zombie events index now leads with `(zombie_id, created_at DESC, event_id DESC)` — covers the dashboard's primary view and keyset cursor pagination directly, where the prior actor-prefixed index forced a sort-and-scan. No user-visible behavior change; operators may notice steadier live-tail latency once concurrent dashboard tabs grow.
+</Update>
+
 <Update label="Apr 28, 2026" tags={["Breaking", "What's new", "API", "CLI", "UI"]}>
   ## Streaming substrate: every event has provenance, operators can steer, and live activity tails the dashboard
 
