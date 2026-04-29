@@ -55,29 +55,33 @@ zombiectl credential add github_token          --value=$GITHUB_TOKEN
 zombiectl up
 ```
 
-### `homelab`
+### `platform-ops`
 
-The flagship v2 sample. A diagnostic agent for Kubernetes / Docker homelabs — read-only, never holds your kubeconfig, worker runs inside your network. See [Homelab Zombie](/zombies/homelab) for the full narrative.
+The flagship v2 sample. Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed workflow's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. Same zombie is reachable manually via `zombiectl steer {id}` for a morning health check. Read-only against GitHub, Fly, and Upstash; one write path (the Slack post).
 
 ```
-homelab/
-├── SKILL.md         # "You are a homelab diagnostic agent..." + the read-only policy in prose
-└── TRIGGER.md       # webhook trigger, tools=[kubectl, docker, ssh], credential refs, budget
+platform-ops/
+├── SKILL.md         # diagnosis prompt, evidence-gathering flow, budget prose ≤ $8/month
+└── TRIGGER.md       # GitHub Actions webhook trigger, tools=[http_request], network allowlist, credential refs
 ```
 
-- **Tools:** `kubectl`, `docker`, `ssh`. Read-only policy lives as prose in `SKILL.md`.
-- **Credentials it expects:** `kube_<name>`, optionally `ssh_<name>`.
-- **Worker placement:** inside your homelab — kubeconfig never leaves your network.
+- **Tools:** `http_request` as the primary tool; `cron_add` gated on the operator asking for recurring polling.
+- **Credentials it expects:** `github = {host, api_token}`, `fly = {host, api_token}`, `upstash = {host, api_token}`, `slack = {host, bot_token}`.
+- **Network allowlist:** `api.github.com`, `api.fly.io`, `api.upstash.com`, `slack.com`.
+- **Budgets:** $1/day, $8/month.
 
 Scaffold and deploy:
 
 ```bash
-zombiectl install homelab
-zombiectl credential add kube_homelab --value="$(op read 'op://homelab/k3s/kubeconfig')"
+zombiectl install --from samples/platform-ops
+zombiectl credential add github  --host api.github.com  --api-token "$(op read 'op://github/api/token')"
+zombiectl credential add fly     --host api.fly.io      --api-token "$(op read 'op://fly/api/token')"
+zombiectl credential add upstash --host api.upstash.com --api-token "$(op read 'op://upstash/api/token')"
+zombiectl credential add slack   --host slack.com       --bot-token "$(op read 'op://slack/bot/token')"
 zombiectl up
 ```
 
-The full end-to-end — worker placement, Tailscale routing — lives in the [Operator quickstart](/operator/quickstart).
+Paste the webhook URL printed at install time into your GitHub repo's webhook settings, filtered to `workflow_run`.
 
 ## Writing your own template
 

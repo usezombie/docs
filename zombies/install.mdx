@@ -29,11 +29,18 @@ The `zombiectl` binary ships a small set of templates intended as MVP starting p
 | Template | What it does | Skills used |
 |----------|--------------|-------------|
 | `slack-bug-fixer` | Watches a Slack channel, identifies bug reports, opens a PR against the linked repo. | `slack`, `github` |
-| `homelab` | The flagship v2 sample — read-only `kubectl` / Docker diagnosis. See [Homelab Zombie](/zombies/homelab). | `kubectl`, `docker`, `ssh` (read-only policy in `SKILL.md`) |
 
 Run `zombiectl install` with no argument to see the current bundled set in the error output.
 
-For design references (`homebox-audit`, `migration-zombie`, `side-project-resurrector`) that are not yet bundled install targets, see the [zombies overview](/zombies/overview).
+## Path-based install: the flagship `platform-ops` sample
+
+The `platform-ops` zombie ships in the `usezombie/usezombie` repo at `samples/platform-ops/` rather than as a bundled template. Install it by path:
+
+```bash
+zombiectl install --from samples/platform-ops
+```
+
+What it does: wakes on a GitHub Actions deploy-failure webhook, gathers evidence from the failed workflow's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to Slack. Read-only against GitHub, Fly, and Upstash; the only write path is the Slack post. Required credentials: `github`, `fly`, `upstash`, `slack`. See [zombie templates](/zombies/templates) for the full walkthrough.
 
 ## File layout
 

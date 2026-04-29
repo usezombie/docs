@@ -10,7 +10,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 <Update label="Apr 28, 2026" tags={["Breaking", "What's new", "API", "CLI", "UI"]}>
   ## Streaming substrate: every event has provenance, operators can steer, and live activity tails the dashboard
 
-  Three things converge in this release. First, every event a zombie processes — operator steer, GitHub webhook, scheduled cron, M41 chunked continuation, M47 gate-resolved continuation — now lands on a single Redis stream with a normalized envelope and an `actor` field that carries provenance forward. Second, every event start and end is durably persisted in `core.zombie_events` with the request payload, the response, token count, wall time, and failure label, queryable through a new history endpoint with cursor pagination, actor glob filters, and a humanized `since=` parameter. Third, the dashboard now ships a live activity panel that streams tool calls, response chunks, and completion frames over Server-Sent Events with a sub-200 ms publish-to-receive budget.
+  Three things converge in this release. First, every event a zombie processes — operator steer, GitHub webhook, scheduled cron, chunked continuation for long responses, gate-resolved continuation — now lands on a single Redis stream with a normalized envelope and an `actor` field that carries provenance forward. Second, every event start and end is durably persisted in `core.zombie_events` with the request payload, the response, token count, wall time, and failure label, queryable through a new history endpoint with cursor pagination, actor glob filters, and a humanized `since=` parameter. Third, the dashboard now ships a live activity panel that streams tool calls, response chunks, and completion frames over Server-Sent Events with a sub-200 ms publish-to-receive budget.
 
   Operators get two new CLI subcommands. `zombiectl steer {id} "<message>"` POSTs to the new ingress, opens the SSE stream, and prints `[claw]` chunks as they arrive — Ctrl-C closes the watcher without killing the zombie. `zombiectl events {id}` paginates the history with `--actor=`, `--since=`, `--json`, and `--cursor=` filters.
 
@@ -24,8 +24,8 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   ## What's new
 
   - **One ingress, one durable record per event.** Every event landing on `zombie:{id}:events` produces exactly one new row in `core.zombie_events` (mutable, lifecycle-tracked), one new row in `zombie_execution_telemetry` (immutable billing audit), and one mutated row in `core.zombie_sessions`. All three reference the same `event_id`, so a single join key threads narrative, billing, and session state. Replays are idempotent via `ON CONFLICT DO NOTHING` on the composite key plus a unique constraint on telemetry.
-  - **Continuation actors stay flat with origin tags.** When M41 chunks a long response or M47 resolves a blocked gate, the new event re-enters the stream with `actor=continuation:<original_actor>` — never `continuation:continuation:...` no matter how deep the chain. A single `actor LIKE '%steer:kishore'` filter finds the origin and every continuation in one pass. Each continuation's `resumes_event_id` points at its immediate parent, so a recursive CTE walks the chain back to its origin.
-  - **`gate_blocked` events are visible but unresolvable until M47 ships.** The row enters terminal state with `status='gate_blocked'`, `failure_label` populated, and an XACK so the worker doesn't redeliver. Operators can see stranded events via `GET /events?actor=...`. The admin-resume fallback was deliberately dropped from this release; resolution is owned by the upcoming Approval Inbox.
+  - **Continuation actors stay flat with origin tags.** When chunking splits a long response or a blocked gate is resolved, the new event re-enters the stream with `actor=continuation:<original_actor>` — never `continuation:continuation:...` no matter how deep the chain. A single `actor LIKE '%steer:kishore'` filter finds the origin and every continuation in one pass. Each continuation's `resumes_event_id` points at its immediate parent, so a recursive CTE walks the chain back to its origin.
+  - **`gate_blocked` events are visible but unresolvable until the Approval Inbox ships.** The row enters terminal state with `status='gate_blocked'`, `failure_label` populated, and an XACK so the worker doesn't redeliver. Operators can see stranded events via `GET /events?actor=...`. The admin-resume fallback was deliberately dropped from this release; resolution is owned by the upcoming Approval Inbox.
   - **Dashboard live panel.** `/zombies/{id}` renders the new `<LiveEventsPanel />` above the event history table. Native `EventSource` connects to a same-origin Next Route Handler that mints an API-audience JWT server-side and proxies the upstream stream — the browser never holds the JWT, the backend never sees a cookie. Reconnects with exponential backoff capped at 15 s; rolling buffer of the last 20 frames.
 
   ## API reference
@@ -95,7 +95,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 <Update label="Apr 24, 2026" tags={["What's new", "Integrations"]}>
   ## `platform-ops` — flagship zombie for GitHub Actions deploy failures
 
-  A new zombie lives at `samples/platform-ops/`. It wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed run's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. Same zombie is reachable manually via `zombiectl steer {id}` for a morning health check or any operator-driven investigation. Read-only against GitHub, Fly, and Upstash; its one write path is the Slack post. Credentials are structured `{host, api_token}` / `{host, bot_token}` records in the workspace vault; raw token bytes are substituted into outbound HTTPS requests at the credential firewall, after the executor sandbox closes around the agent — they never reach the LLM context, logs, or database.
+  A new zombie lives at `samples/platform-ops/`. It wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed workflow's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. Same zombie is reachable manually via `zombiectl steer {id}` for a morning health check or any operator-driven investigation. Read-only against GitHub, Fly, and Upstash; its one write path is the Slack post. Credentials are structured `{host, api_token}` / `{host, bot_token}` records in the workspace vault; raw token bytes are substituted into outbound HTTPS requests at the credential firewall, after the executor sandbox closes around the agent — they never reach the LLM context, logs, or database.
 
   ## What's new
 
@@ -232,13 +232,8 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   ## What's new
 
   - **New quickstart.** Sign up → dashboard → create zombie → copy webhook URL → `curl` trigger → verify the credit debit in the billing UI. End-to-end in one page.
-  - **New CLI reference:** `/cli/zombie-lifecycle` — compact reference for `install`, `up`, `status`, `logs`, `kill`, `credential add` with copyable examples.
-  - **Self-hosting status page:** `/operator/quickstart` — an honest map of what ships today (systemd `zombied worker` on bare-metal, Zig API binary, local-dev compose for Postgres + Redis) vs. what's on the roadmap (containerized worker, `zombiectl worker token` lifecycle). A dedicated "Self-hosting" group now collects every operator page in the sidebar.
-  - **Four new zombie pages** under `/zombies/`:
-    - `/zombies/homelab` — the flagship Homelab Zombie (`kubectl` / Docker diagnosis without holding the kubeconfig).
-    - `/zombies/homebox-audit` — quarterly self-hosted-stack audit.
-    - `/zombies/migration-zombie` — mechanical codebase migrations.
-    - `/zombies/side-project-resurrector` — revive a dormant side-project repo.
+  - **New CLI reference** at [`/cli/zombiectl`](/cli/zombiectl) — every `zombiectl` command with copyable examples.
+  - **Self-hosting section** under [`/operator`](/operator/deployment/architecture) — deployment architecture, configuration, security, observability, and operations pages for running the control plane yourself.
   - **Concepts page updated** to cover the four nouns (tenant, workspace, zombie, skill) and the tenant-scoped credit model.
   - **Billing pages** rewritten around the single-wallet, multi-workspace model.
 
@@ -405,16 +400,6 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   ## Zombie credit metering
 
   Free-plan zombies deduct from `consumed_credit_cents` after each successful delivery at 1 cent per agent-second; Scale is unlimited and short-circuits without a DB write. Crash replay is idempotent on `event_id`, and a DB hiccup never drops or double-charges an event.
-</Update>
-
-<Update label="Apr 11, 2026" tags={["Internal"]}>
-  ## Scoring infrastructure removed (M10_004)
-
-  The legacy agent scoring pipeline had no callers after the zombie execution model replaced
-  it. All dead code has been removed: scoring Prometheus gauges, PostHog scoring events,
-  scoring atomic counters, and the scoring duration histogram. The billing summary endpoint
-  (`GET /v1/workspaces/:id/billing/summary`) now returns zeros correctly instead of 500-ing
-  against dropped tables. No user-visible API changes.
 </Update>
 
 <Update label="April 11, 2026" tags={["New releases", "Zombies", "API"]}>

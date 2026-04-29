@@ -69,7 +69,7 @@ slack-bug-fixer/
 
 Open `TRIGGER.md` and tighten the budget if you want — the default is `$5/day, $29/month`, which is plenty for the smoke test.
 
-If you want to explore other starting points, see the [flagship Homelab Zombie](/zombies/homelab) or the full [zombies index](/zombies/overview).
+If you want to explore other starting points, see the [flagship platform-ops zombie](/zombies/templates) or the full [zombies index](/zombies/overview).
 
 ## Step 4. Start the zombie and copy its webhook URL
 
@@ -136,16 +136,16 @@ zombiectl kill slack-bug-fixer
 ## What's next
 
 <CardGroup cols={3}>
-  <Card title="Homelab Zombie" icon="house" href="/zombies/homelab">
-    The flagship sample — diagnose kubectl / docker without holding the kubeconfig.
+  <Card title="platform-ops zombie" icon="github" href="/zombies/templates">
+    The flagship sample — wakes on a GitHub Actions deploy failure, posts an evidenced diagnosis to Slack.
   </Card>
   <Card title="Key concepts" icon="book" href="/concepts">
     Tenants, workspaces, zombies, skills — how they relate and how credits flow.
   </Card>
-  <Card title="CLI reference" icon="rectangle-terminal" href="/cli/zombie-lifecycle">
+  <Card title="CLI reference" icon="rectangle-terminal" href="/cli/zombiectl">
     Every `zombiectl` command you'll use day-to-day.
   </Card>
-  <Card title="Self-hosted operator" icon="server" href="/operator/quickstart">
+  <Card title="Self-hosted operator" icon="server" href="/operator/deployment/architecture">
     Run the full control plane inside your own network.
   </Card>
   <Card title="Add a credential" icon="key" href="/zombies/credentials">

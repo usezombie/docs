@@ -32,16 +32,7 @@
               "zombies/credentials",
               "zombies/webhooks",
               "zombies/skills",
-              "zombies/templates",
-              {
-                "group": "Sample zombies",
-                "pages": [
-                  "zombies/homelab",
-                  "zombies/homebox-audit",
-                  "zombies/migration-zombie",
-                  "zombies/side-project-resurrector"
-                ]
-              }
+              "zombies/templates"
             ]
           },
           {
@@ -61,7 +52,6 @@
           {
             "group": "Self-hosting",
             "pages": [
-              "operator/quickstart",
               "operator/deployment/architecture",
               "operator/deployment/api-server",
               "operator/deployment/executor",
@@ -86,7 +76,6 @@
             "pages": [
               "cli/install",
               "cli/zombiectl",
-              "cli/zombie-lifecycle",
               "cli/flags",
               "cli/configuration"
             ]

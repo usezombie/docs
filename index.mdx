@@ -27,18 +27,9 @@ If you're thinking "this is what Microsandbox does for code execution" — yes, 
 
 ## What you can run
 
-<Columns cols={2}>
-  <Card title="Homelab Zombie" icon="house" href="/zombies/homelab">
-    Diagnose `kubectl` / Docker issues in your homelab. Read-only, never holds your kubeconfig. The flagship v2 sample.
-  </Card>
-  <Card title="Homebox Audit" icon="shield-halved" href="/zombies/homebox-audit">
-    Quarterly audit of your self-hosted stack — outdated containers, expiring TLS, default credentials, exposed ports.
-  </Card>
-  <Card title="Migration Zombie" icon="arrow-right-arrow-left" href="/zombies/migration-zombie">
-    Mechanical codebase migrations: Node 18→22, CommonJS→ESM, Jest→Vitest. Sleep, wake up to a PR.
-  </Card>
-  <Card title="Side-Project Resurrector" icon="wand-magic-sparkles" href="/zombies/side-project-resurrector">
-    Revive a 2022 side-project repo. Clone, build, diagnose rot, update deps, open a PR.
+<Columns cols={1}>
+  <Card title="platform-ops" icon="github" href="/zombies/templates">
+    The flagship v2 zombie. Wakes on a GitHub Actions deploy-failure webhook, gathers evidence from the failed workflow, your hosting provider, and your data-plane, then posts an evidenced diagnosis to Slack. Same zombie is reachable manually via `zombiectl steer` for a morning health check. Read-only against GitHub, Fly, and Upstash; one write path (the Slack post).
   </Card>
 </Columns>
 
@@ -74,10 +65,10 @@ If you're thinking "this is what Microsandbox does for code execution" — yes, 
   <Card title="Key concepts" icon="book" href="/concepts">
     Tenants, workspaces, zombies, skills — the four nouns.
   </Card>
-  <Card title="CLI reference" icon="rectangle-terminal" href="/cli/zombie-lifecycle">
+  <Card title="CLI reference" icon="rectangle-terminal" href="/cli/zombiectl">
     Every `zombiectl` command, with examples.
   </Card>
-  <Card title="Operator guide" icon="server" href="/operator/quickstart">
+  <Card title="Operator guide" icon="server" href="/operator/deployment/architecture">
     Run the control plane yourself.
   </Card>
   <Card title="Billing and credits" icon="dollar-sign" href="/billing/plans">
