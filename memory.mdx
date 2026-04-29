@@ -109,17 +109,17 @@ Frontmatter is structured metadata. The body is free-form distilled prose the ag
 
 ## Runtime flow (generic — same for every zombie)
 
-```
-[Event starts]
-    → memory_recall(entity_key)       — pull context for this specific thing
-    → memory_list(tag="workspace")     — pull workspace preferences
-    → memory_list(category="daily")    — check scheduled actions
-    → [agent reasons, takes action]
-    → memory_store(entity_key, ...)    — update what was learned
-    → memory_store(followup, daily)    — schedule any needed follow-up
-[Event ends, workspace destroyed]
-[core and daily memory persist in the memory DB]
-[conversation memory dies with the workspace]
+```mermaid
+flowchart TD
+    A([Event starts]) --> B["memory_recall(entity_key)<br/>pull context for this specific thing"]
+    B --> C["memory_list(tag='workspace')<br/>pull workspace preferences"]
+    C --> D["memory_list(category='daily')<br/>check scheduled actions"]
+    D --> E[Agent reasons, takes action]
+    E --> F["memory_store(entity_key, ...)<br/>update what was learned"]
+    F --> G["memory_store(followup, daily)<br/>schedule any needed follow-up"]
+    G --> H([Event ends, workspace destroyed])
+    H --> I[(core + daily memory<br/>persist in memory DB)]
+    H --> J[(conversation memory<br/>dies with workspace)]
 ```
 
 The two memory touchpoints are at the **start** (recall, before deciding) and the **end** (store, after deciding). Anything in the middle writing to memory is probably a bug — that's scratch that belongs in `conversation`.
@@ -193,29 +193,27 @@ If recall-hit rate stays near zero after a week of operation, the skill template
 
 ## End-to-end flow
 
-```
-[external trigger fires — email / webhook / Slack event / cron]
-    → event starts
-        → memory_recall × N (template-prescribed lookups from the trigger payload)
-            → emit memory.recall.hit | memory.recall.miss per lookup
-        → agent reasons using recalled context + incoming trigger
-        → agent takes action (tool calls logged to core.zombie_events)
-            → approval gate branch if action is high-impact (Slack/Discord DM or dashboard)
-        → memory_store × M (distilled facts learned this event)
-            → emit memory.store.ok | memory.store.full per write
-    → event ends
+```mermaid
+flowchart TD
+    T([External trigger<br/>email / webhook / Slack / cron]) --> S[Event starts]
+    S --> R["memory_recall × N<br/>template-prescribed lookups<br/>emit memory.recall.hit | miss"]
+    R --> A[Agent reasons with recalled context]
+    A --> X["Agent takes action<br/>tool calls logged to core.zombie_events"]
+    X --> G{High-impact<br/>action?}
+    G -- Yes --> AP[Approval gate<br/>Slack / Discord / dashboard]
+    AP --> ST["memory_store × M<br/>distilled facts learned this event<br/>emit memory.store.ok | full"]
+    G -- No --> ST
+    ST --> E([Event ends])
 
-[separately, async — operator at their leisure]
-    → opens replay UI
-        → reads core.zombie_events (timeline of what happened)
-        → reads memory.memory_entries (what the zombie now knows)
-    → optional: chat to steer → memory_store("steering:...", ...)
-    → optional: thumbs-down on a wrong draft → INSERT INTO memory_feedback
+    OP([Operator, async]) --> RU[Opens replay UI]
+    RU --> RE[Reads core.zombie_events]
+    RU --> RM[Reads memory.memory_entries]
+    OP --> CS["Chat to steer<br/>memory_store('steering:...', ...)"]
+    OP --> TD[Thumbs-down on wrong draft<br/>INSERT INTO memory_feedback]
 
-[separately, async — every 5 min]
-    → memory_metrics aggregator reads zombie_events + memory_feedback
-    → writes rolled-up rates keyed by zombie_id
-    → dashboard panel + Grafana read the pre-computed rates
+    AGG([Aggregator, every 5 min]) --> AR[Reads zombie_events + memory_feedback]
+    AR --> AW[Writes rolled-up rates by zombie_id]
+    AW --> AD[Dashboard + Grafana]
 ```
 
 Two surfaces the operator looks at, and they're different tables:
