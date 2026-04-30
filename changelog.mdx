@@ -7,6 +7,37 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="Apr 29, 2026" tags={["Breaking", "API", "CLI"]}>
+  ## Frontmatter cleanup: runtime config moves under `x-usezombie:`
+
+  TRIGGER.md frontmatter no longer carries runtime keys at the top level. `tools`, `credentials`, `network`, `budget`, and `trigger` now live under a single `x-usezombie:` block. Top-level stays minimal — just `name:` for cross-file identity. SKILL.md gains validated authoring metadata: `name`, `description`, and `version` are required at the top level; `tags`, `author`, `model`, and `when_to_use` pass through. Install rejects any bundle whose SKILL.md `name:` does not match TRIGGER.md `name:`.
+
+  ## Upgrading
+
+  Every existing zombie bundle needs both files updated. The migration is mechanical:
+
+  1. **TRIGGER.md** — add `x-usezombie:` at the top level and indent your existing `trigger:`, `tools:`, `credentials:`, `network:`, and `budget:` blocks under it. Keep `name:` at the top.
+  2. **SKILL.md** — ensure the frontmatter has `name:`, `description:`, and `version:`. Make `name:` exactly match the value in TRIGGER.md.
+  3. **`zombiectl install --from <dir>`** parses both files and reports field-level errors. Re-run until clean.
+
+  See [Authoring skills](/zombies/skills) for the canonical shape and a working `platform-ops-zombie` example.
+
+  ## What's new
+
+  - **Disciplined parser.** Unknown subkeys under `x-usezombie:` fail loud (`UnknownRuntimeKey`) so typos surface at install instead of degrading silently. Top-level keys stay permissive — drop in `x-amp:` or other vendor blocks without breaking install.
+  - **Cross-file identity.** `name:` must match across SKILL.md and TRIGGER.md. One identity per zombie bundle, enforced at install.
+  - **Real YAML.** The bespoke YAML→JSON converter is replaced with `kubkon/zig-yaml` 0.2.0. Multi-line strings, escapes, the standard scalar tags, and arbitrary nesting depth all work as you'd expect from any YAML 1.2 tool.
+
+  ## API reference
+
+  Two new error codes from `POST /v1/workspaces/{ws}/zombies`:
+
+  - `UZ-ZMB-008` — `MSG_ZOMBIE_INVALID_CONFIG` now also fires when SKILL.md frontmatter is malformed or missing required fields.
+  - `UZ-ZMB-011` — `MSG_ZOMBIE_NAME_MISMATCH`. Returned when SKILL.md `name:` and TRIGGER.md `name:` disagree.
+
+  Internal SQL paths into `core.zombies.config_json` move from `config_json->'trigger'->...` to `config_json->'x-usezombie'->'trigger'->...`. No external surface change; mentioned for operators reading raw rows.
+</Update>
+
 <Update label="Apr 29, 2026" tags={["What's new", "API", "UI"]}>
   ## Approval inbox: pending gates surface in Mission Control, resolve from the browser
 

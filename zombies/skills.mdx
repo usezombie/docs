@@ -17,132 +17,171 @@ my-zombie/
 
 ## `SKILL.md` — agent instructions
 
-`SKILL.md` is plain markdown. The whole file is handed to the agent as its system prompt on every event delivery. Everything the agent knows about its job comes from here.
+`SKILL.md` is plain markdown. The body is handed to the agent as its system prompt on every event. The frontmatter at the top carries small authoring metadata.
 
-Good practice:
+### Frontmatter
+
+```yaml
+---
+name: platform-ops-zombie          # required, must match TRIGGER.md
+description: Diagnoses platform health from fly.io and upstash, posts to Slack.
+version: 0.1.0                     # required, semver
+when_to_use: ...                   # optional
+tags: [platform-ops, diagnostics]  # optional
+author: usezombie                  # optional
+model: claude-sonnet-4-6           # optional, hint
+---
+```
+
+| Field | Required | Purpose |
+|---|---|---|
+| `name` | yes | Identity. Must equal `TRIGGER.md` `name:` (install rejects mismatch). |
+| `description` | yes | One-line summary, ≤200 chars. |
+| `version` | yes | Semver string. |
+| `when_to_use`, `tags`, `author`, `model` | no | Pass-through metadata. |
+
+Unknown top-level keys are accepted silently — drop in vendor-specific extras (`x-amp:`, etc.) without breaking install.
+
+### Body
+
+Plain markdown. The whole body becomes the agent's system prompt.
 
 - **State the role plainly.** "You are a lead qualification agent." First sentence.
 - **List the event shape.** What arrives on the webhook? Name the fields.
-- **Give an explicit procedure.** Numbered steps beat prose. The agent will follow them.
-- **Name the skills it can invoke.** Match the names to the `skills:` list in `TRIGGER.md`.
+- **Give an explicit procedure.** Numbered steps beat prose.
+- **Name the tools it can invoke.** Match the names to the `tools:` list in `TRIGGER.md`.
 - **Call out hard no-go behaviors.** "Never promise a demo time." "Never post to #general."
-- **Keep it short.** Every token in `SKILL.md` is paid for on every event. Aim for under 1500 tokens.
+- **Keep it short.** Every token is paid on every event. Aim for under 1,500 tokens.
 
 ```markdown SKILL.md
-You are a lead qualification agent.
+---
+name: platform-ops-zombie
+description: Diagnoses platform health from fly.io and upstash, posts to Slack.
+version: 0.1.0
+---
 
-When an email arrives on the `email.received` event, you get:
-  - from      (string)
-  - subject   (string)
-  - body      (string, may be HTML)
+You are Platform Ops Zombie. You diagnose problems in a small production
+platform that runs on fly.io (app hosting) and upstash (managed Redis).
+You are strictly read-only against fly and upstash; your one write path
+is to post a plain-text summary into one Slack channel.
 
-Procedure:
-1. Read `from` and `subject`.
-2. If it looks like a real sales inquiry, invoke `agentmail.reply` with a short,
-   friendly acknowledgement. Tag the thread `qualified`.
-3. If it looks like noise, do nothing and append a one-line reason to the
-   activity stream.
+When an operator chats with you, gather evidence in this order:
+1. List fly apps in the org. Note any not in `started` state.
+2. For each suspect app, fetch recent logs via the fly API.
+3. Pull upstash redis stats — connection counts, slow log, memory.
+4. Correlate fly errors with redis pressure and post a one-paragraph
+   summary to Slack with the failing app, the leading hypothesis, and
+   the evidence link.
 
-Never promise a demo time. Never quote prices. Never invoke `agentmail.reply`
-more than once per event.
+Never deploy, scale, restart, or flush. Never quote a fix as certain —
+always frame as "leading hypothesis" and let the human decide.
 ```
 
 ## `TRIGGER.md` — machine-readable config
 
-`TRIGGER.md` is YAML frontmatter plus an optional markdown body (the body is a free-form human description that appears in Mission Control; it is not parsed).
+`TRIGGER.md` carries the runtime contract: trigger source, allowed tools, vault credential references, network allowlist, and budget caps. Everything that controls security, cost, or scheduling lives here. The body below the frontmatter is operator-facing prose (credential shapes, budget rationale, etc.) — the runtime does not parse it.
 
-### Required fields
-
-| Field | Type | Purpose |
-|-------|------|---------|
-| `name` | string | Display name; used as the kill target and in status output. |
-| `trigger.type` | string | Today only `webhook` is supported. |
-| `budget` | object | Daily and monthly dollar caps; see below. |
-
-### Optional fields
-
-| Field | Type | Purpose |
-|-------|------|---------|
-| `trigger.source` | string | Upstream provider id — selects the webhook signature scheme for first-class providers (`agentmail`, `slack`, `github`, `linear`, `jira`, `grafana`, `clerk`). |
-| `trigger.event` | string | Provider-specific event filter (e.g. `message.received`). |
-| `trigger.signature.secret_ref` | string | Vault key name whose value verifies incoming webhook signatures (first-class providers). |
-| `credentials` | list of strings | Vault key names the zombie reads at event time. Must all exist in the workspace vault. |
-| `skills` | list of strings | Explicit skill allowlist. When present, the agent can only invoke operations on these skills. |
-| `chain` | list of strings | Names of zombies to hand off to after this zombie finishes an event. |
-| `network.allow` | list of strings | Outbound hostname allowlist enforced by the credential firewall. |
-
-### Full example
+### Shape
 
 ```yaml
 ---
-name: slack-bug-fixer
-trigger:
-  type: webhook
-  source: slack
-  event: message.posted
-skills:
-  - slack
-  - github
-credentials:
-  - slack_bot_token
-  - github_pat
-budget:
-  daily_dollars: 5.0
-  monthly_dollars: 29.0
-network:
-  allow:
-    - slack.com
-    - api.github.com
+name: platform-ops-zombie   # top level — must match SKILL.md `name:`
+
+x-usezombie:                # all runtime config nests under this key
+  trigger:
+    type: api               # operator chats via /steer; events arrive as event_type: chat
+  tools:
+    - http_request
+    - memory_recall
+    - memory_store
+    - cron_add
+    - cron_list
+    - cron_remove
+  credentials:
+    - fly
+    - upstash
+    - slack
+  network:
+    allow:
+      - api.machines.dev
+      - api.upstash.com
+      - slack.com
+  budget:
+    daily_dollars: 1.00
+    monthly_dollars: 8.00
 ---
 
-This zombie triages bug reports in a Slack channel.
+# Operator commentary about credential shapes, budget reasoning,
+# firewall behavior — readable by humans, ignored by the runtime.
 ```
 
-### Tool bindings
+### Top level
 
-The `skills:` list is the tool binding when present. The platform ships a catalog of skills (`agentmail`, `slack`, `git`, `github`, `linear`, `jira`, `grafana`, `clerk`, and a generic `http`). Each skill exposes named operations (`agentmail.reply`, `slack.post_message`, `github.open_pr`, ...) that the agent can invoke from `SKILL.md`.
+| Field | Required | Purpose |
+|---|---|---|
+| `name` | yes | Identity. Must equal `SKILL.md` `name:`. |
+| `x-usezombie` | yes | Runtime config block. Required subkeys below. |
 
-When `skills:` is declared, the agent can only invoke operations that belong to a skill named in the list; a compromised or jailbroken agent cannot reach outside this allow-list. When `skills:` is omitted, the platform binds skills implicitly from the `credentials:` list and the `network.allow` hostnames.
+Top-level keys other than `name`/`x-*` are accepted silently. Runtime keys (`tools`, `credentials`, `network`, `budget`, `trigger`) **must not** appear at the top level — they belong inside `x-usezombie:`.
 
-### Credential references
+### `x-usezombie:` subkeys
 
-Under `credentials:`, every entry is a **bare vault key name** — no URI scheme, no path. The firewall resolves each name against the workspace vault at the moment of the skill call; the agent sees the skill's response, never the resolved secret. See [Credentials](/zombies/credentials) for how to add, rotate, and list vault entries.
+Validation under this block is rigid: an unknown subkey is rejected with a typo hint. All listed subkeys are required unless marked optional.
 
-### Budgets
+| Subkey | Required | Purpose |
+|---|---|---|
+| `trigger.type` | yes | One of `webhook` \| `cron` \| `api` \| `chain`. |
+| `trigger.source` | per type | Required for `webhook` and `chain`. |
+| `trigger.event` | optional | Provider-specific event filter (e.g. `message.received`). |
+| `trigger.signature.secret_ref` | optional | Vault key whose value verifies webhook signatures (first-class providers). |
+| `tools` | yes | Non-empty list of tool names from the platform catalog. |
+| `credentials` | optional | Vault key names the zombie reads at event time. |
+| `network.allow` | yes | Outbound hostname allowlist enforced by the credential firewall. |
+| `budget.daily_dollars` | yes | Rolling 24-hour dollar ceiling. |
+| `budget.monthly_dollars` | optional | Calendar-month dollar ceiling. |
 
-Under `budget:`, you cap spend with two dollar ceilings. Both are enforced by the billing subsystem; a breach terminates the event processing cleanly and records a `budget_breach` entry in the activity stream. Subsequent events in a later billing window are unaffected.
+### Tools
 
-| Field | Purpose |
-|-------|---------|
-| `daily_dollars` | Rolling 24-hour dollar ceiling for this zombie. |
-| `monthly_dollars` | Calendar-month dollar ceiling for this zombie. |
+The `tools:` list is the explicit allowlist of platform-catalog tools the agent may invoke (`agentmail`, `slack`, `git`, `github`, `linear`, `jira`, `grafana`, `clerk`, generic `http_request`, plus the built-in `memory_*` and `cron_*` tools). A compromised or jailbroken agent cannot reach outside this list.
 
-Workspace-level budgets (across all zombies in the workspace) are configured separately in [Billing](/billing/budgets).
+### Credentials
+
+Each entry under `credentials:` is a **bare vault key name** — no URI scheme, no path. The firewall resolves the name at tool-call time; the agent sees the tool's response, never the raw secret. Add and rotate via [Credentials](/zombies/credentials).
 
 ### Network allowlist
 
-Under `network.allow:`, list every hostname the zombie's skills are allowed to reach. Outbound requests to other hostnames are dropped by the firewall before they leave the sandbox. This is a belt-and-suspenders control layered on top of the skill allowlist — even if a skill is bound, it can only dial the hostnames you have approved here.
+`network.allow:` is enforced by the sandbox firewall: outbound HTTPS to any hostname not on the list is dropped before it leaves the sandbox. Layered on top of the tool allowlist as a belt-and-suspenders control.
+
+### Budgets
+
+| Field | Purpose |
+|---|---|
+| `daily_dollars` | Rolling 24-hour dollar ceiling for this zombie. |
+| `monthly_dollars` | Calendar-month dollar ceiling. |
+
+A breach terminates the in-flight event cleanly and records a `budget_breach` entry. Subsequent events in a later billing window are unaffected. Workspace-wide budgets live in [Billing](/billing/budgets).
+
+## Common authoring mistakes
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `RuntimeKeysOutsideBlock` at install | `tools:`, `credentials:`, etc. at the top of TRIGGER.md | Indent them under `x-usezombie:`. |
+| `UnknownRuntimeKey` at install | Typo in a runtime subkey (e.g. `crendentials:` instead of `credentials:`) | Fix the spelling, or remove the key. Validation under `x-usezombie:` is strict. |
+| `name_mismatch` at install | SKILL.md and TRIGGER.md disagree on `name:` | One identity per bundle. Make both top-level `name:` values equal. |
+| `MissingRequiredField` for SKILL.md | `name`, `description`, or `version` missing from SKILL.md frontmatter | All three are required at the top level. |
 
 ## Validation
 
-`zombiectl up` validates both files client-side before upload:
-
-- `TRIGGER.md` frontmatter must parse as YAML.
-- `name`, `trigger.type`, `budget` must be present.
-- Every name under `credentials:` must exist in the current workspace vault.
-- Every skill name under `skills:` (when declared) must exist in the platform catalog.
-
-Errors are reported with file + line where possible.
+`zombiectl install --from <dir>` reads both files and posts them to the server, which runs the same parser the runtime uses. Errors are returned with the field at fault.
 
 ```bash
-zombiectl up
+zombiectl install --from ./my-zombie
 ```
 
 ```
-✗ TRIGGER.md: unknown credential 'agentmail' — is it in the workspace vault?
-  at line 6: credentials:
-              - agentmail
-  hint: run `zombiectl credential list` to see what is stored.
+✗ install rejected: name_mismatch
+  SKILL.md name: platform-ops-zombie
+  TRIGGER.md name: platform-ops-zombe    ← typo
 ```
 
 ## Next
