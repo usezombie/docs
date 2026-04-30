@@ -89,7 +89,7 @@ name: platform-ops-zombie   # top level — must match SKILL.md `name:`
 
 x-usezombie:                # all runtime config nests under this key
   trigger:
-    type: chat
+    type: api               # operator chats via /steer; events arrive as event_type: chat
   tools:
     - http_request
     - memory_recall
@@ -142,7 +142,7 @@ Validation under this block is rigid: an unknown subkey is rejected with a typo 
 
 ### Tools
 
-The `tools:` list is the explicit allowlist of platform-catalog tools the agent may invoke (`agentmail`, `slack`, `git`, `github`, `linear`, `jira`, `grafana`, `clerk`, generic `http`, plus the built-in `memory_*` and `cron_*` tools). A compromised or jailbroken agent cannot reach outside this list.
+The `tools:` list is the explicit allowlist of platform-catalog tools the agent may invoke (`agentmail`, `slack`, `git`, `github`, `linear`, `jira`, `grafana`, `clerk`, generic `http_request`, plus the built-in `memory_*` and `cron_*` tools). A compromised or jailbroken agent cannot reach outside this list.
 
 ### Credentials
 
@@ -166,7 +166,7 @@ A breach terminates the in-flight event cleanly and records a `budget_breach` en
 | Symptom | Cause | Fix |
 |---|---|---|
 | `RuntimeKeysOutsideBlock` at install | `tools:`, `credentials:`, etc. at the top of TRIGGER.md | Indent them under `x-usezombie:`. |
-| `UnknownRuntimeKey` at install | Typo in a runtime subkey (e.g. `contxt:` instead of nothing — drop it) | Fix the spelling, or remove the key. Validation under `x-usezombie:` is strict. |
+| `UnknownRuntimeKey` at install | Typo in a runtime subkey (e.g. `crendentials:` instead of `credentials:`) | Fix the spelling, or remove the key. Validation under `x-usezombie:` is strict. |
 | `name_mismatch` at install | SKILL.md and TRIGGER.md disagree on `name:` | One identity per bundle. Make both top-level `name:` values equal. |
 | `MissingRequiredField` for SKILL.md | `name`, `description`, or `version` missing from SKILL.md frontmatter | All three are required at the top level. |
 
