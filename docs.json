@@ -111,7 +111,7 @@
             "pages": [
               "POST /v1/auth/sessions",
               "GET /v1/auth/sessions/{session_id}",
-              "POST /v1/auth/sessions/{session_id}/complete",
+              "PATCH /v1/auth/sessions/{session_id}",
               "GET /v1/github/callback"
             ]
           },
@@ -119,7 +119,7 @@
             "group": "Workspaces",
             "pages": [
               "POST /v1/workspaces",
-              "POST /v1/workspaces/{workspace_id}/pause"
+              "PATCH /v1/workspaces/{workspace_id}"
             ]
           },
           {
