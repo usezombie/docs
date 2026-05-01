@@ -7,6 +7,41 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="May 1, 2026" tags={["Breaking", "API"]}>
+  ## URL hygiene: `/steer` becomes `/messages`, `/memory/*` collapses into `/memories`
+
+  Two REST endpoints lose their verb-shaped URLs in favor of resource collections, and the in-process router moves to a segment-based matcher under the hood. Pre-v1.0 carve-out applies — old URLs return `404`, not `410`, and there is no compatibility shim.
+
+  ## Upgrading
+
+  Two URL renames. CLI and server should upgrade together.
+
+  1. **Steering a zombie.** `POST /v1/workspaces/{ws}/zombies/{zid}/steer` → `POST /v1/workspaces/{ws}/zombies/{zid}/messages`. Request body shape is unchanged. The CLI subcommand stays `zombiectl zombie steer` — verb on the CLI, noun on the wire.
+  2. **Memory tools.** Four verb endpoints collapse into one resource:
+     - `POST /v1/memory/store` → `POST /v1/workspaces/{ws}/zombies/{zid}/memories`
+     - `GET /v1/memory/recall?...` → `GET /v1/workspaces/{ws}/zombies/{zid}/memories?query=...`
+     - `GET /v1/memory/list?...` → `GET /v1/workspaces/{ws}/zombies/{zid}/memories` (omit `?query=`)
+     - `POST /v1/memory/forget` → `DELETE /v1/workspaces/{ws}/zombies/{zid}/memories/{memory_key}`
+
+     `DELETE` is now idempotent — a missing key returns `204 No Content` with an empty body. The previous `{"deleted": true|false}` response is gone.
+
+     `zombie_id` is a path segment everywhere — drop it from the query string. The `memory_store` / `memory_recall` agent-tool names are unchanged; this is the HTTP surface only.
+
+  ## What's new
+
+  - **Stricter routing.** The dispatcher now parses each request path into segments once at the boundary, so `//` and trailing slashes no longer silently match wrong handlers. Malformed paths return `404` deterministically.
+  - **Single source of truth for `v1`.** The version literal lives in exactly one place in the router. Adding a future `v2` is a one-line change.
+
+  ## API reference
+
+  - `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/messages` — same body and response as the retired `/steer`.
+  - `GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/memories?query=&category=&limit=` — list-or-search collection. Presence of `?query=` flips behavior from list-most-recent to fuzzy search across key and content.
+  - `POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/memories` — store a single entry.
+  - `DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}/memories/{memory_key}` — idempotent `204`.
+
+  Retired URLs (`/v1/workspaces/{workspace_id}/zombies/{zombie_id}/steer`, `/v1/memory/{store,recall,list,forget}`) return `404` with no body.
+</Update>
+
 <Update label="Apr 30, 2026" tags={["Breaking", "API", "CLI"]}>
   ## REST cleanup: `/complete` and `/kill` move to PATCH on the resource. Config hot-reload lands.
 
