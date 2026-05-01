@@ -42,6 +42,46 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   Retired URLs (`/v1/workspaces/{workspace_id}/zombies/{zombie_id}/steer`, `/v1/memory/{store,recall,list,forget}`) return `404` with no body.
 </Update>
 
+<Update label="Apr 30, 2026" tags={["Breaking", "API", "CLI"]}>
+  ## REST cleanup: `/complete` and `/kill` move to PATCH on the resource. Config hot-reload lands.
+
+  Two legacy verb-suffix endpoints retire in favor of PATCH on the underlying resource. Completing an auth session and killing a zombie now ride a single PATCH per resource — closer to standard REST semantics, easier to discover from OpenAPI, and consistent with how every other workspace and zombie field already behaves. Alongside the rename, zombie config edits now hot-reload mid-loop: an operator updating `core.zombies.config_json` from Mission Control sees the new tools, network policy, and context budget take effect on the running worker without restarting the zombie thread. The control-stream signal that already existed for kills now also carries config-revision changes; the worker reparses, swaps the in-memory config, and frees the old allocation between events.
+
+  ## Upgrading
+
+  Every CLI/SDK call against the retired URLs needs an update. The CLI commands themselves (`zombiectl kill`, `zombiectl login`) are unchanged — they always wrapped these URLs internally. Direct API consumers must migrate:
+
+  - `POST /v1/workspaces/{ws}/zombies/{zombie_id}/kill` → `PATCH /v1/workspaces/{ws}/zombies/{zombie_id}` with body `{ "status": "killed" }`. Same auth, same response shape. Re-killing a killed zombie still returns 404 (idempotent-fail).
+  - `POST /v1/auth/sessions/{session_id}/complete` → `PATCH /v1/auth/sessions/{session_id}` with body `{ "status": "complete", "token": "<user-jwt>" }`. The response now mirrors the GET poll shape (`{ status, token, request_id }`).
+  - `POST /v1/workspaces/{ws}/zombies/{zombie_id}/steer` is **unchanged** in this release. The steer rename to `POST /events` with a polymorphic body is scheduled for the next URL hygiene pass.
+
+  Both retired URLs return 404 — no 410 stub. CLI and server may be upgraded independently; the CLI was already issuing the new shapes before this release and nothing else in `zombiectl` needs to change.
+
+  ## What's new
+
+  - **Config hot-reload mid-loop.** Edit a zombie's config in Mission Control (or via `PATCH /v1/.../zombies/{id}` with `config_json`) and the running worker observes the new revision between events. Tools list, network allowlist, secrets map, and the three context-budget knobs (`tool_window`, `memory_checkpoint_every`, `stage_chunk_threshold`) all swap on the next event boundary. The old config is freed in the same step — no memory leaks on config swap.
+  - **One PATCH for combined updates.** `PATCH /v1/.../zombies/{id}` accepts `{ config_json, status }` together. Setting both in one request issues one SQL update and one control-stream signal per dirty surface, so a config-and-kill in one request stays atomic.
+  - **Cleaner OpenAPI surface.** The bundled spec at `/openapi.json` shed three verb-suffix paths and three pending-rename carve-outs. Slack and GitHub OAuth callbacks moved to a separate vendor-immortal classification — they're still pinned, but the API hygiene gate now distinguishes external contracts from internal cleanup debt.
+
+  ## API reference
+
+  **Updated routes (the substantive shape changes):**
+
+  - `PATCH /v1/workspaces/{workspace_id}/zombies/{zombie_id}` — body is partial: `{ config_json?, status? }`. Both fields optional; an empty body is a 200 no-op. When `status` is set it must equal `"killed"`. Response: `{ zombie_id, status?, config_revision }`. The `status` field is present only when the request set it.
+  - `PATCH /v1/auth/sessions/{session_id}` — body: `{ status: "complete", token }`. Bearer auth (the depositor proves it can mint a user-jwt). Response mirrors the GET poll shape: `{ status, token, request_id }`.
+
+  **Retired routes (404 in this release, no 410 stub):**
+
+  - `POST /v1/workspaces/{ws}/zombies/{zombie_id}/kill`
+  - `POST /v1/auth/sessions/{session_id}/complete`
+
+  No new error codes. The validation message for invalid `status` values is `status must be "killed"` (returned with `UZ-VAL-001`).
+
+  ## CLI
+
+  No surface change. `zombiectl kill <zombie_id>` and `zombiectl login` issue the new URLs internally — anyone scripting against the CLI sees the same exit codes and JSON shapes as before.
+</Update>
+
 <Update label="Apr 29, 2026" tags={["Breaking", "API", "CLI"]}>
   ## Frontmatter cleanup: runtime config moves under `x-usezombie:`
 
