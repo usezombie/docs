@@ -107,6 +107,18 @@
             ]
           },
           {
+            "group": "Internal",
+            "pages": [
+              "GET /internal/v1/telemetry"
+            ]
+          },
+          {
+            "group": "Execution",
+            "pages": [
+              "POST /v1/execute"
+            ]
+          },
+          {
             "group": "Authentication",
             "pages": [
               "POST /v1/auth/sessions",
@@ -115,18 +127,117 @@
             ]
           },
           {
+            "group": "API keys",
+            "pages": [
+              "GET /v1/api-keys",
+              "POST /v1/api-keys",
+              "PATCH /v1/api-keys/{id}",
+              "DELETE /v1/api-keys/{id}"
+            ]
+          },
+          {
+            "group": "Tenants",
+            "pages": [
+              "GET /v1/tenants/me/workspaces",
+              "GET /v1/tenants/me/diagnostics"
+            ]
+          },
+          {
+            "group": "Tenant provider",
+            "pages": [
+              "GET /v1/tenants/me/provider",
+              "PUT /v1/tenants/me/provider",
+              "DELETE /v1/tenants/me/provider"
+            ]
+          },
+          {
+            "group": "Billing",
+            "pages": [
+              "GET /v1/tenants/me/billing",
+              "GET /v1/tenants/me/billing/charges"
+            ]
+          },
+          {
             "group": "Workspaces",
             "pages": [
               "POST /v1/workspaces",
-              "PATCH /v1/workspaces/{workspace_id}"
+              "PATCH /v1/workspaces/{workspace_id}",
+              "GET /v1/workspaces/{workspace_id}/events"
+            ]
+          },
+          {
+            "group": "Agent keys",
+            "pages": [
+              "GET /v1/workspaces/{workspace_id}/agent-keys",
+              "POST /v1/workspaces/{workspace_id}/agent-keys",
+              "DELETE /v1/workspaces/{workspace_id}/agent-keys/{agent_id}"
             ]
           },
           {
             "group": "Credentials",
             "pages": [
-              "PUT /v1/workspaces/{workspace_id}/credentials/llm",
-              "GET /v1/workspaces/{workspace_id}/credentials/llm",
-              "DELETE /v1/workspaces/{workspace_id}/credentials/llm"
+              "GET /v1/workspaces/{workspace_id}/credentials",
+              "POST /v1/workspaces/{workspace_id}/credentials",
+              "DELETE /v1/workspaces/{workspace_id}/credentials/{credential_name}"
+            ]
+          },
+          {
+            "group": "Approvals",
+            "pages": [
+              "GET /v1/workspaces/{workspace_id}/approvals",
+              "GET /v1/workspaces/{workspace_id}/approvals/{gate_id}",
+              "POST /v1/workspaces/{workspace_id}/approvals/{gate_id}:approve",
+              "POST /v1/workspaces/{workspace_id}/approvals/{gate_id}:deny"
+            ]
+          },
+          {
+            "group": "Zombies",
+            "pages": [
+              "GET /v1/workspaces/{workspace_id}/zombies",
+              "POST /v1/workspaces/{workspace_id}/zombies",
+              "PATCH /v1/workspaces/{workspace_id}/zombies/{zombie_id}",
+              "DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}/current-run"
+            ]
+          },
+          {
+            "group": "Zombie messages",
+            "pages": [
+              "POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/messages"
+            ]
+          },
+          {
+            "group": "Zombie memories",
+            "pages": [
+              "GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/memories",
+              "POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/memories",
+              "DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}/memories/{memory_key}"
+            ]
+          },
+          {
+            "group": "Zombie events",
+            "pages": [
+              "GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/events",
+              "GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/events/stream",
+              "GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/telemetry"
+            ]
+          },
+          {
+            "group": "Integration grants",
+            "pages": [
+              "GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/integration-grants",
+              "POST /v1/workspaces/{workspace_id}/zombies/{zombie_id}/integration-requests",
+              "DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}/integration-grants/{grant_id}"
+            ]
+          },
+          {
+            "group": "Webhooks",
+            "pages": [
+              "POST /v1/webhooks/clerk",
+              "POST /v1/webhooks/svix/{zombie_id}",
+              "POST /v1/webhooks/{zombie_id}",
+              "POST /v1/webhooks/{zombie_id}/approval",
+              "POST /v1/webhooks/{zombie_id}/github",
+              "POST /v1/webhooks/{zombie_id}/grant-approval"
             ]
           },
           {
@@ -135,12 +246,6 @@
               "GET /v1/admin/platform-keys",
               "PUT /v1/admin/platform-keys",
               "DELETE /v1/admin/platform-keys/{provider}"
-            ]
-          },
-          {
-            "group": "Billing",
-            "pages": [
-              "GET /v1/tenants/me/billing"
             ]
           }
         ]

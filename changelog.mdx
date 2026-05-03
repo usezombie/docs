@@ -7,6 +7,54 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="May 3, 2026" tags={["Feature", "Breaking", "API", "CLI", "UI"]}>
+  ## Bring your own key (BYOK) + credit-pool billing
+
+  Tenants can now run zombie events against their own LLM provider account ("BYOK") instead of the platform-managed default. Both modes share the same gate, the same metering, and the same credit pool — they differ in *drain rate*, not eligibility. Every new tenant gets a $10 starter grant; the gate trips on the next event after exhaustion (no in-flight kill).
+
+  ## What changed
+
+  - **Provider posture is tenant-scoped, not workspace-scoped.** A new `core.tenant_providers` row pins one of two postures per tenant: `platform` (we charge from your zombie credits) or `byok` (your provider, your API key, our flat per-event overhead). The legacy `PUT|GET|DELETE /v1/workspaces/{ws}/credentials/llm` route has been **removed**; pre-v2.0 carve-out applies — the URL returns `404`, not `410`, and there is no compat shim.
+  - **Two-debit metering.** Each event yields up to two charge rows in `core.zombie_execution_telemetry`: a `receive` charge committed at gate-pass and a `stage` charge committed before execution and updated post-run with token counts. The dashboard groups them by event.
+  - **Per-token rates.** The public `_um/<key>/model-caps.json` endpoint now carries `input_cents_per_mtok` and `output_cents_per_mtok` per model. The API server populates a process-local cache from `core.model_caps` at boot — `compute_stage_charge` reads it on the hot path.
+  - **Starter grant on signup.** `tenant_billing.insert_starter_grant` runs in the tenant-create transaction. Existing tenants are unaffected; the grant ships once per tenant, never re-applied.
+
+  ## API surface
+
+  ### Tenant provider
+  - `GET /v1/tenants/me/provider` — resolved config (mode, provider, model, context cap, credential ref). The `api_key` is never returned.
+  - `PUT /v1/tenants/me/provider` — flip to BYOK by passing `{ "mode": "byok", "credential_ref": "<vault-name>" }`. Optional `model` override; otherwise the model in the credential body is used. Tenant-admin only (403 otherwise).
+  - `DELETE /v1/tenants/me/provider` — equivalent to `PUT mode=platform`. Resets to the platform default and surfaces a low-balance warning if applicable.
+
+  ### Tenant billing
+  - `GET /v1/tenants/me/billing` — plan + balance snapshot (already shipped; unchanged).
+  - `GET /v1/tenants/me/billing/charges?limit=` — newest-first credit-pool charge rows (one per `(event_id, charge_type)`). Backs the Settings → Billing Usage tab. Note: REST §1 forbids `/usage` as a final segment (not a plural noun), so the resource is `/charges` — each row is literally a charge.
+
+  ### Removed
+  - `PUT|GET|DELETE /v1/workspaces/{workspace_id}/credentials/llm` — never wired to a runtime resolver. Use `/v1/tenants/me/provider` plus a credential stored in the workspace vault.
+
+  ## CLI (`zombiectl`)
+
+  - **`zombiectl tenant provider {get|set|reset}`** — manage the tenant's active LLM posture. `set --credential <name> [--model <override>]` requires the credential name explicitly so the link to your vault entry is unmistakable. `reset` warns if your credit balance falls below 100¢.
+  - **`zombiectl billing show [--limit N] [--json]`** — read-only dashboard. Prints the formatted balance plus the last *N* events (default 10) with receive / stage / total cents columns. Footer points at `https://app.usezombie.com/settings/billing`. No `purchase` / `topup` / `configure` subcommands in v2.0 — Stripe lands in v2.1.
+
+  ## Dashboard
+
+  - **Settings → LLM Provider** (`/settings/provider`) — mode toggle + BYOK form. Credential dropdown comes from your active workspace vault; if it's empty, the form points you at `/credentials` first. Save and the page revalidates with the resolved config.
+  - **Settings → Billing** (`/settings/billing`) — read-only summary dashboard. Headline balance + disabled "Purchase Credits" button (tooltip: *"Coming in v2.1"*); Usage tab grouped by event; Invoices and Payment Method tabs render empty states for the v2.1 cutover.
+
+  ## Upgrading
+
+  - **CLI:** drop any direct calls to the workspace `/credentials/llm` route. Store your provider credential in the workspace vault (`zombiectl credential add ...`), then `zombiectl tenant provider set --credential <name>`. Verify with `zombiectl tenant provider get` and run a test event.
+  - **Dashboard:** existing tenants stay on platform-managed by default; nothing breaks. To switch to BYOK, head to **Settings → LLM Provider** in Mission Control.
+  - **Custom integrations** consuming the public model-caps endpoint can now read `input_cents_per_mtok` / `output_cents_per_mtok` per model. The shape is additive — old fields still present.
+
+  ## Notes
+
+  - **Pricing visibility.** Per-model rates are now in the public-but-unguessable `model-caps.json` response. Anyone who finds the cryptic URL can read platform margins. We accept the trade-off — it preserves the cacheable, unauthenticated property that lets `tenant provider set` resolve at low latency without a tenant token. We'll revisit if a competitor uses the data strategically.
+  - **No plan tiers.** "Free" is not a tier — it's just "the user hasn't exhausted the $10 starter grant yet." Both platform and BYOK postures run through the same `processEvent` and `compute_*_charge` functions; they differ in drain rate, not in eligibility.
+</Update>
+
 <Update label="May 1, 2026" tags={["Breaking", "API"]}>
   ## URL hygiene: `/steer` becomes `/messages`, `/memory/*` collapses into `/memories`
 
