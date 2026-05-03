@@ -7,6 +7,34 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="May 3, 2026" tags={["Feature", "CLI", "Integrations"]}>
+  ## Follow-up — One-command install for platform-ops
+
+  We're shipping `/usezombie-install-platform-ops`, an agent skill that installs the platform-ops zombie on a repo in one command. It runs in Claude Code, Amp, Codex CLI, and OpenCode — same skill, same install procedure, same screenshot. After two bootstrap commands the user invokes the slash-command and ends with a working zombie posting GitHub Actions failure diagnoses to their Slack within ~60 seconds.
+
+  ## What's new
+
+  - **`/usezombie-install-platform-ops` slash-command.** The skill walks the agent through twelve steps: `zombiectl doctor` preflight, repo detection, three operator inputs (Slack channel, production branch glob, optional cron schedule), credential resolution (`op` → env var → masked prompt), GitHub webhook secret generation on first install (or reuse-vs-scope on second), zombie install, in-flow webhook self-test (HMAC-SHA256 + curl) before printing GitHub-paste instructions, and a smoke-test steer.
+  - **Bundled zombie templates.** `npm install -g @usezombie/zombiectl` now copies canonical zombie templates into `~/.config/usezombie/samples/` so skills read from a stable local path. The npm package version is the template version — no URL fetch, no cache.
+  - **Frontmatter overrides take effect.** TRIGGER.md authors can now tune `x-usezombie.model` and the four `x-usezombie.context` knobs (`context_cap_tokens`, `tool_window`, `memory_checkpoint_every`, `stage_chunk_threshold`) and the worker honours them. Previous releases parsed everything but silently dropped the overrides — operator authoring is now real.
+  - **TRIGGER.md `tool_window: auto`.** The string `auto` is accepted as the auto-sentinel alongside the integer `0` for authoring ergonomics.
+
+  ## CLI
+
+  Two-command bootstrap on a fresh machine:
+
+  ```
+  npm install -g @usezombie/zombiectl
+  npx skills add usezombie/usezombie
+  ```
+
+  Manual symlink fallback documented inline in the skill body for hosts the registry doesn't know about yet.
+
+  ## Internal
+
+  The previously-aspirational `x-usezombie.context` and `x-usezombie.model` shape from the platform-ops sample is now accepted by the runtime parser, plumbed through `ZombieConfig` into the executor's `ContextBudget`. Frontmatter overrides take precedence; absent or zero fields fall through to runtime auto-defaults via `applyContextDefaults`.
+</Update>
+
 <Update label="May 3, 2026" tags={["Feature", "Breaking", "API", "CLI", "UI"]}>
   ## Bring your own key (BYOK) + credit-pool billing
 
