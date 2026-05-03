@@ -124,9 +124,9 @@
           {
             "group": "Credentials",
             "pages": [
-              "PUT /v1/workspaces/{workspace_id}/credentials/llm",
-              "GET /v1/workspaces/{workspace_id}/credentials/llm",
-              "DELETE /v1/workspaces/{workspace_id}/credentials/llm"
+              "GET /v1/workspaces/{workspace_id}/credentials",
+              "POST /v1/workspaces/{workspace_id}/credentials",
+              "DELETE /v1/workspaces/{workspace_id}/credentials/{credential_name}"
             ]
           },
           {

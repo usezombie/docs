@@ -8,7 +8,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 </Tip>
 
 <Update label="May 3, 2026" tags={["Feature", "Breaking", "API", "CLI", "UI"]}>
-  ## Bring Your Own Key (BYOK) + credit-pool billing
+  ## Bring your own key (BYOK) + credit-pool billing
 
   Tenants can now run zombie events against their own LLM provider account ("BYOK") instead of the platform-managed default. Both modes share the same gate, the same metering, and the same credit pool — they differ in *drain rate*, not eligibility. Every new tenant gets a $10 starter grant; the gate trips on the next event after exhaustion (no in-flight kill).
 
@@ -31,7 +31,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   - `GET /v1/tenants/me/billing/charges?limit=` — newest-first credit-pool charge rows (one per `(event_id, charge_type)`). Backs the Settings → Billing Usage tab. Note: REST §1 forbids `/usage` as a final segment (not a plural noun), so the resource is `/charges` — each row is literally a charge.
 
   ### Removed
-  - `PUT|GET|DELETE /v1/workspaces/{workspace_id}/credentials/llm` — never wired to a runtime resolver. Use `/v1/tenants/me/provider` plus a credential stored in the tenant's vault.
+  - `PUT|GET|DELETE /v1/workspaces/{workspace_id}/credentials/llm` — never wired to a runtime resolver. Use `/v1/tenants/me/provider` plus a credential stored in the workspace vault.
 
   ## CLI (`zombiectl`)
 
@@ -40,13 +40,13 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   ## Dashboard
 
-  - **Settings → LLM Provider** (`/settings/provider`) — mode toggle + BYOK form. Credential dropdown comes from your active workspace's vault; if it's empty, the form points you at `/credentials` first. Save and the page revalidates with the resolved config.
+  - **Settings → LLM Provider** (`/settings/provider`) — mode toggle + BYOK form. Credential dropdown comes from your active workspace vault; if it's empty, the form points you at `/credentials` first. Save and the page revalidates with the resolved config.
   - **Settings → Billing** (`/settings/billing`) — Amp-style read-only dashboard. Headline balance + disabled "Purchase Credits" button (tooltip: *"Coming in v2.1"*); Usage tab grouped by event; Invoices and Payment Method tabs render empty states for the v2.1 cutover.
 
   ## Upgrading
 
-  - **CLI:** drop any direct calls to the workspace `/credentials/llm` route. Store your provider credential in the tenant's vault (`zombiectl credential add ...`), then `zombiectl tenant provider set --credential <name>`. Verify with `zombiectl tenant provider get` and run a test event.
-  - **Dashboard:** existing tenants stay on platform-managed by default; nothing breaks. To switch to BYOK, head to **Settings → LLM Provider**.
+  - **CLI:** drop any direct calls to the workspace `/credentials/llm` route. Store your provider credential in the workspace vault (`zombiectl credential add ...`), then `zombiectl tenant provider set --credential <name>`. Verify with `zombiectl tenant provider get` and run a test event.
+  - **Dashboard:** existing tenants stay on platform-managed by default; nothing breaks. To switch to BYOK, head to **Settings → LLM Provider** in Mission Control.
   - **Custom integrations** consuming the public model-caps endpoint can now read `input_cents_per_mtok` / `output_cents_per_mtok` per model. The shape is additive — old fields still present.
 
   ## Notes
