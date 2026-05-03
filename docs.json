@@ -138,9 +138,18 @@
             ]
           },
           {
+            "group": "Tenant provider",
+            "pages": [
+              "GET /v1/tenants/me/provider",
+              "PUT /v1/tenants/me/provider",
+              "DELETE /v1/tenants/me/provider"
+            ]
+          },
+          {
             "group": "Billing",
             "pages": [
-              "GET /v1/tenants/me/billing"
+              "GET /v1/tenants/me/billing",
+              "GET /v1/tenants/me/billing/charges"
             ]
           }
         ]
