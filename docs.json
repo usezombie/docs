@@ -24,13 +24,6 @@
             ]
           },
           {
-            "group": "Skills",
-            "pages": [
-              "skills/index",
-              "skills/usezombie-install-platform-ops"
-            ]
-          },
-          {
             "group": "Zombies",
             "pages": [
               "zombies/overview",
@@ -38,7 +31,7 @@
               "zombies/running",
               "zombies/credentials",
               "zombies/webhooks",
-              "zombies/skills",
+              "zombies/authoring",
               "zombies/templates"
             ]
           },

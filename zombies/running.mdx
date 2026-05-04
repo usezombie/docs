@@ -30,7 +30,7 @@ zombiectl install --from ~/.config/usezombie/samples/platform-ops
   webhook_secret: (printed once — paste into your GitHub repo webhook config)
 ```
 
-The webhook secret is shown **once**. Lost it? Rotate the workspace credential — see [Recovery](/skills/usezombie-install-platform-ops#recovery--lost-the-webhook-secret).
+The webhook secret is shown **once**. Lost it? Rotate the workspace credential — see [Quickstart → Wire the GitHub webhook](/quickstart#wire-the-github-webhook) for the rotation procedure.
 
 Re-running `zombiectl install --from <same-path>` against a workspace that already has the same zombie is idempotent: the new `SKILL.md` / `TRIGGER.md` replace the previous version on the next event.
 

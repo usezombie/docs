@@ -1,118 +1,41 @@
 ---
 title: "Templates"
-description: "The shipped sample directory and how to author your own."
+description: "The shipped sample directory — pre-built zombies you can install with one command."
 ---
 
-## Overview
-
-A **template** is a directory with a valid `SKILL.md` and `TRIGGER.md`. Install one with:
+A **template** is a directory with a valid `SKILL.md` and `TRIGGER.md`. Pick one, install it, get a working zombie.
 
 ```bash
 zombiectl install --from <path>
 ```
 
-The `--from` flag is required — there are no bare-name template aliases. The install command both scaffolds your local copy under `.usezombie/<name>/` and uploads to the active workspace; there is no separate "up" step.
+The `zombiectl` package ships sample directories under `~/.config/usezombie/samples/`.
 
-## What ships with `zombiectl`
-
-The `zombiectl` package ships sample directories under `~/.config/usezombie/samples/`. v2 ships one entry — the flagship `platform-ops`. Other samples land as new flagships ship.
+## Catalogue
 
 ### `platform-ops`
 
-The flagship v2 sample. Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed workflow's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. The same zombie is reachable manually via `zombiectl steer <zombie_id>` for a morning health check, and on a cron schedule for periodic polling. Read-only against your infrastructure; the only write path is the channel post.
-
-```
-platform-ops/
-├── SKILL.md      # diagnosis prompt, evidence-gathering flow, compaction prose
-└── TRIGGER.md    # GitHub Actions webhook trigger, tools, credentials, x-usezombie.context
-```
+The flagship v2 sample. Wakes on a GitHub Actions deploy failure, gathers evidence from your hosting provider and the failed workflow, and posts an evidenced diagnosis to Slack. Read-only against your infrastructure; the only write path is the channel post.
 
 - **Tools:** `http_request`, `memory_recall`, `memory_store`, `cron_add`, `cron_list`, `cron_remove`.
-- **Credentials it expects:** `github` (workspace-scoped, includes `webhook_secret` for signature verification), `slack` (bot-token credential).
-- **Trigger source:** `webhook` with `source: github`, `signature.header: x-hub-signature-256`.
+- **Credentials:** `github` (with `webhook_secret` for signature verification), `slack` (bot token).
+- **Trigger:** `webhook` from GitHub Actions (`workflow_run.conclusion=failure`).
 
-Recommended install path — drive the install skill from your host agent (Claude Code, Amp, Codex CLI, OpenCode):
+For the full install walkthrough — host agent, gating questions, webhook wiring — see [Quickstart](/quickstart). Don't duplicate the steps here.
 
-```
-/usezombie-install-platform-ops
-```
+More samples land as new flagships ship.
 
-The skill asks three gating questions (Slack channel, production branch glob, optional cron schedule) and prints the webhook URL + secret at the end. See [Skills catalog](/skills) and [Quickstart](/quickstart) for the full walkthrough.
+## Writing your own
 
-Power-user / scripted install — drives the same `zombiectl` command directly:
-
-```bash
-zombiectl install --from ~/.config/usezombie/samples/platform-ops
-```
-
-Pipe credential JSON on stdin so secrets never appear in shell history or argv:
-
-```bash
-zombiectl credential add github --data @- <<'JSON'
-{ "api_token": "ghp_...", "webhook_secret": "..." }
-JSON
-
-zombiectl credential add slack --data @- <<'JSON'
-{ "bot_token": "xoxb-..." }
-JSON
-```
-
-Then paste the webhook URL printed at install time into your GitHub repo's webhook settings, filtered to **Workflow runs** (the GitHub UI label; the `workflow_run` event).
-
-## Writing your own template
-
-A template is just a directory with `SKILL.md` and `TRIGGER.md`. To create one from scratch:
-
-```bash
-mkdir my-zombie && cd my-zombie
-touch SKILL.md TRIGGER.md
-```
-
-Author the two files (see [Authoring skills](/zombies/skills) for the `TRIGGER.md` reference), add any workspace credentials you reference, then install:
+A template is just a directory with `SKILL.md` and `TRIGGER.md`. See [Authoring a zombie](/zombies/authoring) for the file references; install with:
 
 ```bash
 zombiectl install --from .
 ```
 
-Minimal viable `TRIGGER.md` — note runtime config nests under `x-usezombie:`:
+## Sharing
 
-```markdown TRIGGER.md
----
-name: my-zombie
-
-x-usezombie:
-  trigger:
-    type: webhook
-    source: custom
-    signature:
-      secret_ref: my_webhook_secret
-      header: x-signature
-
-  tools:
-    - http_request
-    - memory_store
-    - memory_recall
-
-  credentials:
-    - my_webhook_secret
----
-
-Short human description of what this zombie does.
-```
-
-Minimal viable `SKILL.md`:
-
-```markdown SKILL.md
-You are a simple HTTP echo agent. When an event arrives, log its `type`
-field and body length via `memory_store('conversation', 'last:event',
-'<one-line summary>')`. Do nothing else.
-```
-
-## Sharing templates
-
-Templates are directories of markdown — trivial to share. Commit `my-zombie/` to a git repo, clone it on a new machine, `cd my-zombie && zombiectl install --from .`. The platform does not require templates to be registered anywhere; the CLI works on whatever directory you point it at.
-
-Credentials stay out of the template — they live in the workspace vault. A template is safe to share publicly; a credential is not.
+Templates are markdown — commit `my-zombie/` to git, clone it on a new machine, `zombiectl install --from .`. Credentials never live in the template; they live in the workspace vault. Template-safe to share publicly; credentials are not.
 
 <Note>
   A hosted template marketplace (community-contributed zombies, one-click install) is on the roadmap. For now, git is the distribution mechanism.
