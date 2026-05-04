@@ -3,6 +3,8 @@ title: "Context lifecycle"
 description: "Three knobs, defaults that work, and why deep incidents keep reasoning past the model's context cap."
 ---
 
+> User-facing version of §4 in [`docs/architecture/capabilities.md`](https://github.com/usezombie/usezombie/blob/main/docs/architecture/capabilities.md). The architecture doc carries the full mermaid diagram, the executor wire format, and the BYOK overlay sentinels.
+
 A long incident — thirty-plus tool calls, one workflow_run failure unfolding into three nested causes — can exhaust the model's working-memory window. UseZombie layers three independent mechanisms so the zombie keeps reasoning past the cap. **Defence in depth, not override**: each layer catches a different failure mode, and they never conflict.
 
 ## The three knobs
