@@ -34,7 +34,7 @@ This walks through installing the flagship `platform-ops` zombie on one of your 
 
 <Step title="Sign in">
   ```bash
-  zombiectl auth login
+  zombiectl login
   ```
 
   This opens a Clerk OAuth flow in your browser. New accounts come with a `$10` starter credit pool — never expires, applies to hosted execution only. Inference is BYOK and billed by your provider directly.
@@ -62,7 +62,7 @@ This walks through installing the flagship `platform-ops` zombie on one of your 
   The starter credit lets you try the runtime without configuring a provider. For sustained use, attach your own model key:
 
   ```bash
-  zombiectl tenant provider set --credential <name>
+  zombiectl tenant provider add --credential <name>
   ```
 
   Supported providers: Anthropic, OpenAI, Fireworks (Kimi K2), Together, Groq, Moonshot. UseZombie marks up zero on inference — the executor resolves your credential at the tool bridge and forwards to your provider.

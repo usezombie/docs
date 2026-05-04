@@ -43,7 +43,7 @@ ws_01J8XVKB7N       acme/infra                  PAUSED   Scale
 zombiectl workspace use <workspace-id>
 ```
 
-Makes the workspace active for subsequent CLI commands — `zombiectl list`, `zombiectl status`, `zombiectl up`, and anything else that accepts a `--workspace-id` flag defaults to this value when the flag is omitted.
+Makes the workspace active for subsequent CLI commands — `zombiectl install --from`, `zombiectl list`, `zombiectl status`, `zombiectl events`, `zombiectl steer`, and anything else that accepts a `--workspace-id` flag defaults to this value when the flag is omitted.
 
 The choice is persisted to `~/.config/zombiectl/workspaces.json` (`current_workspace_id` field), so it survives across shells and sessions.
 

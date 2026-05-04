@@ -1,112 +1,100 @@
 ---
 title: "Templates"
-description: "Bundled zombie templates — what each does, how they are structured, and how to write your own."
+description: "The shipped sample directory and how to author your own."
 ---
 
 ## Overview
 
-A **template** is a pre-built zombie you can scaffold with one command:
+A **template** is a directory with a valid `SKILL.md` and `TRIGGER.md`. Install one with:
 
 ```bash
-zombiectl install slack-bug-fixer
+zombiectl install --from <path>
 ```
 
-The CLI ships a small set of bundled templates. Each is a working, deployable zombie. Edit the files, drop in your credentials, `zombiectl up`.
+The `--from` flag is required — there are no bare-name template aliases. The install command both scaffolds your local copy under `.usezombie/<name>/` and uploads to the active workspace; there is no separate "up" step.
 
-## Bundled templates
+## What ships with `zombiectl`
 
-### `slack-bug-fixer`
-
-Watches a Slack channel, identifies bug reports from messages, and opens a draft PR against a linked repository.
-
-```
-slack-bug-fixer/
-├── SKILL.md         # "You are a bug triage agent..."
-└── TRIGGER.md       # webhook trigger, source=slack, skills=[slack, git, github]
-```
-
-- **Trigger:** webhook, `source: slack`, `event: message`
-- **Skills:** `slack`, `git`, `github`
-- **Credentials it expects:** `slack_bot_token`, `slack_signing_secret`, `github_token`
-- **Budget:** `daily_dollars: 10.0`, `monthly_dollars: 50.0`
-- **Network allowlist:** `api.slack.com`, `api.github.com`, `github.com`
-
-Typical event shape:
-
-```json
-{
-  "event_id": "slk-01JABC",
-  "type": "slack.message",
-  "data": {
-    "channel": "C01BUGS",
-    "user": "U0ALICE",
-    "text": "The login page throws a 500 when I submit an empty password"
-  }
-}
-```
-
-Scaffold and deploy:
-
-```bash
-zombiectl install slack-bug-fixer
-zombiectl credential add slack_bot_token       --value=$SLACK_BOT_TOKEN
-zombiectl credential add slack_signing_secret  --value=$SLACK_SIGNING_SECRET
-zombiectl credential add github_token          --value=$GITHUB_TOKEN
-zombiectl up
-```
+The `zombiectl` package ships sample directories under `~/.config/usezombie/samples/`. v2 ships one entry — the flagship `platform-ops`. Other samples land as new flagships ship.
 
 ### `platform-ops`
 
-The flagship v2 sample. Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed workflow's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. Same zombie is reachable manually via `zombiectl steer {id}` for a morning health check. Read-only against GitHub, Fly, and Upstash; one write path (the Slack post).
+The flagship v2 sample. Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed workflow's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. The same zombie is reachable manually via `zombiectl steer <zombie_id>` for a morning health check, and on a cron schedule for periodic polling. Read-only against GitHub, Fly, and Upstash; the only write path is the Slack post.
 
 ```
 platform-ops/
-├── SKILL.md         # diagnosis prompt, evidence-gathering flow, budget prose ≤ $8/month
-└── TRIGGER.md       # GitHub Actions webhook trigger, tools=[http_request], network allowlist, credential refs
+├── SKILL.md      # diagnosis prompt, evidence-gathering flow, compaction prose
+└── TRIGGER.md    # GitHub Actions webhook trigger, tools, credentials, x-usezombie.context
 ```
 
-- **Tools:** `http_request` as the primary tool; `cron_add` gated on the operator asking for recurring polling.
-- **Credentials it expects:** `github = {host, api_token}`, `fly = {host, api_token}`, `upstash = {host, api_token}`, `slack = {host, bot_token}`.
-- **Network allowlist:** `api.github.com`, `api.fly.io`, `api.upstash.com`, `slack.com`.
-- **Budgets:** $1/day, $8/month.
+- **Tools:** `http_request`, `memory_recall`, `memory_store`, `cron_add`, `cron_list`, `cron_remove`.
+- **Credentials it expects:** `github` (workspace-scoped, includes `webhook_secret` for signature verification), `slack` (bot-token credential).
+- **Trigger source:** `webhook` with `source: github`, `signature.header: x-hub-signature-256`.
 
-Scaffold and deploy:
+Recommended install path — drive the install skill from your host agent (Claude Code, Amp, Codex CLI, OpenCode):
+
+```
+/usezombie-install-platform-ops
+```
+
+The skill asks three gating questions (Slack channel, production branch glob, optional cron schedule) and prints the webhook URL + secret at the end. See [Skills catalog](/skills) and [Quickstart](/quickstart) for the full walkthrough.
+
+Power-user / scripted install — drives the same `zombiectl` command directly:
 
 ```bash
-zombiectl install --from samples/platform-ops
-zombiectl credential add github  --host api.github.com  --api-token "$(op read 'op://github/api/token')"
-zombiectl credential add fly     --host api.fly.io      --api-token "$(op read 'op://fly/api/token')"
-zombiectl credential add upstash --host api.upstash.com --api-token "$(op read 'op://upstash/api/token')"
-zombiectl credential add slack   --host slack.com       --bot-token "$(op read 'op://slack/bot/token')"
-zombiectl up
+zombiectl install --from ~/.config/usezombie/samples/platform-ops
 ```
 
-Paste the webhook URL printed at install time into your GitHub repo's webhook settings, filtered to `workflow_run`.
+Pipe credential JSON on stdin so secrets never appear in shell history or argv:
+
+```bash
+zombiectl credential add github --data @- <<'JSON'
+{ "api_token": "ghp_...", "webhook_secret": "..." }
+JSON
+
+zombiectl credential add slack --data @- <<'JSON'
+{ "bot_token": "xoxb-..." }
+JSON
+```
+
+Then paste the webhook URL printed at install time into your GitHub repo's webhook settings, filtered to **Workflow runs** (the GitHub UI label; the `workflow_run` event).
 
 ## Writing your own template
 
-There is no special "template format" — a template is just a directory with a valid `SKILL.md` and `TRIGGER.md`. To create one from scratch:
+A template is just a directory with `SKILL.md` and `TRIGGER.md`. To create one from scratch:
 
 ```bash
 mkdir my-zombie && cd my-zombie
 touch SKILL.md TRIGGER.md
 ```
 
-Then author the two files as described in [Authoring skills](/zombies/skills), add any credentials you reference, and `zombiectl up`.
+Author the two files (see [Authoring skills](/zombies/skills) for the `TRIGGER.md` reference), add any workspace credentials you reference, then install:
 
-Minimal viable `TRIGGER.md`:
+```bash
+zombiectl install --from .
+```
+
+Minimal viable `TRIGGER.md` — note runtime config nests under `x-usezombie:`:
 
 ```markdown TRIGGER.md
 ---
 name: my-zombie
-trigger:
-  type: webhook
-budget:
-  daily_dollars: 1.0
-  monthly_dollars: 10.0
-network:
-  allow:
-    - httpbin.org
+
+x-usezombie:
+  trigger:
+    type: webhook
+    source: custom
+    signature:
+      secret_ref: my_webhook_secret
+      header: x-signature
+
+  tools:
+    - http_request
+    - memory_store
+    - memory_recall
+
+  credentials:
+    - my_webhook_secret
 ---
 
 Short human description of what this zombie does.
@@ -115,15 +103,16 @@ Short human description of what this zombie does.
 Minimal viable `SKILL.md`:
 
 ```markdown SKILL.md
-You are a simple HTTP echo agent. When an event arrives, append its `type` field
-and body length to the activity stream. Do nothing else.
+You are a simple HTTP echo agent. When an event arrives, log its `type`
+field and body length via `memory_store('conversation', 'last:event',
+'<one-line summary>')`. Do nothing else.
 ```
 
 ## Sharing templates
 
-Templates are directories of markdown — they are trivial to share. Commit `my-zombie/` to a repo, clone it on a new machine, `cd my-zombie && zombiectl up`. The platform does not require templates to be registered anywhere; the CLI works on whatever is in front of it.
+Templates are directories of markdown — trivial to share. Commit `my-zombie/` to a git repo, clone it on a new machine, `cd my-zombie && zombiectl install --from .`. The platform does not require templates to be registered anywhere; the CLI works on whatever directory you point it at.
 
-Credentials and approval tokens stay out of the template — they live in the workspace vault. A template is safe to share publicly; a credential is not.
+Credentials stay out of the template — they live in the workspace vault. A template is safe to share publicly; a credential is not.
 
 <Note>
   A hosted template marketplace (community-contributed zombies, one-click install) is on the roadmap. For now, git is the distribution mechanism.
