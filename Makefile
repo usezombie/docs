@@ -1,11 +1,14 @@
 SHELL := /bin/bash
 
-.PHONY: dev lint _lint-openapi-drift
+.PHONY: dev lint test _lint-openapi-drift
 
 OPENAPI_URL ?= https://raw.githubusercontent.com/usezombie/usezombie/main/public/openapi.json
 
 dev:
 	npx mintlify dev
+
+test:
+	@bash scripts/test-spec.sh
 
 lint: _lint-openapi-drift
 	npx mintlify validate

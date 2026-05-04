@@ -1,0 +1,120 @@
+---
+title: "usezombie-install-platform-ops"
+description: "Installer skill for the flagship platform-ops zombie — wakes on GitHub Actions deploy failures, posts evidenced diagnoses to Slack."
+---
+
+The `usezombie-install-platform-ops` skill installs a zombie that watches a single repository for GitHub Actions deploy failures, gathers evidence, and posts an evidenced diagnosis to Slack. Once installed, the same zombie is also reachable via `zombiectl steer` for manual investigation, and on a cron schedule for periodic health checks.
+
+This page documents the skill's inputs, outputs, side effects, and recovery paths. For the end-to-end walkthrough, see [Quickstart](/quickstart).
+
+## Hosts
+
+The skill runs identically inside any of:
+
+- **Claude Code** — `claude.ai/code`
+- **Amp** — `ampcode.com`
+- **Codex CLI** — `npm install -g @openai/codex`
+- **OpenCode** — `opencode.ai`
+
+Invoke as `/usezombie-install-platform-ops` in the host's prompt.
+
+## Prerequisites
+
+| Requirement | How to satisfy |
+|---|---|
+| `zombiectl` on `PATH` | `npm install -g @usezombie/zombiectl` |
+| Authenticated tenant | `zombiectl auth login` (Clerk OAuth in browser) |
+| A target Git repository checked out | `cd` into the repo before invoking the skill |
+| A Slack workspace + channel | Channel name (e.g. `#platform-ops`); the skill walks you through the Slack credential setup |
+| A GitHub repository where you can add a webhook | Admin or maintain access on the repo |
+
+Optional: an `op` (1Password CLI) session if you want the skill to resolve credentials from a 1Password vault rather than prompt for them.
+
+## Inputs (gating questions)
+
+The skill asks three questions and refuses to proceed without resolution:
+
+| Input | Required | Default | Notes |
+|---|---|---|---|
+| `slack_channel` | yes | — | Slack channel for diagnoses, e.g. `#platform-ops`. |
+| `prod_branch_glob` | no | `main` | Branch pattern that counts as production. |
+| `cron_schedule` | no | _blank_ | Cron expression for periodic health checks (e.g. `*/30 * * * *`). Blank = webhook-only. |
+
+## What the skill writes
+
+```
+.usezombie/platform-ops/
+├── SKILL.md      # the agent's system prompt — what to investigate, how to phrase a diagnosis
+└── TRIGGER.md    # YAML frontmatter — triggers, allow-listed tools, budget, x-usezombie.context
+```
+
+Both files are **yours** to edit after install. The next trigger runs the new behaviour. No redeploy.
+
+## What the skill prints
+
+At the end of the install flow:
+
+| Output | Used for |
+|---|---|
+| `zombie_id` (e.g. `zmb_2041`) | Identifier for `zombiectl steer`, `zombiectl events`, dashboard URLs. |
+| Webhook URL — `https://api.usezombie.com/v1/webhooks/{zombie_id}` | Paste into GitHub repo's webhook settings. |
+| Webhook secret | Paste into the same webhook config. **Shown once.** |
+
+## Webhook setup
+
+In the GitHub repo: **Settings → Webhooks → Add webhook**.
+
+| Field | Value |
+|---|---|
+| Payload URL | The webhook URL printed by the skill. |
+| Content type | `application/json` |
+| Secret | The webhook secret printed by the skill. |
+| Events | **Workflow runs** (only `workflow_run` is needed). |
+
+The webhook secret is workspace-scoped — the same secret serves every zombie in this workspace. Rotation is workspace-wide; rotating affects every zombie in the workspace.
+
+## Recovery — lost the webhook secret
+
+The secret is **not** stored anywhere user-visible after install. Rotate the workspace credential:
+
+```bash
+zombiectl credential add github --data @-
+```
+
+Pipe the JSON on stdin. The old secret stops working immediately; update the new one in every repo's webhook config.
+
+## Idempotency
+
+Re-running the skill against a workspace that already has `platform-ops` installed:
+
+- Detects the existing `.usezombie/platform-ops/` directory.
+- Diffs the existing `SKILL.md` / `TRIGGER.md` against the latest sample.
+- Prompts before overwriting — your edits are not silently discarded.
+
+Safe to run after a `git pull` to refresh the sample baseline.
+
+## What gets installed inside the runtime
+
+| Tool | Purpose |
+|---|---|
+| `http_request` | Outbound calls to GitHub run logs, your hosting provider, your data-plane. Domains restricted by SKILL prose. |
+| `memory_store` / `memory_recall` | Snapshot findings during a long incident. Keys live in `core.zombie_memories`. |
+| `cron_add` / `cron_remove` | If `cron_schedule` was set, the zombie schedules its own health checks. |
+| `slack_post` | The one write path. Posts the evidenced diagnosis to your channel. |
+
+`SKILL.md` enforces the policy in prose: read-only against GitHub / Fly / Upstash; the only side effect is the Slack post.
+
+## Failure modes
+
+| Mode | Cause | Handling |
+|---|---|---|
+| Webhook URL 404 | Wrong `zombie_id` pasted | Re-read the install output; the URL is `…/webhooks/{zombie_id}` literally. |
+| Diagnosis never posts | Slack credential missing or revoked | `zombiectl credential add slack --data @-`; restart any in-flight stage with `zombiectl steer <id> "retry"`. |
+| Webhook fires but signature fails | Wrong secret pasted into GitHub | Rotate via `zombiectl credential add github --data @-`; paste new secret into GitHub. |
+| Cron fires but no diagnosis | Cron schedule too aggressive (rate-limited by your hosting provider) | Slow the cron, or remove it; webhook-driven runs are not affected. |
+
+## See also
+
+- [Quickstart](/quickstart) — end-to-end walkthrough.
+- [Concepts → Triggers, Tools](/concepts) — what `webhook` / `cron` / `steer` do, what tools are available.
+- [Context lifecycle](/concepts/context-lifecycle) — why deep incidents reason past the model's context cap.

@@ -1,0 +1,124 @@
+---
+title: "Context lifecycle"
+description: "Three knobs, defaults that work, and why deep incidents keep reasoning past the model's context cap."
+---
+
+A long incident — thirty-plus tool calls, one workflow_run failure unfolding into three nested causes — can exhaust the model's working-memory window. UseZombie layers three independent mechanisms so the zombie keeps reasoning past the cap. **Defence in depth, not override**: each layer catches a different failure mode, and they never conflict.
+
+## The three knobs
+
+```yaml
+# In your TRIGGER.md frontmatter, under x-usezombie:
+x-usezombie:
+  context:
+    tool_window: auto              # rolling tool-result window size
+    memory_checkpoint_every: 5     # call memory_store every N tool calls
+    stage_chunk_threshold: 0.75    # % context fill that triggers chunking
+    context_cap_tokens: 200000     # the active model's context window
+                                   # (resolved at install time from the
+                                   #  model-caps endpoint; 0 = use the
+                                   #  BYOK provider's resolved cap)
+```
+
+`tool_window: auto` and `tool_window: 0` are equivalent — both mean "let the runtime pick based on the active model's cap".
+
+## How the layers compose
+
+```
+stage opens  →  tool calls  →  L1 fires every N → memory_store snapshot
+                    │              (Layer 1 — durable findings)
+                    ▼
+              tool window full
+                    │
+                    ▼
+              L2 fires continuously → drop oldest result from context
+                                      (still on core.zombie_events)
+                                      (Layer 2 — bounded growth)
+                    │
+                    ▼
+              context fill ≥ threshold
+                    │
+                    ▼
+              L3 fires once → final snapshot, exit_ok=false
+                              worker re-enqueues as continuation
+                              (Layer 3 — chain failsafe)
+```
+
+### Layer 1 — `memory_checkpoint_every`
+
+Runs periodically as the agent works. Every N tool calls, the agent calls `memory_store` with a snapshot of "what I've learned so far". Cheap and always safe. Even if subsequent layers drop context, the snapshot survives in `core.zombie_memories` and is recoverable.
+
+### Layer 2 — `tool_window`
+
+Runs continuously. Bounds context growth by dropping the **oldest** tool result once the count exceeds the cap. Old results stay on `core.zombie_events` — they just leave the active model context. A `memory_recall` can pull them back if the SKILL prose teaches the agent to do so.
+
+### Layer 3 — `stage_chunk_threshold`
+
+The failsafe. When context fill exceeds the threshold (a percentage of the active model's context cap), the agent writes a final snapshot, returns `{exit_ok: false, content: "needs continuation", checkpoint_id: ...}`, and the worker re-enqueues the same event chain as a synthetic event with `actor=continuation:<original_actor>`. The next stage starts fresh and immediately calls `memory_recall` to load the snapshot.
+
+The order is failure-mode escalation:
+
+- L1 keeps your work safe.
+- L2 keeps your context bounded.
+- L3 saves the chain from collapse.
+
+They never conflict.
+
+## Defaults — you should not have to do token math
+
+The runtime ships with model-tier-aware defaults. Most users never change them.
+
+| Knob | Default | Notes |
+|---|---|---|
+| `memory_checkpoint_every` | `5` | Same for every model. Checkpoint cadence does not change with context size. |
+| `stage_chunk_threshold` | `0.75` | Same for every model. The chunk-trigger fraction is geometry, not capacity. |
+| `tool_window` | `auto` | Resolves at install time based on the model's context cap (see below). |
+
+### How `auto` resolves
+
+| Model context cap | `tool_window` resolves to |
+|---|---|
+| ≥ 1,000,000 tokens | **30** |
+| 200,000 – 300,000 tokens | **20** |
+| ≤ 200,000 tokens | **10** |
+
+The model's context cap is **not** baked into the runtime. It's resolved at install time (platform-managed) or at provider-set time (BYOK) from the model-caps endpoint.
+
+## When to override (rare)
+
+| Goal | What to change | How to think about it |
+|---|---|---|
+| "My zombie loses important findings mid-incident." | `memory_checkpoint_every: 3` | Checkpoint more often. Cheap. Always safe. |
+| "My zombie hits context limits and chunks too aggressively." | `tool_window: 10` | Drop old results sooner so newer stuff fits. May lose context recency. |
+| "My zombie chunks too late and produces partial diagnoses." | `stage_chunk_threshold: 0.6` | Chunk earlier. More handoffs but less risk of being cut off mid-thought. |
+| "I'm on Kimi 2.6 (256k cap) and incidents are deep." | `tool_window: 8` + `memory_checkpoint_every: 3` | Smaller windows + more checkpoints. Tight-context discipline. |
+
+## The chain-cap escape hatch
+
+A pathological agent could in principle chunk forever — each stage hits the L3 threshold, snapshots, the worker re-enqueues, repeat. To bound this, the runtime caps each chain at **10 continuations**. On the 11th attempt, the worker stops re-enqueueing this chain and writes `failure_label = chunk_chain_escalate_human` to the originating event row.
+
+The label is observability — it appears in `zombiectl events <id>`, the dashboard's Events tab, and the SSE stream's terminal `event_complete` frame. The zombie itself stays alive; only this one chain is forfeit.
+
+**Resuming a forfeited chain manually.** There's no special "resume chunk-chain" verb. The cleanest path is `zombiectl steer <zombie_id> "continue from <snapshot-key> — pick up where you left off"`, where `<snapshot-key>` is whatever your SKILL.md taught the agent to use (e.g. `incident:<id>:findings` for platform-ops). The new event starts a fresh chain with its own 10-chunk budget.
+
+## Common questions
+
+**Do I need to tune these?**
+
+No. The defaults work for 95% of cases. If you have not seen the zombie struggle, do not touch them.
+
+**What if my zombie needs more depth?**
+
+Bump `tool_window` first — it's the layer that most often pinches on long incidents. Everything else is fine for almost all workloads.
+
+**Does dropping a tool result lose information forever?**
+
+No. Layer 2 only drops from the **active model context**. Every tool result stays on `core.zombie_events` indefinitely and the snapshot from the last L1 fire is durable in `core.zombie_memories`.
+
+**What if my model has no published context cap?**
+
+Set `context_cap_tokens` explicitly in your `TRIGGER.md`. The runtime cannot guess; it falls back to the smallest tier (`tool_window: 10`) when the cap is unknown.
+
+## The 80/20
+
+Eighty percent of operators run defaults forever and never see a context error. Twenty percent who run very deep incidents tweak `tool_window` once and forget. Almost nobody touches `stage_chunk_threshold`.

@@ -1,0 +1,52 @@
+---
+title: "Skills"
+description: "The usezombie-* skill family — three install paths, one runtime."
+---
+
+A **skill** in this catalog is a markdown-defined installer that drives `zombiectl` to bootstrap a zombie on your repository. The same skill ships identical prompts across every supported host agent: Claude Code, Amp, Codex CLI, OpenCode.
+
+## v2 catalog
+
+<Card title="usezombie-install-platform-ops" icon="github" href="/skills/usezombie-install-platform-ops" horizontal>
+  Install the flagship `platform-ops` zombie on a repository. Watches GitHub Actions deploy failures, gathers evidence, posts an evidenced diagnosis to Slack.
+</Card>
+
+More skills land as new flagships ship. Tracked in the roadmap: `usezombie-steer` (a host-side helper for steering an existing zombie), `usezombie-doctor` (a preflight + diagnostic runner for installed zombies).
+
+## Three install paths
+
+You can reach the same zombie installation through three doors. Pick whichever matches your workflow.
+
+### 1. Install `zombiectl` (one-time CLI install)
+
+```bash
+npm install -g @usezombie/zombiectl
+```
+
+Required for every other path. Installs the binary plus the `/usezombie-*` skill samples under `~/.config/usezombie/samples/`.
+
+### 2. Host-agent skill (typical operator)
+
+Inside Claude Code, Amp, Codex CLI, or OpenCode:
+
+```
+/usezombie-install-platform-ops
+```
+
+The skill drives `zombiectl install --from ~/.config/usezombie/samples/platform-ops` under the hood, asks the three gating questions, writes `.usezombie/platform-ops/SKILL.md` + `TRIGGER.md`, and ends with the webhook URL + secret.
+
+This is the recommended path for most users. Same prompts in every host.
+
+### 3. `zombiectl install --from` (power-user / scripted)
+
+```bash
+zombiectl install --from ~/.config/usezombie/samples/platform-ops
+```
+
+Bypasses the host-agent prompts. You answer the gating questions on stdin (or pre-seed via `--input`). Useful for scripted bootstrap, golden-image setup, or CI-driven installs.
+
+## Authoring vs installing
+
+A **skill** in this catalog installs a zombie. A **zombie** is what runs after install — a markdown-defined runtime instance. Once installed, behaviour iterates on the prose in `.usezombie/<zombie-name>/SKILL.md` — no skill required, no redeploy.
+
+If you want to author a zombie from scratch (not from a sample), see [Authoring skills](/zombies/skills) for the `TRIGGER.md` reference and the SKILL prose conventions.
