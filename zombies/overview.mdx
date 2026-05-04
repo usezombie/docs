@@ -23,7 +23,7 @@ flowchart LR
 ```
 
 1. **Alive.** `zombiectl install --from <path>` reads the local `SKILL.md` + `TRIGGER.md`, validates the schema, uploads to your workspace, provisions the webhook URL, and starts the event loop. Install is the deploy — there is no separate `up` step.
-2. **Processing.** When a signed event arrives on the webhook (or a cron fires, or a steer message lands), the event loop claims it, opens a stage in the sandboxed agent, and the agent reasons, invokes tools, and produces a result. Stages process sequentially per zombie; the event stream on `core.zombie_events` is the durable record.
+2. **Processing.** When a signed event arrives (webhook, cron, or steer), the platform opens a **stage**: the agent reads the event, reasons, invokes the tools listed in `TRIGGER.md`, and produces a result. The activity stream is the durable record — replay any time with `zombiectl events <zombie_id>`.
 3. **Killed.** `zombiectl kill <zombie_id>` stops the in-flight stage and marks the zombie as killed. State is checkpointed; nothing on the event stream is lost. Re-install with the same name to bring it back.
 
 You can inspect state at any time:
@@ -42,7 +42,7 @@ Every zombie belongs to exactly one **workspace**. The workspace is the boundary
 - **Access control** — teammates invited to a workspace can see, start, and kill its zombies; they cannot see zombies in other workspaces.
 - **Webhook namespace** — every zombie in a workspace gets its own unique URL under `https://api.usezombie.com/v1/webhooks/{zombie_id}`.
 
-Billing is **not** workspace-scoped. Every zombie run — no matter which workspace it lives in — debits the same tenant wallet. See [Key concepts](/concepts#credits) for the single-wallet model.
+Billing is **not** workspace-scoped. Every stage — no matter which workspace it lives in — debits the same tenant wallet. See [Key concepts](/concepts#credits) for the single-wallet model.
 
 The current workspace is set automatically by `zombiectl workspace add` or can be switched via `zombiectl workspace list` and the Mission Control dashboard.
 
@@ -58,7 +58,7 @@ The current workspace is set automatically by `zombiectl workspace add` or can b
   <Card title="Workspace credentials" icon="key" href="/zombies/credentials">
     Add secrets to the vault without the agent ever seeing them.
   </Card>
-  <Card title="Skill authoring" icon="file-code" href="/zombies/skills">
+  <Card title="Authoring a zombie" icon="file-code" href="/zombies/authoring">
     How `SKILL.md` and `TRIGGER.md` combine to define a zombie.
   </Card>
 </CardGroup>

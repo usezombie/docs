@@ -1,11 +1,9 @@
 ---
 title: "Installing a zombie"
-description: "Scaffold and install a zombie from a sample directory with `zombiectl install --from <path>`."
+description: "What `zombiectl install --from <path>` does and how to invoke it."
 ---
 
-## Overview
-
-`zombiectl install --from <path>` is the first command in a zombie's lifecycle. It reads a directory containing `SKILL.md` and `TRIGGER.md`, validates the schema, and uploads the pair to your active workspace. There is no separate "up" or "deploy" step — install is the deployment.
+`zombiectl install --from <path>` is how you bring a zombie up. It reads `SKILL.md` and `TRIGGER.md` from the directory you point at, validates them, and uploads to your active workspace. **Install is the deploy** — there's no separate `up` step.
 
 ```bash
 zombiectl install --from ~/.config/usezombie/samples/platform-ops
@@ -13,130 +11,37 @@ zombiectl install --from ~/.config/usezombie/samples/platform-ops
 
 ```
 ✓ platform-ops-zombie installed.
-  zombie_id:    zmb_2041
-  webhook_url:  https://api.usezombie.com/v1/webhooks/zmb_2041
+  zombie_id:      zmb_2041
+  webhook_url:    https://api.usezombie.com/v1/webhooks/zmb_2041
   webhook_secret: (printed once — paste into your GitHub repo webhook config)
-
-Next:
-  zombiectl events zmb_2041 --follow
-  zombiectl steer zmb_2041 "morning health check"
 ```
 
-The webhook secret is shown **once**. Lost it? Rotate the workspace credential — see [Recovery](/skills/usezombie-install-platform-ops#recovery--lost-the-webhook-secret).
+The webhook secret is shown **once**. Lost it? See [Quickstart → Wire the GitHub webhook](/quickstart#wire-the-github-webhook) for the rotation procedure.
 
-## The recommended path: install via the host-agent skill
+Re-running against the same workspace is safe — running it twice has the same effect as running it once. Your edits to `SKILL.md` / `TRIGGER.md` replace the previous version on the next event.
 
-Most operators don't run `zombiectl install --from` directly. They invoke the install skill inside Claude Code, Amp, Codex CLI, or OpenCode:
+## Two ways to invoke
+
+Most users don't run `zombiectl install --from` directly. They drive the install from a host agent (Claude Code, Amp, Codex CLI, OpenCode):
 
 ```
 /usezombie-install-platform-ops
 ```
 
-The skill drives `zombiectl install --from ~/.config/usezombie/samples/platform-ops` under the hood, asks three gating questions (Slack channel, production branch glob, optional cron schedule), and prints the webhook URL + secret at the end. See [Skills catalog](/skills) for the three install paths.
+The slash command asks three gating questions (Slack channel, production branch glob, optional cron schedule) and prints the webhook URL + secret at the end. See [Quickstart](/quickstart) for the full walkthrough.
 
-## What ships with `zombiectl`
+Power users and scripted setups call `zombiectl install --from <path>` directly.
 
-The `zombiectl` package ships sample directories under `~/.config/usezombie/samples/`. Today the catalog is one entry:
+## Exit codes
 
-| Sample | What it does | Tools | Required credentials |
-|---|---|---|---|
-| `platform-ops` | Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed workflow, your hosting provider, and your data-plane, then posts an evidenced diagnosis to Slack. Read-only outside the Slack post. | `http_request`, `memory_store`, `memory_recall`, `cron_add`, `cron_list`, `cron_remove` | `github`, `slack` (workspace-scoped) |
-
-There are no bare-name template aliases — `zombiectl install platform-ops` is not a valid invocation. Always pass `--from <path>`.
-
-## File layout
-
-The sample directory contains two files. Both are plain markdown; both are designed to be edited after install.
-
-```
-platform-ops/
-├── SKILL.md      # the agent's system prompt — what to investigate, how to phrase a diagnosis
-└── TRIGGER.md    # YAML frontmatter — trigger, allow-listed tools, credentials, x-usezombie.context
-```
-
-After install, your local copy lives under `.usezombie/<zombie-name>/`. Edit either file and re-run the install command — the upload is idempotent against the same workspace + zombie name, and your edits become the new behaviour on the next event.
-
-### `SKILL.md`
-
-The agent's system prompt — free-form prose. Write it as if you were briefing a smart colleague: who they are, what events they receive, how to phrase a result, what they must never do. The prose is the contract; there is no YAML allowlist or DAG editor.
-
-```markdown SKILL.md
-You are the platform-ops zombie. When a deploy fails on production,
-gather evidence from your hosting provider, your data-plane, and the failed CI workflow.
-Post an evidenced diagnosis to #platform-ops. Read-only outside the
-Slack post.
-```
-
-The platform-ops sample's full `SKILL.md` (~200 lines) is in [`samples/platform-ops/SKILL.md`](https://github.com/usezombie/usezombie/blob/main/samples/platform-ops/SKILL.md).
-
-### `TRIGGER.md`
-
-YAML frontmatter declaring trigger, allow-listed tools, credentials, and the `x-usezombie.context.*` knobs. **Runtime config nests under `x-usezombie:`** — top-level `trigger:` / `tools:` / `credentials:` will be rejected by the parser.
-
-```markdown TRIGGER.md
----
-name: platform-ops-zombie
-
-x-usezombie:
-  model: "{{model}}"
-  context:
-    context_cap_tokens: {{context_cap_tokens}}
-    tool_window: auto
-    memory_checkpoint_every: 5
-    stage_chunk_threshold: 0.75
-
-  trigger:
-    type: webhook
-    source: github
-    signature:
-      secret_ref: github_secret
-      header: x-hub-signature-256
-      prefix: "sha256="
-
-  tools:
-    - http_request
-    - memory_recall
-    - memory_store
-    - cron_add
-    - cron_list
-    - cron_remove
-
-  credentials:
-    - github
-    - slack
----
-```
-
-| Field | Purpose |
+| Code | Meaning |
 |---|---|
-| `name:` (top-level) | The zombie's display name. |
-| `x-usezombie.trigger:` | **One** declared trigger — `type: webhook` with a provider `source` and `signature` block. Cron and steer feed the same event stream as actor-provenance, not as additional triggers. |
-| `x-usezombie.tools:` | Allow-list of tool names the agent may invoke. Real names: `http_request`, `memory_store`/`memory_recall`/`memory_list`/`memory_forget`, `cron_add`/`cron_list`/`cron_remove`. Provider-specific calls (Slack, GitHub, your hosting provider) all happen through `http_request` with the credential firewall substituting secrets at the sandbox boundary. |
-| `x-usezombie.credentials:` | Workspace credential names the firewall will substitute into outbound calls. The agent never sees raw secret bytes. |
-| `x-usezombie.context.*` | Optional context-lifecycle knobs. Defaults work for almost every workload — see [Context lifecycle](/concepts/context-lifecycle). |
+| `0` | Installed (or updated). |
+| `1` | No workspace selected, or API error. |
+| `2` | Missing `--from`, invalid path, or schema rejection. |
 
-The canonical reference shape is [`samples/platform-ops/TRIGGER.md`](https://github.com/usezombie/usezombie/blob/main/samples/platform-ops/TRIGGER.md).
+## See also
 
-## After install
-
-```bash
-# Tail the live event stream
-zombiectl events zmb_2041 --follow
-
-# Trigger a manual steer
-zombiectl steer zmb_2041 "morning health check"
-
-# Stop the zombie (state checkpoints; nothing on the event stream is lost)
-zombiectl kill zmb_2041
-```
-
-Add or rotate workspace credentials — needed once per workspace, shared across every zombie:
-
-```bash
-# Pipe the JSON body on stdin so secrets never appear in shell history or argv
-zombiectl credential add github --data @- <<'JSON'
-{ "api_token": "ghp_...", "webhook_secret": "..." }
-JSON
-```
-
-See [`zombiectl credential`](/cli/zombiectl#zombies) for the full command shape.
+- [Templates](/zombies/templates) — the catalogue of pre-built zombies you can install.
+- [Authoring a zombie](/zombies/authoring) — the `SKILL.md` and `TRIGGER.md` reference for writing your own.
+- [Starting, observing, and stopping](/zombies/running) — what to do after install.

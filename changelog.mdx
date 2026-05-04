@@ -1,10 +1,10 @@
 ---
 title: "Changelog"
-description: "Stay up to date with UseZombie product updates, new features, and improvements."
+description: "Stay up to date with usezombie product updates, new features, and improvements."
 ---
 
 <Tip>
-  UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
+  usezombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
 <Update label="May 4, 2026" tags={["Breaking", "API", "CLI"]}>
@@ -75,7 +75,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   ## Pricing — $5 starter, two-debit framing
 
   - **Starter credit is now $5 (was $10).** The Clerk `user.created` webhook still auto-grants on signup; `STARTER_GRANT_CENTS` in `src/state/tenant_billing.zig` is the only constant that changed.
-  - **Marketing copy now names the two debit points everywhere it talks about pricing.** Hosted execution is metered against the credit pool with debits firing on event receipt and per-stage execution. BYOK pays only the stage flat overhead; platform-managed pays both plus the model-rate-based token charge with no UseZombie markup.
+  - **Marketing copy now names the two debit points everywhere it talks about pricing.** Hosted execution is metered against the credit pool with debits firing on event receipt and per-stage execution. BYOK pays only the stage flat overhead; platform-managed pays both plus the model-rate-based token charge with no usezombie markup.
 
   ## Marketing — hero trim and FAQ honesty
 
@@ -257,7 +257,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   2. **SKILL.md** — ensure the frontmatter has `name:`, `description:`, and `version:`. Make `name:` exactly match the value in TRIGGER.md.
   3. **`zombiectl install --from <dir>`** parses both files and reports field-level errors. Re-run until clean.
 
-  See [Authoring skills](/zombies/skills) for the canonical shape and a working `platform-ops-zombie` example.
+  See [Authoring skills](/zombies/authoring) for the canonical shape and a working `platform-ops-zombie` example.
 
   ## What's new
 
@@ -620,7 +620,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 
   A new [Zombies](/zombies/overview) section walks through installing a template, adding credentials, running, observing, and killing a zombie. Pages describing the legacy v1 pipeline have been retired; the old `/specs/*` and `/runs/*` URLs now 404.
 
-  New pages: [overview](/zombies/overview), [install](/zombies/install), [running](/zombies/running), [credentials](/zombies/credentials), [webhooks](/zombies/webhooks), [skills](/zombies/skills), [templates](/zombies/templates).
+  New pages: [overview](/zombies/overview), [install](/zombies/install), [running](/zombies/running), [credentials](/zombies/credentials), [webhooks](/zombies/webhooks), [skills](/zombies/authoring), [templates](/zombies/templates).
 </Update>
 
 <Update label="Apr 18, 2026" tags={["New", "API", "Security"]}>
@@ -674,7 +674,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 <Update label="Apr 12, 2026" tags={["New", "Integrations", "API"]}>
   ## Integration grants + credentialed proxy
 
-  Zombies — internal or external (LangGraph, CrewAI) — call external services through UseZombie's credentialed proxy. Credentials never leave the platform: injected server-side, stripped from response echoes, and logged to the activity stream.
+  Zombies — internal or external (LangGraph, CrewAI) — call external services through usezombie's credentialed proxy. Credentials never leave the platform: injected server-side, stripped from response echoes, and logged to the activity stream.
 
   A zombie requests a grant, humans approve once via Slack/Discord/dashboard, and the grant is reusable until revoked. Launch providers: Slack, Gmail/AgentMail, Discord, Grafana. New CLI: `zombiectl agent create|list|delete`, `zombiectl grant list|revoke`.
 </Update>
@@ -746,7 +746,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
 <Update label="April 11, 2026" tags={["New releases", "Zombies"]}>
   ## Lead Zombie — v2 core ships
 
-  UseZombie is now a runtime for always-on agents. Two commands, running agent:
+  usezombie is now a runtime for always-on agents. Two commands, running agent:
 
   ```bash
   zombiectl install lead-collector

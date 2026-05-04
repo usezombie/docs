@@ -1,5 +1,5 @@
 ---
-title: "Authoring skills"
+title: "Authoring a zombie"
 description: "The `SKILL.md` and `TRIGGER.md` file pair — how a zombie is defined end-to-end."
 ---
 
@@ -136,23 +136,25 @@ Validation under this block is rigid: an unknown subkey is rejected with a typo 
 | `trigger.signature.secret_ref` | optional | Vault key whose value verifies webhook signatures (first-class providers). |
 | `tools` | yes | Non-empty list of tool names from the platform catalog. |
 | `credentials` | optional | Vault key names the zombie reads at event time. |
-| `network.allow` | yes | Outbound hostname allowlist enforced by the credential firewall. |
+| `network.allow` | yes | Outbound hostname allowlist enforced by the sandbox. |
 | `budget.daily_dollars` | yes | Rolling 24-hour dollar ceiling. |
 | `budget.monthly_dollars` | optional | Calendar-month dollar ceiling. |
 
 ### Tools
 
-The `tools:` list is the explicit allowlist of tools the agent may invoke. Real tool names today:
+The `tools:` list is the explicit allowlist of tools the agent may invoke. **This page is the canonical reference for the tools catalogue.**
 
-- **`http_request`** — outbound HTTP calls. The credential firewall substitutes secrets in headers and bodies at the sandbox boundary; the agent never sees raw bytes. Slack posts, GitHub API calls, and any provider-specific endpoint all go through this one tool.
-- **`memory_store` / `memory_recall` / `memory_list` / `memory_forget`** — durable cross-event learning. See [Memory](/memory).
-- **`cron_add` / `cron_list` / `cron_remove`** — schedule future stage triggers from inside the agent loop.
+| Tool | What it does |
+|---|---|
+| `http_request` | Outbound HTTP. Slack posts, GitHub API calls, hosting-provider queries — every external call goes through this one tool. The tool bridge substitutes secrets into headers and bodies outside the sandbox; the agent never sees raw bytes. |
+| `memory_store` / `memory_recall` / `memory_list` / `memory_forget` | Durable cross-event learning. See [Memory](/memory) for the four categories. |
+| `cron_add` / `cron_list` / `cron_remove` | Schedule future stages from inside the reasoning loop. |
 
 A compromised or jailbroken agent cannot reach outside this list.
 
 ### Credentials
 
-Each entry under `credentials:` is a **bare vault key name** referencing a JSON-shaped secret in the workspace vault (e.g. `github` carrying `{api_token, webhook_secret}`, `slack` carrying `{bot_token}`). Names like `github`, `slack`, `linear`, `jira` are credential references — **not** tool names. The firewall resolves the named credential at `http_request` time and substitutes its fields into outbound calls; the agent sees the response, never the raw secret. Add and rotate via [Credentials](/zombies/credentials).
+Each entry under `credentials:` is a **bare vault key name** referencing a JSON-shaped secret in the workspace vault (e.g. `github` carrying `{api_token, webhook_secret}`, `slack` carrying `{bot_token}`). Names like `github`, `slack`, `linear`, `jira` are credential references — **not** tool names. The tool bridge resolves the named credential at `http_request` time and substitutes its fields into outbound calls; the agent sees the response, never the raw secret. Add and rotate via [Credentials](/zombies/credentials).
 
 ### Network allowlist
 

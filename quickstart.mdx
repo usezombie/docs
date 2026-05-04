@@ -37,11 +37,17 @@ This walks through installing the flagship `platform-ops` zombie on one of your 
   zombiectl login
   ```
 
-  This opens a Clerk OAuth flow in your browser. New accounts come with a `$10` starter credit pool — never expires, applies to hosted execution only. Inference is BYOK and billed by your provider directly.
+  This opens a Clerk OAuth flow in your browser. New accounts come with a `$5` starter credit pool — never expires, applies to hosted execution only. Inference is BYOK and billed by your provider directly.
 </Step>
 
-<Step title="Run the install skill">
-  In your host agent, invoke:
+<Step title="Install and run the install skill">
+  Install the `usezombie` skill family into your host agent:
+
+  ```bash
+  npx skills add usezombie/usezombie
+  ```
+
+  Then, in your host agent, invoke:
 
   ```
   /usezombie-install-platform-ops
@@ -65,7 +71,7 @@ This walks through installing the flagship `platform-ops` zombie on one of your 
   zombiectl tenant provider add --credential <name>
   ```
 
-  Supported providers: Anthropic, OpenAI, Fireworks (Kimi K2), Together, Groq, Moonshot. UseZombie marks up zero on inference — the executor resolves your credential at the tool bridge and forwards to your provider.
+  Supported providers: Anthropic, OpenAI, Fireworks (Kimi K2), Together, Groq, Moonshot. usezombie marks up zero on inference — the executor resolves your credential at the tool bridge and forwards to your provider.
 </Step>
 
 <Step title="Wire the GitHub webhook">
@@ -86,13 +92,22 @@ This walks through installing the flagship `platform-ops` zombie on one of your 
   </Tip>
 
   <Warning>
-    **Lost the secret?** It's not stored anywhere user-visible after install. Rotate the workspace `github` credential:
+    **Lost the secret?** It's not stored anywhere user-visible after install — you have to rotate. Two steps:
+
+    **1. Rotate the workspace `github` credential.** Generate a new webhook secret (any random value, e.g. `openssl rand -hex 32`), then pipe the credential JSON to `zombiectl` on stdin:
 
     ```bash
-    zombiectl credential add github --data @-
+    cat <<EOF | zombiectl credential add github --data @- --force
+    {
+      "api_token": "ghp_...",
+      "webhook_secret": "<new-secret>"
+    }
+    EOF
     ```
 
-    Pipe the JSON on stdin (shape: `{ "api_token": "ghp_...", "webhook_secret": "<new>" }` — see [Credentials](/zombies/credentials) for the full reference and `--force` rotation flag). Update the new secret in every repo's webhook settings; the old one stops working immediately.
+    The `--data @-` flag reads JSON from stdin; `--force` overwrites the existing credential. See [Credentials](/zombies/credentials) for the full schema.
+
+    **2. Update every repo's webhook.** In each GitHub repo using this workspace, go to **Settings → Webhooks → Edit** and paste `<new-secret>` into the **Secret** field. The old secret stops working the moment step 1 completes, so do this immediately after.
   </Warning>
 </Step>
 
@@ -109,7 +124,7 @@ This walks through installing the flagship `platform-ops` zombie on one of your 
   zombiectl events <zombie_id> --follow
   ```
 
-  Or watch the same stream in Mission Control — `app.usezombie.com`.
+  Or watch the same stream in Mission Control — the web dashboard at `app.usezombie.com`.
 </Step>
 
 </Steps>
@@ -130,7 +145,7 @@ The platform-ops zombie installed `SKILL.md` (the prose system prompt — what t
   <Card title="Context lifecycle" icon="layer-group" href="/concepts/context-lifecycle">
     Why deep incidents keep reasoning past the model's context cap. Defaults work for 95% of cases.
   </Card>
-  <Card title="Skills catalog" icon="puzzle-piece" href="/skills">
-    The `usezombie-*` skill family. Future: `usezombie-steer`, `usezombie-doctor`.
+  <Card title="Authoring a zombie" icon="file-code" href="/zombies/authoring">
+    The `SKILL.md` + `TRIGGER.md` reference for writing your own.
   </Card>
 </Columns>

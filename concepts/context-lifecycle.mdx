@@ -1,181 +1,54 @@
 ---
-title: "Context lifecycle"
-description: "How a 40-tool-call incident keeps reasoning past the model's working-memory cap — four layers, who actually enforces what, and what to configure."
+title: "How long does a stage take?"
+description: "When a stage opens, when it stops, and the three knobs you'd ever tune."
 ---
 
-> **New here?** A *zombie* is a durable agent runtime instance scoped to one operational outcome — `SKILL.md` + `TRIGGER.md` define its behaviour, the runtime drives its reasoning loop on every trigger. See [Concepts → the four nouns](/concepts) for the full taxonomy.
+A single trigger — a webhook, a cron fire, a `steer` message — opens one **stage**. The agent reasons, calls tools, and the stage closes when it's done or when it would otherwise overflow the model's context window.
 
-A long deploy investigation can issue forty-plus tool calls — `gh run view`, log tails, infra probes, memory writes — across a single stage. No current model holds forty tool results in working memory. UseZombie keeps the incident coherent through four layers that work *together*, not three independent runtime mechanisms acting alone.
+Most zombies finish a stage in seconds to a couple of minutes and never need any of the controls on this page. Read on if you have a long incident that issues dozens of tool calls and want to understand what stops it.
 
-Knowing which layer does what is the difference between debugging a context-overflow incident in 10 minutes and 10 hours.
+## The three things that end a stage
 
-<Tip>
-  **Heads up — this differs from older marketing copy.** Three of the four layers below are *agent-driven*, not runtime-enforced. The runtime emits signals; the agent's `SKILL.md` prose acts on them. The exact boundaries are in this page, anchored to file:line.
-</Tip>
-
-## The four layers
-
-```
-                          ┌─ runtime emits ─┐  ┌─ agent acts via ─┐  ┌─ worker glue ─┐  ┌─ inside the agent ─┐
-   one stage running:     │  L1 nudge log    │  │  memory_store      │  │ continuation   │  │  autoCompactHistory │
-                          │  L2 nudge log    │  │  (SKILL.md prose)  │  │  re-enqueue    │  │  (LLM summarize)    │
-                          │  L3 nudge log    │  │  exit_ok=false +   │  │  10-cap        │  │  fires at >50 msgs  │
-                          │  (no eviction)   │  │  checkpoint_id     │  │  on the chain  │  │  or 75% token est.  │
-                          └──────────────────┘  └────────────────────┘  └────────────────┘  └─────────────────────┘
-```
-
-### Layer 1 — Runtime signals (operator observability)
-
-The runtime emits three structured log lines so on-call humans can watch a long incident unfold from the activity stream. **The agent does not read these logs.** Skill prose carries independent numeric heuristics that coordinate with the runtime defaults — the platform-ops `SKILL.md`, for example, says "five or more back-to-back tool calls" and "roughly twenty tool calls" rather than naming any log line. Runtime values and skill prose move together when you tune.
-
-| Signal | Fires when | Source |
+| What | When it fires | What happens |
 |---|---|---|
-| `runner_progress.memory_checkpoint_due` | Every Nth completed tool call (`memory_checkpoint_every`, default 5) | [`src/executor/runner_progress.zig:150-159`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig#L150-L159) |
-| `runner_progress.tool_window_exceeded` | Every tool call after the cumulative count crosses `tool_window` (default 20) | [`src/executor/runner_progress.zig:166-173`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig#L166-L173) |
-| `runner_progress.chunk_threshold_breached` | Every LLM response where `prompt_tokens / context_cap_tokens ≥ stage_chunk_threshold` (default 0.75) | [`src/executor/runner_progress.zig:175-198`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig#L175-L198) |
+| **Stage finished** | Agent decides it's done | Stage closes cleanly. Diagnosis posted, state checkpointed. |
+| **Context full** | Prompt approaches the model's context cap | Agent ends the stage with a checkpoint, the runtime opens a fresh stage on the same chain, the new stage `memory_recall`s where it left off. |
+| **Budget breach** | Daily or monthly dollar cap hit | Stage terminates, `budget_breach` recorded. Future stages in the next billing window are unaffected. |
 
-The runtime can't drop tool results from a live conversation — the underlying agent loop (Nullclaw) doesn't expose mid-loop conversation mutation. So Layer 1 is a partnership: the runtime watches, the agent reacts.
+## Continuation chains — when one stage isn't enough
 
-### Layer 2 — Agent staging via `memory_store`
+If the agent can't finish in one stage (a forty-tool-call incident on a 200K-token model, for example), it ends the current stage with `exit_ok: false` and a `checkpoint_id`. The runtime re-enqueues the same event as a continuation; the next stage opens with a fresh prompt and pulls the prior findings via `memory_recall(checkpoint_id)`.
 
-When the agent's SKILL prose hits its compaction heuristic ("after roughly N tool calls"), it calls the [`memory_*` tools](/memory) to write a distilled summary of findings so far:
+A chain caps at **10 continuations**. The 11th attempt is refused, the originating event is labelled `chunk_chain_escalate_human`, and an operator picks it up. The zombie itself stays alive — only that one chain forfeits.
 
-```
-memory_store(
-  category='conversation',
-  key='findings:<event-id>',
-  content='<distilled summary of tool calls 1-15>'
-)
-```
+## Knobs you can tune
 
-The summary lands in `memory.memory_entries`, scoped to the workspace, recoverable via `memory_recall`.
+Set these under `x-usezombie.context` in `TRIGGER.md`. Defaults work for almost every workload — leave them alone unless you have a specific reason.
 
-**Important: this does not shrink the active prompt by itself.** Nullclaw does not expose mid-loop conversation mutation, so the agent cannot evict its own earlier tool results — they stay in the live conversation until either Layer 3 ends the stage and the next stage opens fresh, or Layer 4 (Nullclaw's autoCompactHistory) summarises the message buffer. Layer 2 is a *staging* mechanism: it makes the synthesis durable so that when Layer 3 or Layer 4 fires, the agent can recover its findings via `memory_recall` instead of re-investigating from scratch.
+| Knob | Default | When to touch it |
+|---|---|---|
+| `tool_window` | 20 | Raise if your zombie routinely runs 30+ tool calls and you want fewer continuations. Lower if you want it to compact its findings sooner. |
+| `memory_checkpoint_every` | 5 | Cadence at which the agent is prompted to write a memory snapshot during a long stage. Rarely worth changing. |
+| `context_cap_tokens` | model-dependent | Set explicitly if your model has no published context cap or differs from the default. |
 
-Skill templates are responsible for the prose that triggers `memory_store`. The runtime never writes this entry. See [`/memory`](/memory) for the four categories — `conversation` is the right one for context-lifecycle stagings because it's ephemeral and stage-scoped, unlike `core` which is for durable cross-event learning.
-
-### Layer 3 — Stage chunking + continuation chain
-
-When the agent decides the prompt is too full to keep going, it ends the stage with `exit_ok: false` and a `checkpoint_id`. The worker classifier in [`src/zombie/continuation.zig:67-86`](https://github.com/usezombie/usezombie/blob/main/src/zombie/continuation.zig#L67-L86) sees this, looks up how many continuations the chain has already produced, and either:
-
-- **`enqueue`** — re-XADDs the chain as a synthetic continuation event with `actor=continuation:<original_actor>` (flat — already-continuation actors are idempotent). The next stage opens with a fresh prompt; SKILL prose calls `memory_recall(checkpoint_id)` to load the snapshot.
-- **`force_stop`** — at the **11th attempt** on the same chain (`max_continuations_per_chain = 10`, `continuation.zig:38`), the worker writes `failure_label = "chunk_chain_escalate_human"` to the originating row and stops. The zombie itself stays alive; only this one chain forfeits.
-
-Crucially, the runtime cannot *force* the agent to chunk. Layer 1's `chunk_threshold_breached` log is a hint; the agent's `SKILL.md` prose decides whether to honour it ("when context fills, return content='needs continuation' with a checkpoint_id"). This boundary is documented in [`runner_progress.zig:63-67`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig#L63-L67).
-
-### Layer 4 — Nullclaw `autoCompactHistory` (independent, transparent)
-
-Inside the agent loop itself, an entirely separate compaction runs. It is **not** wired to `x-usezombie.context.*`; it lives in the vendored Nullclaw runtime at [`agent/compaction.zig:79-101`](https://github.com/nullclaw/nullclaw/blob/v2026.4.9/src/agent/compaction.zig#L79-L101).
-
-It triggers on:
-
-- Message count exceeds `max_history_messages` (default **50**), **OR**
-- Token estimate exceeds **75 %** of `token_limit` (`tokenEstimate = (total_chars + 3) / 4`)
-
-When it fires, an LLM summarization replaces all but `keep_recent` (default **20**) messages with a single summary message. If more than 10 messages would be summarized, it splits in half, summarizes each, then merges. This runs regardless of what `x-usezombie.context.tool_window` says.
-
-So there *is* a real rolling-summary mechanism — but it operates on conversation messages (not tool results specifically), it isn't tunable from `TRIGGER.md`, and it isn't visible in `runner_progress` log lines. Operators don't see it today; flag for follow-up if you need it surfaced on the timeline.
-
-## What you can configure
-
-These knobs go under `x-usezombie.context` in `TRIGGER.md`. They control **signal cadences**, not enforcement. Pair every change with the corresponding edit to your skill template's compaction prose.
-
-| Knob | Default | What it does today | Source |
-|---|---|---|---|
-| `tool_window` | **20** (fixed — see below) | Count after which `tool_window_exceeded` fires every subsequent tool call. | `context_budget.zig:54` |
-| `memory_checkpoint_every` | **5** | Cadence of `memory_checkpoint_due` log lines. | `context_budget.zig:58` |
-| `stage_chunk_threshold` | **0.75** | Fraction of `context_cap_tokens` that fires `chunk_threshold_breached`. | `context_budget.zig:62` |
-| `context_cap_tokens` | **0** (BYOK sentinel) | Required denominator for L3 fill ratio; `0` short-circuits Layer 1's L3 signal entirely. | `context_budget.zig:37` |
-| `model` | `""` | Opaque pass-through to the executor; not interpreted by the runtime. | `context_budget.zig:32` |
-
-`tool_window: auto` and `tool_window: 0` both resolve to **20** today. There is no model-tier-aware resolution in the runtime or in the install-skill — every zombie gets a flat 20 regardless of whether you're on Claude Sonnet (200 K), Kimi K2 (256 K), or Gemini (1 M+). If you need a different number, set it explicitly. ([`applyContextDefaults`](https://github.com/usezombie/usezombie/blob/main/src/executor/context_budget.zig#L70-L74))
-
-## Worked example — platform-ops on a Fly deploy failure
-
-```
-t=0s     webhook arrives. core.zombie_events row written with actor=webhook:github.
-t=2s     stage 1 opens. Agent system prompt: SKILL.md instructions for platform-ops.
-
-         tool calls 1-5:   gh run view, gh run view --log, fly status, upstash status, fly logs.
-t=8s     tool call 5 → runtime emits runner_progress.memory_checkpoint_due (every=5).
-                          SKILL prose tells agent to call memory_store('conversation', 'findings:<event_id>', '<summary so far>').
-                          Agent does so on tool call 6.
-
-         tool calls 6-20:  more log fetches, narrowing on a candidate cause.
-t=24s    tool call 21 → runtime emits runner_progress.tool_window_exceeded (window=20).
-                          SKILL prose tells agent to compact tool calls 1-15 into a denser summary
-                          (memory_store again, same key, replacing) and continue.
-
-         tool calls 22-30: deeper investigation. Agent's prompt now carries:
-                          - the system prompt
-                          - the current event payload
-                          - the running 'findings:<event_id>' summary entry
-                          - tool calls 16-30 in raw form
-t=40s    LLM round-trip after tool call 30 returns prompt_tokens=148000 against
-         context_cap_tokens=200000 → ratio 0.74. Just under stage_chunk_threshold=0.75. No log.
-
-         tool calls 31-34: posts diagnosis to #platform-ops, ends stage with exit_ok=true.
-t=46s    stage 1 closes. core.zombie_events updated with stage exit. No continuation needed.
-```
-
-If at tool call 35 the prompt had crossed 0.75:
-
-```
-t=46s    runtime emits runner_progress.chunk_threshold_breached.
-         Agent's SKILL prose: 'when you see chunk_threshold_breached on the activity stream
-         or feel the prompt is too full, return content="needs continuation"
-         with checkpoint_id=findings:<event_id>'.
-         Agent ends stage 1 with exit_ok=false, checkpoint_id="findings:<event_id>".
-
-t=46.5s  worker calls continuation.classify(stage, original_actor, original_event_id, prior=0).
-         Verdict: enqueue. New synthetic event written: actor='continuation:webhook:github',
-         resumes_event_id=<original>.
-
-t=47s    stage 2 opens. Fresh prompt. SKILL prose's first instruction: memory_recall the
-         checkpoint_id from request_json.original_event_id. Agent calls
-         memory_recall('findings:<event_id>') → gets the running summary.
-         Stage 2 continues with the summary + the new request, makes ~12 more tool calls,
-         posts diagnosis, ends with exit_ok=true. Chain closes after 1 continuation.
-```
-
-If continuations stack to 10 and the agent still ends with `exit_ok=false`, the 11th enqueue is refused; the originating row is labelled `chunk_chain_escalate_human` and an operator picks it up.
-
-## What the operator sees
-
-The activity timeline in Mission Control (`ui/packages/app/components/domain/EventsList.tsx`, `LiveEventsPanel.tsx`) shows:
-
-- **Stages** as discrete blocks on the timeline.
-- **Continuation chains** as linked stages on the same originating event (joined by `resumes_event_id`).
-- **`chunk_chain_escalate_human`** as the terminal `event_complete` frame's `failure_label`.
-
-Layer 4 (Nullclaw `autoCompactHistory`) is currently invisible on the timeline — it runs inside the agent loop without surfacing a structured frame. If your team starts hitting it regularly, file a follow-up to surface it.
-
-## Limits
-
-Compaction quality is bounded by the LLM doing the summarization (Layer 2 via `memory_store('conversation', ...)`, and Layer 4 via Nullclaw's internal summarizer). A single log line that mattered thirty minutes into the incident can drop out of both summaries.
-
-**Mitigation: pin specific findings to `core` instead of `conversation`.** Entries written with `category='core'` survive past stage boundaries, past workspace destruction, and past either summarizer. Use `core` for things you'd want a *future* zombie stage to know; use `conversation` for stage-scoped scratchpad. See [`/memory#categories`](/memory) for the full table.
+If you've never seen a `chunk_chain_escalate_human` failure label, you don't need to change any of these.
 
 ## Common questions
 
-**Do I need to tune these knobs?**
+**My zombie ran for two minutes — is that normal?**
 
-No. The defaults work for almost every workload. If you've never seen a `chunk_threshold_breached` log or a forfeited chain, leave them alone. Tune your `SKILL.md` compaction prose first; it does the actual work.
+Yes. Stages can be seconds (a single webhook → Slack post) to a few minutes (a multi-step diagnosis). What matters is that the stage closes cleanly, not how long it took.
 
-**What if my model has no published context cap?**
+**Will it run forever?**
 
-Set `context_cap_tokens` explicitly in `TRIGGER.md`. Leaving it at 0 short-circuits Layer 1's L3 signal — the agent will never see `chunk_threshold_breached` and will only chunk if its SKILL prose has a non-token-based heuristic.
+No. Three independent ceilings stop it: the stage's own context cap (the agent voluntarily ends and continues), the continuation cap (10 chunks max), and the budget cap (`daily_dollars` / `monthly_dollars` in `TRIGGER.md`).
 
-**My zombie isn't compacting even though the runtime is logging signals.**
+**Do I need to tune anything?**
 
-The agent doesn't read the runtime logs — those are for the operator. Compaction happens because your `SKILL.md` prose carries a numeric heuristic that matches the runtime defaults (e.g. "after roughly twenty tool calls, rewrite `findings:<id>` tighter"). If your `SKILL.md` doesn't carry such prose, the agent has no instruction to compact. See `samples/platform-ops/SKILL.md` for a template that wires checkpoint cadence, compaction cadence, and hand-off cadence correctly.
-
-**My model has a much larger (or smaller) context cap than 200K. Should `tool_window` adjust?**
-
-It doesn't — `tool_window: auto` resolves to a flat **20** for every model today (`src/executor/context_budget.zig:54`). If your model needs a different number, set `tool_window` explicitly in `TRIGGER.md`.
+Almost certainly not. The defaults are tuned for the flagship `platform-ops` zombie and translate well to most workloads. Tune your `SKILL.md` prose first — it's where the actual reasoning lives.
 
 ## See also
 
-- [Memory](/memory) — the API the agent uses to compact under context pressure (Layer 2). The `conversation` category is the right home for stage-scoped summaries; `core` is for durable findings.
-- [Concepts](/concepts) — the Memory checkpoint, Stage chunking, and Session state accordions cross-reference this page.
-- Architecture canonical reference — [`docs/architecture/capabilities.md §4`](https://github.com/usezombie/usezombie/blob/main/docs/architecture/capabilities.md). Note: the v1 architecture text is being reconciled against this page; if you spot a discrepancy, the code wins and this page is authoritative.
+- [Memory](/memory) — the API the agent uses to checkpoint findings during a long stage.
+- [Budgets](/billing/budgets) — `daily_dollars` and `monthly_dollars` ceilings.
+- [Authoring a zombie](/zombies/authoring) — the full `TRIGGER.md` reference.

@@ -30,7 +30,7 @@ zombiectl install --from ~/.config/usezombie/samples/platform-ops
   webhook_secret: (printed once — paste into your GitHub repo webhook config)
 ```
 
-The webhook secret is shown **once**. Lost it? Rotate the workspace credential — see [Recovery](/skills/usezombie-install-platform-ops#recovery--lost-the-webhook-secret).
+The webhook secret is shown **once**. Lost it? Rotate the workspace credential — see [Quickstart → Wire the GitHub webhook](/quickstart#wire-the-github-webhook) for the rotation procedure.
 
 Re-running `zombiectl install --from <same-path>` against a workspace that already has the same zombie is idempotent: the new `SKILL.md` / `TRIGGER.md` replace the previous version on the next event.
 
@@ -63,7 +63,7 @@ zombiectl status --json
 
 ## `zombiectl events <zombie_id>`
 
-Streams the activity stream for one zombie. Every webhook receipt, cron fire, steer message, tool call, and stage exit lands here with actor provenance.
+Streams the activity stream for one zombie. Every webhook receipt, cron fire, steer message, tool call, and stage exit lands here, tagged with what triggered it (webhook, cron, steer, or a continuation).
 
 ```bash
 zombiectl events zmb_2041 --follow
@@ -82,13 +82,13 @@ zombiectl events zmb_2041 --actor 'webhook:*'
 
 ## `zombiectl steer <zombie_id> "<message>"`
 
-Posts a steer message — a manual trigger that lands on the event stream as `actor=steer:<user>`. Same reasoning loop, manual prompt. Useful before you have a webhook firing, or for one-off investigation.
+Posts a steer message — a manual trigger that runs the same reasoning loop as a webhook event. Useful before you have a webhook wired up, or for one-off investigation.
 
 ```bash
 zombiectl steer zmb_2041 "morning health check — anything red?"
 ```
 
-The reply streams back live; the result is also persisted on `core.zombie_events` for replay.
+The reply streams back live; the result is also persisted to the activity stream for replay.
 
 ## `zombiectl kill <zombie_id>`
 

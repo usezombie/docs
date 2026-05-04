@@ -1,6 +1,6 @@
 ---
 title: "Key concepts"
-description: "The four nouns, the credential firewall, and how a stage runs."
+description: "The four nouns, the tool bridge, and how a stage works."
 ---
 
 <Tip>
@@ -9,11 +9,11 @@ description: "The four nouns, the credential firewall, and how a stage runs."
 
 ## The four nouns
 
-UseZombie has four primary objects. Everything else is infrastructure.
+usezombie has four primary objects. Everything else is infrastructure.
 
 <CardGroup cols={2}>
   <Card title="Tenant" icon="building">
-    Your top-level billing and identity boundary. Created automatically on first Clerk sign-in. Carries the **credit balance** ($10 starter grant, never expires) and your default Stripe customer.
+    Your top-level billing and identity boundary. Created automatically on first Clerk sign-in. Carries the **credit balance** ($5 starter grant, never expires) and your default Stripe customer.
   </Card>
   <Card title="Workspace" icon="folder-tree">
     A container for zombies and credentials. One tenant can have many workspaces (team, project, environment). Credits are **not** fragmented per workspace — every workspace debits the same tenant wallet.
@@ -29,15 +29,20 @@ UseZombie has four primary objects. Everything else is infrastructure.
 ### How they relate
 
 ```
-Tenant (wallet: $10.00, BYOK: anthropic)
+Tenant  (wallet: $5.00, BYOK: anthropic)
+│
 ├── Workspace: "platform-ops"
-│   ├── Zombie: platform-ops              (zmb_2041)
-│   │   └── Tools: http_request, memory_store, cron_add
+│   │
+│   ├── Zombie: platform-ops      (zmb_2041)
+│   │   ├── Tools:    http_request, memory_store, cron_add
 │   │   └── Triggers: webhook (GitHub Actions), cron, steer
-│   └── Credential: github                (workspace-scoped, shared)
+│   │
+│   └── Credential: github        (workspace-scoped, shared)
+│
 └── Workspace: "support"
-    └── Zombie: ticket-triage             (zmb_2042)
-        └── Tools: http_request, memory_store
+    │
+    └── Zombie: ticket-triage     (zmb_2042)
+        ├── Tools:    http_request, memory_store
         └── Triggers: webhook (Zendesk), steer
 ```
 
@@ -45,10 +50,10 @@ Every stage debits the same tenant balance regardless of which workspace the zom
 
 ## Credits and BYOK
 
-New tenants start with **$10** seeded at signup — never expires.
+New tenants start with **$5** seeded at signup — never expires.
 
-- **Hosted execution is metered.** UseZombie debits credits on event receipt and per-stage execution. That's what the credit pool pays for.
-- **Inference is BYOK.** You attach your own model key (Anthropic, OpenAI, Fireworks, Together, Groq, Moonshot). UseZombie marks up zero. The executor resolves your credential at the tool bridge and your provider bills you directly.
+- **Hosted execution is metered.** usezombie debits credits on event receipt and per-stage execution. That's what the credit pool pays for.
+- **Inference is BYOK.** You attach your own model key (Anthropic, OpenAI, Fireworks, Together, Groq, Moonshot). usezombie marks up zero. The executor resolves your credential at the tool bridge and your provider bills you directly.
 - **Debits happen on completed work only.** A stage that fails before producing output does not debit.
 
 See [Billing and cost control](/billing/plans).
@@ -57,10 +62,10 @@ See [Billing and cost control](/billing/plans).
 
 ```mermaid
 flowchart LR
-    Trigger[trigger arrives<br/>webhook · cron · steer] --> Event[event written to<br/>core.zombie_events<br/>actor=webhook:github]
-    Event --> Stage[stage opens<br/>runner.execute]
+    Trigger[trigger arrives<br/>webhook · cron · steer] --> Event[event recorded<br/>on the activity stream]
+    Event --> Stage[stage opens]
     Stage --> Tool[tool calls<br/>placeholders only]
-    Tool --> Bridge[tool bridge<br/>substitutes credential<br/>outside sandbox]
+    Tool --> Bridge[tool bridge<br/>substitutes secret<br/>outside sandbox]
     Bridge --> Result[result returned<br/>added to context]
     Result --> Tool
     Tool --> Done[stage exits<br/>diagnosis posts<br/>state checkpointed]
@@ -72,109 +77,37 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
 
 <AccordionGroup>
   <Accordion title="Zombie">
-    A durable runtime instance scoped to one operational outcome. A zombie has a config (`SKILL.md` + `TRIGGER.md`), one or more triggers (webhook, cron, steer), tools it can call, and workspace credentials it uses but never sees raw bytes for. Crashes and worker restarts are transparent — state survives on `core.zombie_events` plus checkpointed memory.
+    A persistent, always-on agent scoped to one operational outcome. A zombie has two markdown files (`SKILL.md` + `TRIGGER.md`), a trigger that wakes it, a list of tools it can call, and the workspace credentials it needs. Crashes and restarts are transparent — the platform survives them.
   </Accordion>
 
-  <Accordion title="ZombieConfig (SKILL.md + TRIGGER.md)">
-    Two markdown files in `.usezombie/<zombie-name>/`. `SKILL.md` is the system prompt the agent reads — what to investigate, how to phrase a result. `TRIGGER.md` is the YAML frontmatter that declares triggers, allow-listed tools, budget caps, and `x-usezombie.context.*` knobs.
-
-    ```markdown TRIGGER.md
-    ---
-    name: platform-ops-zombie
-
-    x-usezombie:
-      model: "{{model}}"
-      context:
-        context_cap_tokens: 200000
-        tool_window: auto
-        memory_checkpoint_every: 5
-        stage_chunk_threshold: 0.75
-
-      trigger:
-        type: webhook
-        source: github
-        signature:
-          secret_ref: github_secret
-          header: x-hub-signature-256
-          prefix: "sha256="
-
-      tools:
-        - http_request
-        - memory_recall
-        - memory_store
-        - cron_add
-        - cron_list
-        - cron_remove
-
-      credentials:
-        - github
-        - slack
-    ---
-    ```
-
-    ```markdown SKILL.md
-    You are the platform-ops zombie. When a deploy fails on production,
-    gather evidence from your hosting provider, your data-plane, and the failed CI workflow. Post an
-    evidenced diagnosis to #platform-ops. Read-only outside the Slack post.
-    ```
-
-    See [Authoring skills](/zombies/skills) for the full `TRIGGER.md` reference.
+  <Accordion title="Stage">
+    One end-to-end execution of the agent on one trigger: webhook arrives → agent reasons → tool calls → result. Most zombies finish a stage in a few seconds. See [How long does a stage take?](/concepts/context-lifecycle).
   </Accordion>
 
   <Accordion title="Trigger">
-    A zombie has **one** declared trigger in `TRIGGER.md` — the entry-point that turns external signal into an event. Today that's a `webhook`: an external system (GitHub Actions, Zendesk, custom) POSTs to `https://api.usezombie.com/v1/webhooks/{zombie_id}` signed against a workspace credential.
+    What wakes a zombie. Three sources, all feeding the same reasoning loop:
 
-    Beyond the declared trigger, two more sources can land work on the same event stream and feed the same reasoning loop:
+    - **Webhook** — an external system (GitHub, Slack, your monitoring) POSTs to `https://api.usezombie.com/v1/webhooks/{zombie_id}`.
+    - **Cron** — the zombie schedules its own future stages via the `cron_add` tool.
+    - **Steer** — a human invokes `zombiectl steer <zombie_id> "..."` for a manual stage.
 
-    - **Cron firings** — the zombie schedules its own future events via the `cron_add` tool. The runtime fires them on schedule with `actor=cron:<schedule>`.
-    - **Steer messages** — a human posts via `zombiectl steer <zombie_id> "..."` (or the messages API). Events land with `actor=steer:<user>`.
-
-    Each event on `core.zombie_events` carries actor provenance — `webhook:github`, `cron:<schedule>`, `steer:<user>`, `continuation:<original_actor>`. The zombie doesn't branch on actor type; `SKILL.md` decides what to do based on the event payload.
+    `SKILL.md` decides what to do based on the event payload.
   </Accordion>
 
   <Accordion title="Tool">
-    A named verb the agent can invoke. Declared in `TRIGGER.md`. Examples:
-    - `http_request` — make an outbound HTTP call. Domains restricted by SKILL prose.
-    - `memory_store` / `memory_recall` / `memory_list` / `memory_forget` — durable cross-event learning. See [`/memory`](/memory) for the API + four categories.
-    - `cron_add` / `cron_list` / `cron_remove` — schedule future stage triggers.
-    - Slack posts, GitHub calls, hosting-provider queries — all happen via `http_request` against the relevant credential.
+    A named verb the agent can invoke, declared in `TRIGGER.md`:
+    - `http_request` — outbound HTTP. Slack posts, GitHub calls, your provider — all go through this.
+    - `memory_store` / `memory_recall` / `memory_list` / `memory_forget` — durable cross-event learning. See [Memory](/memory).
+    - `cron_add` / `cron_list` / `cron_remove` — schedule future stages.
 
-    Constraint policy (e.g. "read-only against your infrastructure; the only write path is the channel post") lives as prose in `SKILL.md`. The prose is the contract today; structural enforcement comes when a second zombie reuses the same policy.
+    The agent can only call tools that are explicitly listed. A jailbroken agent cannot reach outside the list.
   </Accordion>
 
-  <Accordion title="Tool bridge (credential firewall)">
-    The boundary between your secrets and the model. Credentials are stored encrypted at the workspace level. When the agent invokes a tool, the bridge intercepts: it substitutes the placeholder for the real secret, makes the outbound call, and returns the response. The model process sees only placeholders — never raw API keys, never tokens.
-
-    Prompt-injection attacks that try to exfiltrate the credential succeed only at recovering the placeholder.
-  </Accordion>
-
-  <Accordion title="Event stream (core.zombie_events)">
-    The append-only ledger. Every webhook receipt, cron fire, steer message, tool call, and stage exit lands on `core.zombie_events` with actor provenance and a monotonic sequence number. Replay via `zombiectl events <zombie_id>`. Tail live via SSE at `/v1/workspaces/{wid}/zombies/{zid}/events/stream`. The same stream powers Mission Control's activity timeline.
-  </Accordion>
-
-  <Accordion title="Memory checkpoint">
-    A durable snapshot the agent writes during a long stage by calling `memory_store`. The runtime emits a `memory_checkpoint_due` signal every N tool calls (`memory_checkpoint_every`, default 5) and the agent's `SKILL.md` prose decides what to record. The runtime never auto-snapshots — see [context lifecycle](/concepts/context-lifecycle) for who actually enforces what.
-  </Accordion>
-
-  <Accordion title="Stage chunking">
-    The failsafe for when the agent's prompt is approaching the model's context cap. The agent voluntarily ends the stage with `exit_ok: false` + a `checkpoint_id`; the worker re-enqueues the same event chain as a synthetic continuation event with `actor=continuation:<original_actor>` (`src/zombie/continuation.zig`). The next stage starts on a fresh prompt; `SKILL.md` prose tells the agent to call `memory_recall` to pick up state.
-
-    Each chain caps at **10 continuations** — past that the worker stops re-enqueueing and labels the originating row `chunk_chain_escalate_human`. See [context lifecycle](/concepts/context-lifecycle).
-  </Accordion>
-
-  <Accordion title="Session state (resume-on-crash)">
-    `core.zombie_sessions.context_json` is a thin per-zombie row that carries `{last_event_id, last_response}` (response truncated to 2 KB) so the worker can pick up after a crash without losing its place. It is **not** the conversation history — that lives in the LLM message buffer for the duration of one stage and on `core.zombie_events` durably; cross-event learning lives in [`/memory`](/memory). Wiring at `src/zombie/event_loop_helpers.zig:69-89`.
-  </Accordion>
-
-  <Accordion title="Approval gate">
-    Some tools require human approval before the agent can call them — declared per-tool in `TRIGGER.md`. The runtime pauses the stage, posts an approval request to Slack and Mission Control, and resumes only on explicit Approve. State machine survives worker restarts; nothing in flight is lost.
-  </Accordion>
-
-  <Accordion title="Kill switch">
-    `zombiectl kill <zombie_id>` stops the running stage immediately. State is checkpointed to the last memory write — nothing on the event stream is lost. Resume with `zombiectl steer` once you've fixed the underlying issue.
+  <Accordion title="Tool bridge">
+    The boundary between your secrets and the model. Credentials are stored encrypted in the workspace vault; the model itself only sees `${secrets.NAME.FIELD}` placeholders. When the agent invokes a tool, the **tool bridge** substitutes the real secret value outside the sandbox, makes the outbound call, and returns the response — never the secret. A prompt-injection attack recovers only the placeholder string. See [Workspace credentials](/zombies/credentials).
   </Accordion>
 
   <Accordion title="Budget">
-    Dollar ceilings on hosted execution declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour window; `monthly_dollars` caps the calendar month. Hitting either ceiling stops new stages from opening; in-flight stages drain. Inference cost is BYOK and not subject to UseZombie's budget — your provider's caps apply there.
+    Dollar ceilings on hosted execution (the platform compute that runs your zombie — separate from your model provider's bill) declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour window; `monthly_dollars` caps the calendar month. Hitting either ceiling stops new stages from opening. Inference cost is BYOK — your provider's own caps apply there.
   </Accordion>
 </AccordionGroup>

@@ -14,7 +14,6 @@ description: "Complete zombiectl command reference."
 | External agents | `agent create`, `agent list`, `agent delete` |
 | Integration grants | `grant list`, `grant revoke` |
 | Diagnostics | `doctor` |
-| Operator | `admin` |
 
 Every command accepts the [global flags](/cli/flags). Every command that returns structured data supports `--json` for machine-readable output.
 
@@ -52,7 +51,7 @@ Scaffold a zombie from a sample directory. Writes `SKILL.md` and `TRIGGER.md` in
 zombiectl install --from ~/.config/usezombie/samples/platform-ops
 ```
 
-The `samples/` directory ships with `zombiectl` and contains the flagship `platform-ops` sample. The host-agent install skill (`/usezombie-install-platform-ops`) drives this command under the hood. See [Skills catalog](/skills) and [Templates](/zombies/templates).
+The `samples/` directory ships with `zombiectl` and contains the flagship `platform-ops` sample. The host-agent install skill (`/usezombie-install-platform-ops`) drives this command under the hood. See [Quickstart](/quickstart) and [Templates](/zombies/templates).
 
 ### `zombiectl list`
 
@@ -108,13 +107,13 @@ zombiectl events zmb_2041 --actor 'webhook:*' --json    # filter + machine-reada
 
 ### `zombiectl steer <zombie_id> "<message>"`
 
-Post a steer message — a manual trigger that lands on the event stream as `actor=steer:<user>`. Same reasoning loop as a webhook event; useful for ad-hoc investigation or before a webhook is wired up.
+Post a steer message — a manual trigger that runs the same reasoning loop as a webhook event. Useful for ad-hoc investigation or before a webhook is wired up.
 
 ```bash
 zombiectl steer zmb_2041 "morning health check — anything red?"
 ```
 
-The reply streams back live; the result also persists on `core.zombie_events` for replay.
+The reply streams back live; the result also persists to the activity stream for replay.
 
 ---
 
@@ -285,15 +284,5 @@ zombiectl doctor
 ```
 
 ---
-
-## Operator commands
-
-### `zombiectl admin`
-
-Administrative workspace operations.
-
-```bash
-zombiectl admin config set scoring_context_max_tokens 2048 --workspace-id ws_abc
-```
 
 See [`docs/architecture/`](https://github.com/usezombie/usezombie/tree/main/docs/architecture) for the full technical reference.
