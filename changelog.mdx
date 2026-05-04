@@ -41,7 +41,7 @@ description: "Stay up to date with UseZombie product updates, new features, and 
     - `paused` is platform-only (anomaly gate); operators cannot set it via PATCH.
   - **`DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}` added.** Hard-purge: removes the `core.zombies` row and cascades every per-zombie record across schemas (events, telemetry, sessions, approval gates, memory entries). Precondition: `status=killed` — kill the zombie before deleting. Returns 204 on success, 409 if not yet killed. The deletion is irreversible; historical billing debits on `tenant_billing` are not reversed (intentional — debits represent compute already spent).
   - **`DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}/current-run` removed.** Replaced by `PATCH {status: "stopped"}`. The retired endpoint did not publish to the control stream; the new path emits a `zombie_status_changed` signal so the worker watcher reconciles the running session within one tick.
-  - **Operator-minimum role now applies to *every* status transition** (RULE BIL). Previously only the retired `DELETE /current-run` enforced it. Existing callers using workspace-member role for `PATCH {status: "killed"}` will now receive `403 UZ-AUTH-005`. Pure `config_json` patches (no `status` field) still permit workspace-member role.
+  - **Operator-minimum role now applies to *every* status transition.** Previously only the retired `DELETE /current-run` enforced it. Existing callers using workspace-member role for `PATCH {status: "killed"}` will now receive `403 UZ-AUTH-005`. Pure `config_json` patches (no `status` field) still permit workspace-member role.
 
   ## CLI — new lifecycle subcommands
 
