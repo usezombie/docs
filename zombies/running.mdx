@@ -1,126 +1,111 @@
 ---
 title: "Starting, observing, and stopping"
-description: "The `up`, `status`, `kill`, and `logs` commands — the zombie control plane."
+description: "The `install`, `status`, `events`, `steer`, and `kill` commands — the zombie control plane."
 ---
 
 ## Overview
 
-Four commands move a zombie through its live states: `up` starts it, `status` shows what is currently running in your workspace, `logs` streams its activity, and `kill` stops it. Each command operates on the current workspace; set it with `zombiectl workspace add` or list with `zombiectl workspace list`.
+Five commands cover the live lifecycle: `install --from <path>` brings a zombie up, `status` shows what is currently running, `events` streams the activity stream, `steer` triggers a manual stage, and `kill` stops it. Each operates on the current workspace; set it with `zombiectl workspace use` or check with `zombiectl workspace show`.
 
 ```bash
-zombiectl up         # deploy the zombie in the current directory
-zombiectl status     # list every zombie in this workspace
-zombiectl logs --zombie zm_01JABC...
-zombiectl kill slack-bug-fixer
+zombiectl install --from ~/.config/usezombie/samples/platform-ops
+zombiectl status                               # every zombie in the workspace
+zombiectl events zmb_2041 --follow             # tail one zombie's events
+zombiectl steer zmb_2041 "morning health check"
+zombiectl kill zmb_2041
 ```
 
-## `zombiectl up`
+## `zombiectl install --from <path>`
 
-`zombiectl up` uploads the `SKILL.md` and `TRIGGER.md` files from a bundled template directory in your current working directory. It expects exactly one such directory; if none is found, the command fails. It does not take arguments today.
+Reads `SKILL.md` and `TRIGGER.md` from the directory you point at, validates them, and uploads to the active workspace. **Install is the deploy** — there is no separate `up` step.
 
 ```bash
-zombiectl up
+zombiectl install --from ~/.config/usezombie/samples/platform-ops
 ```
 
 ```
-✓ slack-bug-fixer is live.
-  Zombie ID:   zm_01JABCDEFGHIJKLMN
-  Webhook URL: https://hooks.usezombie.com/v1/webhooks/zm_01JABCDEFGHIJKLMN
-
-Commands:
-  zombiectl status          Check status
-  zombiectl logs            View activity
-  zombiectl kill            Stop the zombie
+✓ platform-ops-zombie installed.
+  zombie_id:      zmb_2041
+  webhook_url:    https://api.usezombie.com/v1/webhooks/zmb_2041
+  webhook_secret: (printed once — paste into your GitHub repo webhook config)
 ```
 
-Behind the scenes:
+The webhook secret is shown **once**. Lost it? Rotate the workspace credential — see [Recovery](/skills/usezombie-install-platform-ops#recovery--lost-the-webhook-secret).
 
-1. The CLI looks for a known template directory (`slack-bug-fixer`, `homelab`, ...) in the working directory.
-2. It reads `SKILL.md` and `TRIGGER.md`, extracting the `name` field from the `TRIGGER.md` frontmatter.
-3. It POSTs the two markdown bodies to `/v1/workspaces/{workspace_id}/zombies` in your current workspace.
-4. The server parses `TRIGGER.md`, provisions a webhook endpoint, and starts the event loop.
-5. The zombie is now alive and waiting.
+Re-running `zombiectl install --from <same-path>` against a workspace that already has the same zombie is idempotent: the new `SKILL.md` / `TRIGGER.md` replace the previous version on the next event.
 
 Exit codes:
 
-- `0` — zombie deployed.
-- `1` — no template directory found in the working directory, no workspace selected, or API error.
+- `0` — installed (or updated).
+- `1` — no workspace selected, or API error.
+- `2` — missing `--from`, invalid path, or schema rejection.
 
 ## `zombiectl status`
 
-Lists every zombie in the current workspace with its state, events processed, and budget consumed.
+Lists every zombie in the active workspace with its state, last event, and budget consumed.
 
 ```bash
 zombiectl status
 ```
 
 ```
-Zombies
-────────────────
-Name:   slack-bug-fixer
-Status: alive
-Events: 42
-Budget: $1.23
+Zombies (workspace: ws_abc123)
+──────────────────────────────────────────────────────────────────
+ID         Name                  Status  Events  Budget
+zmb_2041   platform-ops-zombie   alive   42      $1.23
 ```
 
-Pass `--json` for a machine-readable shape suitable for scripting.
+Pass `--json` for a machine-readable shape suitable for scripting:
 
 ```bash
 zombiectl status --json
 ```
 
-## `zombiectl logs`
+## `zombiectl events <zombie_id>`
 
-Streams the activity stream for a single zombie. The activity stream is an append-only record — every webhook received, every skill invoked, every response returned, every budget check.
+Streams the activity stream for one zombie. Every webhook receipt, cron fire, steer message, tool call, and stage exit lands here with actor provenance.
 
 ```bash
-zombiectl logs --zombie zm_01JABC... --limit 50
+zombiectl events zmb_2041 --follow
+zombiectl events zmb_2041 --since 2h --limit 100
+zombiectl events zmb_2041 --actor 'webhook:*'
 ```
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--zombie <id>` | *(required)* | Zombie ID to stream. |
-| `--limit <n>` | `20` | Maximum events to return. |
+| `--follow` | off | Tail the SSE stream in real time. |
+| `--actor <glob>` | *(none)* | Filter by actor — e.g. `webhook:github`, `cron:*`, `steer:*`, `continuation:*`. |
+| `--since <duration>` | `24h` | Time window — e.g. `2h`, `7d`. |
 | `--cursor <cursor>` | *(none)* | Pagination cursor from a previous response. |
+| `--limit <n>` | `50` | Max events per page (clamped to `200`). |
+| `--json` | off | Emit raw JSON events for scripting. |
 
-The output is paginated — the last line of a truncated response includes the cursor you pass back with `--cursor` to continue.
+## `zombiectl steer <zombie_id> "<message>"`
 
-```
-Activity Stream
-─────────────────────────────────────────────────────────────────
-  2026-04-18T15:22:31Z  webhook_received  slack.message in #bugs
-  2026-04-18T15:22:32Z  skill_invoked     github.create_pull_request
-  2026-04-18T15:22:45Z  event_completed   tokens=312 cost=$0.01
-
-  More: zombiectl logs --zombie zm_... --cursor=<next_cursor>
-```
-
-## `zombiectl kill`
-
-Stops a zombie by name. The event loop terminates; the webhook becomes inactive; session state is preserved so the same name can be brought back up.
+Posts a steer message — a manual trigger that lands on the event stream as `actor=steer:<user>`. Same reasoning loop, manual prompt. Useful before you have a webhook firing, or for one-off investigation.
 
 ```bash
-zombiectl kill slack-bug-fixer
+zombiectl steer zmb_2041 "morning health check — anything red?"
 ```
 
-```
-✓ slack-bug-fixer killed.
-```
+The reply streams back live; the result is also persisted on `core.zombie_events` for replay.
 
-You can bring the same zombie back up from the same directory at any time:
+## `zombiectl kill <zombie_id>`
+
+Stops the in-flight stage and marks the zombie as killed. State is checkpointed; nothing on the event stream is lost.
 
 ```bash
-zombiectl up
+zombiectl kill zmb_2041
 ```
 
-The session checkpoint (conversation history, working memory) is rehydrated on restart — the zombie picks up where it left off.
+Re-install with the same name to bring the zombie back. The next event opens a fresh stage.
 
 ## Exit codes
-
-Every command returns a documented exit code. See the [CLI reference](/cli/zombiectl) for the full matrix.
 
 | Code | Meaning |
 |------|---------|
 | `0` | Success. |
-| `1` | Workspace or API error (no workspace selected, network failure, server rejected the call). |
-| `2` | Invalid or missing argument (missing `<template>`, missing `--zombie`, etc.). |
+| `1` | Workspace not selected, network error, or server rejected the call. |
+| `2` | Invalid or missing argument (missing `--from`, missing `<zombie_id>`, etc.). |
+
+See the [CLI reference](/cli/zombiectl) for the full command matrix.

@@ -11,27 +11,27 @@ Everything in this section of the docs is about working with zombies: how to ins
 
 ## Lifecycle
 
-A zombie moves through four observable states. Each state has a single CLI command that moves it to the next.
+A zombie moves through three observable states.
 
 ```mermaid
 flowchart LR
-    installed[Installed<br/>files on disk] -->|zombiectl up| alive[Alive<br/>webhook live]
+    install[zombiectl install --from path] --> alive[Alive<br/>webhook live]
     alive -->|event arrives| processing[Processing<br/>agent reasoning]
-    processing -->|event done| alive
-    alive -->|zombiectl kill| killed[Killed<br/>stopped]
-    killed -->|zombiectl up| alive
+    processing -->|stage exits| alive
+    alive -->|zombiectl kill zmb_id| killed[Killed<br/>stopped]
+    killed -->|zombiectl install --from path| alive
 ```
 
-1. **Installed.** `zombiectl install <template>` writes a directory to disk containing a `SKILL.md` (agent instructions) and a `TRIGGER.md` (machine-readable config). No API calls yet — the zombie is local-only.
-2. **Alive.** `zombiectl up` uploads the two files to your workspace, provisions a unique webhook URL, and starts the event loop. The zombie is now reachable from the internet and waiting.
-3. **Processing.** When an authenticated event arrives on the webhook, the event loop claims it, feeds it to the sandboxed agent, and the agent reasons, invokes skills, and produces a response. Each event is processed in order; session state is checkpointed after every event.
-4. **Killed.** `zombiectl kill <name>` terminates the event loop and marks the webhook inactive. Session state is preserved so the same name can be brought back up cleanly.
+1. **Alive.** `zombiectl install --from <path>` reads the local `SKILL.md` + `TRIGGER.md`, validates the schema, uploads to your workspace, provisions the webhook URL, and starts the event loop. Install is the deploy — there is no separate `up` step.
+2. **Processing.** When a signed event arrives on the webhook (or a cron fires, or a steer message lands), the event loop claims it, opens a stage in the sandboxed agent, and the agent reasons, invokes tools, and produces a result. Stages process sequentially per zombie; the event stream on `core.zombie_events` is the durable record.
+3. **Killed.** `zombiectl kill <zombie_id>` stops the in-flight stage and marks the zombie as killed. State is checkpointed; nothing on the event stream is lost. Re-install with the same name to bring it back.
 
-You can inspect state at any time with `zombiectl status` (all zombies in the current workspace) and `zombiectl logs --zombie <id>` (the activity stream for one zombie).
+You can inspect state at any time:
 
 ```bash
-zombiectl status
-zombiectl logs --zombie zm_01JABC...
+zombiectl status                     # every zombie in the active workspace
+zombiectl events zmb_2041 --follow   # tail the live activity stream for one zombie
+zombiectl steer zmb_2041 "morning health check"   # manual trigger
 ```
 
 ## Workspace scoping
@@ -40,7 +40,7 @@ Every zombie belongs to exactly one **workspace**. The workspace is the boundary
 
 - **Credentials** — the vault that zombies read from when they invoke skills. See [Credentials](/zombies/credentials).
 - **Access control** — teammates invited to a workspace can see, start, and kill its zombies; they cannot see zombies in other workspaces.
-- **Webhook namespace** — every zombie in a workspace gets its own unique URL under `https://hooks.usezombie.com/v1/webhooks/{zombie_id}`.
+- **Webhook namespace** — every zombie in a workspace gets its own unique URL under `https://api.usezombie.com/v1/webhooks/{zombie_id}`.
 
 Billing is **not** workspace-scoped. Every zombie run — no matter which workspace it lives in — debits the same tenant wallet. See [Key concepts](/concepts#credits) for the single-wallet model.
 
@@ -53,7 +53,7 @@ The current workspace is set automatically by `zombiectl workspace add` or can b
     Scaffold a zombie from a bundled template.
   </Card>
   <Card title="Start, stop, observe" icon="circle-play" href="/zombies/running">
-    The `up`, `status`, `kill`, and `logs` commands.
+    The `install`, `status`, `events`, `steer`, and `kill` commands.
   </Card>
   <Card title="Workspace credentials" icon="key" href="/zombies/credentials">
     Add secrets to the vault without the agent ever seeing them.

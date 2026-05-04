@@ -1,134 +1,142 @@
 ---
 title: "Installing a zombie"
-description: "Scaffold a zombie from a bundled template with `zombiectl install`."
+description: "Scaffold and install a zombie from a sample directory with `zombiectl install --from <path>`."
 ---
 
 ## Overview
 
-`zombiectl install <template>` is the first command in a zombie's lifecycle. It writes a local directory containing two editable files — `SKILL.md` and `TRIGGER.md` — scaffolded from a bundled template. Nothing is uploaded, no API calls are made, and no authentication is required. You edit the files, then `zombiectl up` takes it from there.
+`zombiectl install --from <path>` is the first command in a zombie's lifecycle. It reads a directory containing `SKILL.md` and `TRIGGER.md`, validates the schema, and uploads the pair to your active workspace. There is no separate "up" or "deploy" step — install is the deployment.
 
 ```bash
-zombiectl install slack-bug-fixer
+zombiectl install --from ~/.config/usezombie/samples/platform-ops
 ```
 
 ```
-✓ slack-bug-fixer installed.
-  Created slack-bug-fixer/
-    SKILL.md   — agent instructions (edit this)
-    TRIGGER.md — deployment config
+✓ platform-ops-zombie installed.
+  zombie_id:    zmb_2041
+  webhook_url:  https://api.usezombie.com/v1/webhooks/zmb_2041
+  webhook_secret: (printed once — paste into your GitHub repo webhook config)
 
-Next steps:
-  zombiectl up              Start the zombie
-  zombiectl credential add  Add credentials (optional)
+Next:
+  zombiectl events zmb_2041 --follow
+  zombiectl steer zmb_2041 "morning health check"
 ```
 
-## Bundled templates
+The webhook secret is shown **once**. Lost it? Rotate the workspace credential — see [Recovery](/skills/usezombie-install-platform-ops#recovery--lost-the-webhook-secret).
 
-The `zombiectl` binary ships a small set of templates intended as MVP starting points. Each is a complete, deployable scaffold.
+## The recommended path: install via the host-agent skill
 
-| Template | What it does | Skills used |
-|----------|--------------|-------------|
-| `slack-bug-fixer` | Watches a Slack channel, identifies bug reports, opens a PR against the linked repo. | `slack`, `github` |
+Most operators don't run `zombiectl install --from` directly. They invoke the install skill inside Claude Code, Amp, Codex CLI, or OpenCode:
 
-Run `zombiectl install` with no argument to see the current bundled set in the error output.
-
-## Path-based install: the flagship `platform-ops` sample
-
-The `platform-ops` zombie ships in the `usezombie/usezombie` repo at `samples/platform-ops/` rather than as a bundled template. Install it by path:
-
-```bash
-zombiectl install --from samples/platform-ops
+```
+/usezombie-install-platform-ops
 ```
 
-What it does: wakes on a GitHub Actions deploy-failure webhook, gathers evidence from the failed workflow's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to Slack. Read-only against GitHub, Fly, and Upstash; the only write path is the Slack post. Required credentials: `github`, `fly`, `upstash`, `slack`. See [zombie templates](/zombies/templates) for the full walkthrough.
+The skill drives `zombiectl install --from ~/.config/usezombie/samples/platform-ops` under the hood, asks three gating questions (Slack channel, production branch glob, optional cron schedule), and prints the webhook URL + secret at the end. See [Skills catalog](/skills) for the three install paths.
+
+## What ships with `zombiectl`
+
+The `zombiectl` package ships sample directories under `~/.config/usezombie/samples/`. Today the catalog is one entry:
+
+| Sample | What it does | Tools | Required credentials |
+|---|---|---|---|
+| `platform-ops` | Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed workflow, your hosting provider, and your data-plane, then posts an evidenced diagnosis to Slack. Read-only outside the Slack post. | `http_request`, `memory_store`, `memory_recall`, `cron_add`, `cron_list`, `cron_remove` | `github`, `slack` (workspace-scoped) |
+
+There are no bare-name template aliases — `zombiectl install platform-ops` is not a valid invocation. Always pass `--from <path>`.
 
 ## File layout
 
-The installed directory contains two files. Both are plain text; both are designed to be edited.
+The sample directory contains two files. Both are plain markdown; both are designed to be edited after install.
 
 ```
-slack-bug-fixer/
-├── SKILL.md      # agent instructions (natural language)
-└── TRIGGER.md    # machine-readable config + deployment metadata
+platform-ops/
+├── SKILL.md      # the agent's system prompt — what to investigate, how to phrase a diagnosis
+└── TRIGGER.md    # YAML frontmatter — trigger, allow-listed tools, credentials, x-usezombie.context
 ```
+
+After install, your local copy lives under `.usezombie/<zombie-name>/`. Edit either file and re-run the install command — the upload is idempotent against the same workspace + zombie name, and your edits become the new behaviour on the next event.
 
 ### `SKILL.md`
 
-A markdown file with free-form agent instructions. Write it as if you were onboarding a smart colleague to the job: who they are, what events they will receive, what to do with each, what tone to use, what to avoid.
+The agent's system prompt — free-form prose. Write it as if you were briefing a smart colleague: who they are, what events they receive, how to phrase a result, what they must never do. The prose is the contract; there is no YAML allowlist or DAG editor.
 
 ```markdown SKILL.md
-You are a bug-triage agent.
-
-When a Slack message arrives in #bugs:
-1. Read the message and any thread replies.
-2. If it describes a reproducible bug, open a PR against the linked repo
-   with a failing test and a proposed fix.
-3. Reply in-thread with the PR URL and a one-line summary.
-4. If it isn't a bug (question, feature request, noise), tag the thread
-   with `:not-a-bug:` and stop.
-
-Never close or merge PRs. Never speak outside the thread.
+You are the platform-ops zombie. When a deploy fails on production,
+gather evidence from your hosting provider, your data-plane, and the failed CI workflow.
+Post an evidenced diagnosis to #platform-ops. Read-only outside the
+Slack post.
 ```
+
+The platform-ops sample's full `SKILL.md` (~200 lines) is in [`samples/platform-ops/SKILL.md`](https://github.com/usezombie/usezombie/blob/main/samples/platform-ops/SKILL.md).
 
 ### `TRIGGER.md`
 
-A markdown file with YAML frontmatter that configures how the zombie receives events, which skills it is allowed to invoke, what credentials it expects, and its budget.
+YAML frontmatter declaring trigger, allow-listed tools, credentials, and the `x-usezombie.context.*` knobs. **Runtime config nests under `x-usezombie:`** — top-level `trigger:` / `tools:` / `credentials:` will be rejected by the parser.
 
 ```markdown TRIGGER.md
 ---
-name: slack-bug-fixer
-trigger:
-  type: webhook
-  source: slack
-  event: message.posted
-skills:
-  - slack
-  - github
-credentials:
-  - slack_bot_token
-  - github_pat
-budget:
-  daily_dollars: 5.0
-  monthly_dollars: 29.0
-network:
-  allow:
-    - slack.com
-    - api.github.com
----
+name: platform-ops-zombie
 
-This zombie triages bug reports in a Slack channel.
+x-usezombie:
+  model: "{{model}}"
+  context:
+    context_cap_tokens: {{context_cap_tokens}}
+    tool_window: auto
+    memory_checkpoint_every: 5
+    stage_chunk_threshold: 0.75
+
+  trigger:
+    type: webhook
+    source: github
+    signature:
+      secret_ref: github_secret
+      header: x-hub-signature-256
+      prefix: "sha256="
+
+  tools:
+    - http_request
+    - memory_recall
+    - memory_store
+    - cron_add
+    - cron_list
+    - cron_remove
+
+  credentials:
+    - github
+    - slack
+---
 ```
 
-The `name` field becomes the zombie's display name. The `trigger.source` field identifies the upstream provider and determines the webhook signature scheme for first-class integrations (`slack`, `github`, `linear`, `jira`, `grafana`, `clerk`, `custom`). The `credentials:` list names the vault keys the zombie will read at event time — every entry must exist in the workspace vault before `zombiectl up` succeeds. The `network.allow:` list is an outbound hostname allowlist enforced by the credential firewall.
+| Field | Purpose |
+|---|---|
+| `name:` (top-level) | The zombie's display name. |
+| `x-usezombie.trigger:` | **One** declared trigger — `type: webhook` with a provider `source` and `signature` block. Cron and steer feed the same event stream as actor-provenance, not as additional triggers. |
+| `x-usezombie.tools:` | Allow-list of tool names the agent may invoke. Real names: `http_request`, `memory_store`/`memory_recall`/`memory_list`/`memory_forget`, `cron_add`/`cron_list`/`cron_remove`. Provider-specific calls (Slack, GitHub, your hosting provider) all happen through `http_request` with the credential firewall substituting secrets at the sandbox boundary. |
+| `x-usezombie.credentials:` | Workspace credential names the firewall will substitute into outbound calls. The agent never sees raw secret bytes. |
+| `x-usezombie.context.*` | Optional context-lifecycle knobs. Defaults work for almost every workload — see [Context lifecycle](/concepts/context-lifecycle). |
 
-See [Writing skills](/zombies/skills) for the full `TRIGGER.md` reference, and [Templates](/zombies/templates) for the anatomy of a bundled template.
-
-## Flags and options
-
-`zombiectl install` takes a single positional argument.
-
-| Argument / flag | Required | Purpose |
-|-----------------|----------|---------|
-| `<template>` | Yes | Name of a bundled template. |
-| `--json` | No | Emit JSON instead of the human-readable greeting. |
-
-Exit codes:
-
-- `0` — template installed.
-- `2` — unknown or missing template name.
-- `1` — filesystem error (permission, disk full).
+The canonical reference shape is [`samples/platform-ops/TRIGGER.md`](https://github.com/usezombie/usezombie/blob/main/samples/platform-ops/TRIGGER.md).
 
 ## After install
 
-You have two reasonable next moves:
-
-1. **Edit the files**, then `zombiectl up` to deploy. The bundled templates declare the vault keys they expect under `credentials:` — the platform reads them from the workspace vault at event time.
-2. **Add credentials first** via `zombiectl credential add`, then `zombiectl up`. Either order works — but `zombiectl up` refuses to deploy until every key listed under `credentials:` is present in the vault.
-
 ```bash
-zombiectl credential add slack_bot_token --value=$SLACK_BOT_TOKEN
-zombiectl credential add github_pat --value=$GITHUB_PAT
-zombiectl up
+# Tail the live event stream
+zombiectl events zmb_2041 --follow
+
+# Trigger a manual steer
+zombiectl steer zmb_2041 "morning health check"
+
+# Stop the zombie (state checkpoints; nothing on the event stream is lost)
+zombiectl kill zmb_2041
 ```
 
-See [Starting and observing](/zombies/running) for the deployment workflow.
+Add or rotate workspace credentials — needed once per workspace, shared across every zombie:
+
+```bash
+# Pipe the JSON body on stdin so secrets never appear in shell history or argv
+zombiectl credential add github --data @- <<'JSON'
+{ "api_token": "ghp_...", "webhook_secret": "..." }
+JSON
+```
+
+See [`zombiectl credential`](/cli/zombiectl#zombies) for the full command shape.

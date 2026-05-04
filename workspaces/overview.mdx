@@ -12,7 +12,7 @@ Each workspace has its own:
 - **Repository connection** — a 1:1 binding to a GitHub repo via the UseZombie GitHub App.
 - **Zombies** — the configured agents that live and run here.
 - **Credentials** — the vault keys zombies in this workspace can read. Workspace-scoped on purpose: credentials do not leak across workspaces.
-- **Webhook namespace** — every zombie in a workspace gets its own unique URL under `https://hooks.usezombie.com/v1/webhooks/{zombie_id}`.
+- **Webhook namespace** — every zombie in a workspace gets its own unique URL under `https://api.usezombie.com/v1/webhooks/{zombie_id}`.
 - **Access control** — teammates invited to a workspace can see, start, and kill its zombies; they cannot see zombies in other workspaces.
 
 ## What a workspace does NOT contain

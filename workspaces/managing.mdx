@@ -18,7 +18,7 @@ zombiectl workspace add https://github.com/your-org/your-repo
 This connects the GitHub repository as a workspace:
 
 1. If the UseZombie GitHub App is not yet installed on the organization, opens the installation flow in your browser.
-2. Creates the workspace and runs an initial spec sync automatically.
+2. Creates the workspace.
 
 If the GitHub App is already installed on the target organization, the command skips the installation step and connects the repository directly.
 
@@ -43,7 +43,7 @@ ws_01J8XVKB7N       acme/infra                  PAUSED   Scale
 zombiectl workspace use <workspace-id>
 ```
 
-Makes the workspace active for subsequent CLI commands — `zombiectl list`, `zombiectl status`, `zombiectl up`, and anything else that accepts a `--workspace-id` flag defaults to this value when the flag is omitted.
+Makes the workspace active for subsequent CLI commands — `zombiectl install --from`, `zombiectl list`, `zombiectl status`, `zombiectl events`, `zombiectl steer`, and anything else that accepts a `--workspace-id` flag defaults to this value when the flag is omitted.
 
 The choice is persisted to `~/.config/zombiectl/workspaces.json` (`current_workspace_id` field), so it survives across shells and sessions.
 
