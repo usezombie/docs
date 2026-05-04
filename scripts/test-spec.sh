@@ -46,9 +46,11 @@ check "test_how_it_works_deleted" \
 check "test_no_self_host_page_in_v2" \
   '[ ! -f self-host.mdx ]'
 
-# Files preserved on disk for v3 revival; .mintignore hides them from build.
+# Operator/ directory removed entirely (v1 self-host content was stale; v3 docs
+# will be authored fresh from usezombie/usezombie:docs/architecture/). Source
+# absent → every /operator/* URL 404s.
 check "test_no_operator_pages_render" \
-  '[ -d operator ] && grep -qE "^operator/\*\*" .mintignore'
+  '[ ! -d operator ]'
 
 check "test_no_privacy_telemetry_page_in_v2" \
   '[ ! -f privacy/cli-telemetry.mdx ]'

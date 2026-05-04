@@ -5,7 +5,3 @@
 # Draft content
 drafts/
 *.draft.mdx
-
-# Self-host pages — deferred to v3 (M51_001).
-# Files preserved on disk for v3 revival; remove this line when v3 self-host ships.
-operator/**
