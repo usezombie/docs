@@ -36,8 +36,8 @@ UseZombie is a durable runtime that captures the senior engineer's playbook in m
 ## How a stage runs
 
 <Columns cols={2}>
-  <Card title="Triggers, one loop" icon="bolt">
-    Webhook (GitHub Actions), cron, and `zombiectl steer` all flow through the same reasoning. Every event lands on `core.zombie_events` with actor provenance.
+  <Card title="One loop, many event sources" icon="bolt">
+    Webhook firings, scheduled cron runs the zombie sets up itself, and `zombiectl steer` messages all flow through the same reasoning. Every event lands on `core.zombie_events` with actor provenance.
   </Card>
   <Card title="Placeholder credentials" icon="shield-halved">
     The model never sees raw secret bytes. The tool bridge substitutes at the sandbox boundary; prompt-injection attacks recover only the placeholder.

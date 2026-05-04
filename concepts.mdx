@@ -76,29 +76,35 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
 
     ```markdown TRIGGER.md
     ---
-    name: platform-ops
-    triggers:
-      - type: webhook
-        source: github
-        event: workflow_run.failed
-      - type: cron
-        schedule: "*/30 * * * *"
-      - type: steer
-    tools:
-      - http_request
-      - memory_store
-      - cron_add
-    credentials:
-      - github
-      - slack
-    budget:
-      daily_dollars: 5.0
-      monthly_dollars: 29.0
+    name: platform-ops-zombie
+
     x-usezombie:
+      model: "{{model}}"
       context:
+        context_cap_tokens: 200000
         tool_window: auto
         memory_checkpoint_every: 5
         stage_chunk_threshold: 0.75
+
+      trigger:
+        type: webhook
+        source: github
+        signature:
+          secret_ref: github_secret
+          header: x-hub-signature-256
+          prefix: "sha256="
+
+      tools:
+        - http_request
+        - memory_recall
+        - memory_store
+        - cron_add
+        - cron_list
+        - cron_remove
+
+      credentials:
+        - github
+        - slack
     ---
     ```
 
@@ -112,13 +118,14 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
   </Accordion>
 
   <Accordion title="Trigger">
-    How a zombie receives work. Three kinds, one reasoning loop:
+    A zombie has **one** declared trigger in `TRIGGER.md` — the entry-point that turns external signal into an event. Today that's a `webhook`: an external system (GitHub Actions, Zendesk, custom) POSTs to `https://api.usezombie.com/v1/webhooks/{zombie_id}` signed against a workspace credential.
 
-    - **`webhook`** — an external system (GitHub Actions, Zendesk, custom) POSTs to `https://api.usezombie.com/v1/webhooks/{zombie_id}`. Signed with the workspace credential's secret.
-    - **`cron`** — the scheduler fires on a cron expression. Useful for periodic health checks.
-    - **`steer`** — a human invokes `zombiectl steer <zombie_id> "..."` (or sends a Slack DM). Same reasoning loop, manual prompt.
+    Beyond the declared trigger, two more sources can land work on the same event stream and feed the same reasoning loop:
 
-    Each event lands on `core.zombie_events` with actor provenance: `webhook:github`, `cron:<schedule>`, `steer:<user>`. The zombie doesn't branch on actor type — `SKILL.md` decides what to do.
+    - **Cron firings** — the zombie schedules its own future runs via the `cron_add` tool. The runtime fires them on schedule and emits events with `actor=cron:<schedule>`.
+    - **Steer messages** — a human posts via `zombiectl steer <zombie_id> "..."` (or the messages API). Events land with `actor=steer:<user>`.
+
+    Each event on `core.zombie_events` carries actor provenance — `webhook:github`, `cron:<schedule>`, `steer:<user>`, `continuation:<original_actor>`. The zombie doesn't branch on actor type; `SKILL.md` decides what to do based on the event payload.
   </Accordion>
 
   <Accordion title="Tool">
