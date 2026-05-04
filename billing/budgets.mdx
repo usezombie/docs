@@ -24,7 +24,7 @@ Per-event token and wall-clock caps are internal runtime controls. They are not 
 
 ## Tenant wallet
 
-Separately, your tenant has a single wallet (the $10 free credit at signup, topped up via Stripe). Every completed zombie run debits this wallet.
+Separately, your tenant has a single wallet (the $5 free credit at signup, topped up via Stripe). Every completed zombie run debits this wallet.
 
 - The wallet is **tenant-scoped**, not workspace-scoped. All workspaces under your tenant share the same pool.
 - When the wallet hits **zero**, runs across all workspaces stop until the tenant tops up or upgrades to Scale.
