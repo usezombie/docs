@@ -28,6 +28,37 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   ## Operator surfaces — documented as bootstrap-only
 
   - `GET/PUT /v1/admin/platform-keys`, `DELETE /v1/admin/platform-keys/{provider}`, and `POST/GET /v1/api-keys` + `PATCH/DELETE /v1/api-keys/{id}` are kept as they are — they are the call surface used by `playbooks/012_usezombie_admin_bootstrap/001_playbook.md` (admin tenant provisioning, platform Fireworks default registration, API-key minting and rotation). Both handler files now carry a header pointing back at the playbook so the next review round doesn't have to rediscover this.
+
+  ## Breaking — Zombie lifecycle FSM unification
+
+  Every zombie state transition now flows through one endpoint. The bespoke kill-switch endpoint is retired; a hard-purge `DELETE` is added.
+
+  - **`PATCH /v1/workspaces/{workspace_id}/zombies/{zombie_id}` body `{status: ...}`** is the canonical transition surface. Allowed states: `active` | `stopped` | `killed`. The FSM is encoded as SQL gates inside the `UPDATE` statement so the kernel of state-machine truth lives at the storage boundary and cannot be bypassed via parallel writes.
+    - `active   → stopped | killed`
+    - `paused   → stopped | active | killed` (resume from auto-pause)
+    - `stopped  → active  | killed` (resume from operator stop)
+    - `killed   → terminal` (returns 404 on further PATCH)
+    - `paused` is platform-only (anomaly gate); operators cannot set it via PATCH.
+  - **`DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}` added.** Hard-purge: removes the `core.zombies` row and cascades every per-zombie record across schemas (events, telemetry, sessions, approval gates, memory entries). Precondition: `status=killed` — kill the zombie before deleting. Returns 204 on success, 409 if not yet killed. The deletion is irreversible; historical billing debits on `tenant_billing` are not reversed (intentional — debits represent compute already spent).
+  - **`DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}/current-run` removed.** Replaced by `PATCH {status: "stopped"}`. The retired endpoint did not publish to the control stream; the new path emits a `zombie_status_changed` signal so the worker watcher reconciles the running session within one tick.
+  - **Operator-minimum role now applies to *every* status transition** (RULE BIL). Previously only the retired `DELETE /current-run` enforced it. Existing callers using workspace-member role for `PATCH {status: "killed"}` will now receive `403 UZ-AUTH-005`. Pure `config_json` patches (no `status` field) still permit workspace-member role.
+
+  ## CLI — new lifecycle subcommands
+
+  - `zombiectl zombie stop <zombie_id>`     — `PATCH {status: "stopped"}`
+  - `zombiectl zombie resume <zombie_id>`   — `PATCH {status: "active"}`
+  - `zombiectl zombie kill <zombie_id>`     — `PATCH {status: "killed"}`
+  - `zombiectl zombie delete <zombie_id>`   — `DELETE` (hard purge; precondition `status=killed`)
+
+  Two-step delete is intentional — there is no `--force` flag. Kill first, then delete.
+
+  ## Dashboard
+
+  The `KillSwitch` panel on the zombie detail page is now state-aware. Stop, Resume, and Kill controls render based on current status; the panel disables itself once a zombie is killed. The previous single-action kill switch is gone.
+
+  ## Discovery files — policy class corrected
+
+  `delete_zombie` was inconsistently classified across `agent-manifest.json` (sensitive) and `skill.md` (critical). It is now `critical` in both files. Agents consuming the manifest will apply the double-confirmation gate appropriate to an irreversible cascade purge.
 </Update>
 
 <Update label="May 4, 2026" tags={["Breaking", "API", "Pricing", "Marketing"]}>
