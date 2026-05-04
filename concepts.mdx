@@ -114,7 +114,7 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
 
     ```markdown SKILL.md
     You are the platform-ops zombie. When a deploy fails on production,
-    gather evidence from Fly, Upstash, and the failed GitHub run. Post an
+    gather evidence from Fly, Upstash, and the failed GitHub workflow. Post an
     evidenced diagnosis to #platform-ops. Read-only outside the Slack post.
     ```
 
@@ -126,7 +126,7 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
 
     Beyond the declared trigger, two more sources can land work on the same event stream and feed the same reasoning loop:
 
-    - **Cron firings** — the zombie schedules its own future runs via the `cron_add` tool. The runtime fires them on schedule and emits events with `actor=cron:<schedule>`.
+    - **Cron firings** — the zombie schedules its own future events via the `cron_add` tool. The runtime fires them on schedule with `actor=cron:<schedule>`.
     - **Steer messages** — a human posts via `zombiectl steer <zombie_id> "..."` (or the messages API). Events land with `actor=steer:<user>`.
 
     Each event on `core.zombie_events` carries actor provenance — `webhook:github`, `cron:<schedule>`, `steer:<user>`, `continuation:<original_actor>`. The zombie doesn't branch on actor type; `SKILL.md` decides what to do based on the event payload.

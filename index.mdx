@@ -11,7 +11,7 @@ description: "Durable, BYOK, markdown-defined agent runtime — for operators wh
 
 You have a deploy that fails at 2am. Your senior on-call engineer is asleep. You guess at the cause from a stack trace, ship a patch, hope.
 
-UseZombie is a durable runtime that captures the senior engineer's playbook in markdown — `SKILL.md` plus `TRIGGER.md`, no workflow DAG — and runs it against your infrastructure when the trigger fires. The flagship `platform-ops` zombie wakes on a GitHub Actions deploy failure, gathers evidence from your hosting provider, your data-plane, and the failed run, and posts an evidenced diagnosis to Slack. The same zombie is reachable via `zombiectl steer` for a manual investigation.
+UseZombie is a durable runtime that captures the senior engineer's playbook in markdown — `SKILL.md` plus `TRIGGER.md`, no workflow DAG — and runs it against your infrastructure when the trigger fires. The flagship `platform-ops` zombie wakes on a GitHub Actions deploy failure, gathers evidence from your hosting provider, your data-plane, and the failed workflow, and posts an evidenced diagnosis to Slack. The same zombie is reachable via `zombiectl steer` for a manual investigation.
 
 ## Three pillars
 
@@ -37,7 +37,7 @@ UseZombie is a durable runtime that captures the senior engineer's playbook in m
 
 <Columns cols={2}>
   <Card title="One loop, many event sources" icon="bolt">
-    Webhook firings, scheduled cron runs the zombie sets up itself, and `zombiectl steer` messages all flow through the same reasoning. Every event lands on `core.zombie_events` with actor provenance.
+    Webhook firings, scheduled cron stages the zombie sets up itself, and `zombiectl steer` messages all flow through the same reasoning. Every event lands on `core.zombie_events` with actor provenance.
   </Card>
   <Card title="Placeholder credentials" icon="shield-halved">
     The model never sees raw secret bytes. The tool bridge substitutes at the sandbox boundary; prompt-injection attacks recover only the placeholder.

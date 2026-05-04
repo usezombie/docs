@@ -69,7 +69,7 @@ In the GitHub repo: **Settings → Webhooks → Add webhook**.
 | Payload URL | The webhook URL printed by the skill. |
 | Content type | `application/json` |
 | Secret | The webhook secret printed by the skill. |
-| Events | **Workflow runs** (only `workflow_run` is needed). |
+| Events | **Workflow runs** (the GitHub UI label; only the `workflow_run` event is needed). |
 
 The webhook secret is workspace-scoped — the same secret serves every zombie in this workspace. Rotation is workspace-wide; rotating affects every zombie in the workspace.
 
@@ -97,7 +97,7 @@ Safe to run after a `git pull` to refresh the sample baseline.
 
 | Tool | Purpose |
 |---|---|
-| `http_request` | Outbound calls to GitHub run logs, your hosting provider, your data-plane. Domains restricted by SKILL prose. |
+| `http_request` | Outbound calls to GitHub workflow logs, your hosting provider, your data-plane. Domains restricted by SKILL prose. |
 | `memory_store` / `memory_recall` | Snapshot findings during a long incident. Keys live in `core.zombie_memories`. |
 | `cron_add` / `cron_remove` | If `cron_schedule` was set, the zombie schedules its own health checks. |
 | `slack_post` | The one write path. Posts the evidenced diagnosis to your channel. |
@@ -111,7 +111,7 @@ Safe to run after a `git pull` to refresh the sample baseline.
 | Webhook URL 404 | Wrong `zombie_id` pasted | Re-read the install output; the URL is `…/webhooks/{zombie_id}` literally. |
 | Diagnosis never posts | Slack credential missing or revoked | `zombiectl credential add slack --data @-`; restart any in-flight stage with `zombiectl steer <id> "retry"`. |
 | Webhook fires but signature fails | Wrong secret pasted into GitHub | Rotate via `zombiectl credential add github --data @-`; paste new secret into GitHub. |
-| Cron fires but no diagnosis | Cron schedule too aggressive (rate-limited by your hosting provider) | Slow the cron, or remove it; webhook-driven runs are not affected. |
+| Cron fires but no diagnosis | Cron schedule too aggressive (rate-limited by your hosting provider) | Slow the cron, or remove it; webhook-driven events are not affected. |
 
 ## See also
 

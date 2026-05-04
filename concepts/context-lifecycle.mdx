@@ -24,9 +24,9 @@ Knowing which layer does what is the difference between debugging a context-over
                           └──────────────────┘  └────────────────────┘  └────────────────┘  └─────────────────────┘
 ```
 
-### Layer 1 — Runtime signals (logs, not enforcement)
+### Layer 1 — Runtime signals (operator observability)
 
-The runtime emits three structured log lines as observability hooks. **It does not mutate the agent's conversation.** These are the signals an operator or skill-template author tunes against:
+The runtime emits three structured log lines so on-call humans can watch a long incident unfold from the activity stream. **The agent does not read these logs.** Skill prose carries independent numeric heuristics that coordinate with the runtime defaults — the platform-ops `SKILL.md`, for example, says "five or more back-to-back tool calls" and "roughly twenty tool calls" rather than naming any log line. Runtime values and skill prose move together when you tune.
 
 | Signal | Fires when | Source |
 |---|---|---|
@@ -38,7 +38,7 @@ The runtime can't drop tool results from a live conversation — the underlying 
 
 ### Layer 2 — Agent staging via `memory_store`
 
-When `SKILL.md` prose sees the runtime signals, it calls the [`memory_*` tools](/memory) to write a distilled summary of findings so far:
+When the agent's SKILL prose hits its compaction heuristic ("after roughly N tool calls"), it calls the [`memory_*` tools](/memory) to write a distilled summary of findings so far:
 
 ```
 memory_store(
@@ -144,7 +144,7 @@ If continuations stack to 10 and the agent still ends with `exit_ok=false`, the 
 
 The activity timeline in Mission Control (`ui/packages/app/components/domain/EventsList.tsx`, `LiveEventsPanel.tsx`) shows:
 
-- **Stages** as discrete blocks on the run.
+- **Stages** as discrete blocks on the timeline.
 - **Continuation chains** as linked stages on the same originating event (joined by `resumes_event_id`).
 - **`chunk_chain_escalate_human`** as the terminal `event_complete` frame's `failure_label`.
 
@@ -154,7 +154,7 @@ Layer 4 (Nullclaw `autoCompactHistory`) is currently invisible on the timeline �
 
 Compaction quality is bounded by the LLM doing the summarization (Layer 2 via `memory_store('conversation', ...)`, and Layer 4 via Nullclaw's internal summarizer). A single log line that mattered thirty minutes into the incident can drop out of both summaries.
 
-**Mitigation: pin specific findings to `core` instead of `conversation`.** Entries written with `category='core'` survive past stage boundaries, past workspace destruction, and past either summarizer. Use `core` for things you'd want a *future* zombie run to know; use `conversation` for stage-scoped scratchpad. See [`/memory#categories`](/memory) for the full table.
+**Mitigation: pin specific findings to `core` instead of `conversation`.** Entries written with `category='core'` survive past stage boundaries, past workspace destruction, and past either summarizer. Use `core` for things you'd want a *future* zombie stage to know; use `conversation` for stage-scoped scratchpad. See [`/memory#categories`](/memory) for the full table.
 
 ## Common questions
 
@@ -168,7 +168,7 @@ Set `context_cap_tokens` explicitly in `TRIGGER.md`. Leaving it at 0 short-circu
 
 **My zombie isn't compacting even though the runtime is logging signals.**
 
-Layer 1 fires log lines; Layer 2 acts only if SKILL prose tells it to. If your SKILL.md doesn't reference `memory_checkpoint_due` / `tool_window_exceeded` / `chunk_threshold_breached`, the agent ignores the signals. Look at `samples/platform-ops/SKILL.md` for a template that wires the prose correctly.
+The agent doesn't read the runtime logs — those are for the operator. Compaction happens because your `SKILL.md` prose carries a numeric heuristic that matches the runtime defaults (e.g. "after roughly twenty tool calls, rewrite `findings:<id>` tighter"). If your `SKILL.md` doesn't carry such prose, the agent has no instruction to compact. See `samples/platform-ops/SKILL.md` for a template that wires checkpoint cadence, compaction cadence, and hand-off cadence correctly.
 
 **Is `tool_window` going to become tier-aware?**
 
