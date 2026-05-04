@@ -7,6 +7,29 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="May 4, 2026" tags={["Breaking", "API", "CLI"]}>
+  ## Follow-up — dormant API + stale CLI teardown
+
+  Six caller-dead surfaces were torn out end-to-end (handlers, route table, OpenAPI, store helpers, tests). The two admin-bootstrap surfaces that *look* dormant but are actually load-bearing (admin platform-keys + tenant API-keys) gained a header pointing at the playbook that drives them, so the next round of "is this dead?" doesn't have to re-derive the answer.
+
+  ## Breaking — API removals
+
+  - **`PATCH /v1/workspaces/{workspace_id}` removed.** Workspace pause/unpause toggle. No first-party UI/CLI ever called it; the marketing-site API summary referenced it, that reference is gone too. `paused`/`paused_reason`/`version` columns on `workspaces` are retained for the existing ops view but are now write-only-default — a future migration can drop them under the schema-removal procedure.
+  - **`GET /v1/tenants/me/diagnostics` removed.** Server-side tenant doctor block. `zombiectl doctor` does not call it (it runs three local probes against `/healthz` + workspace binding). The `describeForDoctor` resolver helper and `DoctorBlock` struct in `src/state/tenant_provider.zig` are removed.
+  - **`GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/telemetry` removed.** Per-zombie execution telemetry HTTP read. The underlying store stays — writers (`src/zombie/metering.zig`) and the tenant-scoped reader behind `GET /v1/tenants/me/billing/charges` are unchanged. Only the per-zombie wrapper (`listTelemetryForZombie`) is gone.
+
+  ## CLI — stale commands removed
+
+  - **`zombiectl admin config add scoring_context_max_tokens` removed.** Called `POST /v1/workspaces/{ws}/scoring/config`, an endpoint that was already absent from the route manifest.
+  - **`zombiectl workspace upgrade-scale` removed.** Called `POST /v1/workspaces/{ws}/billing/scale`, also absent from the manifest.
+  - **`zombiectl workspace billing` removed.** Called `GET /v1/workspaces/{ws}/billing/summary`, same story. Tenant-scoped billing remains via `zombiectl billing show`.
+  - The `OPERATOR COMMANDS` help section and `ZOMBIE_OPERATOR=1` help-toggle env var are gone — there were no operator-only commands left to reveal.
+
+  ## Operator surfaces — documented as bootstrap-only
+
+  - `GET/PUT /v1/admin/platform-keys`, `DELETE /v1/admin/platform-keys/{provider}`, and `POST/GET /v1/api-keys` + `PATCH/DELETE /v1/api-keys/{id}` are kept as they are — they are the call surface used by `playbooks/012_usezombie_admin_bootstrap/001_playbook.md` (admin tenant provisioning, platform Fireworks default registration, API-key minting and rotation). Both handler files now carry a header pointing back at the playbook so the next review round doesn't have to rediscover this.
+</Update>
+
 <Update label="May 4, 2026" tags={["Breaking", "API", "Pricing", "Marketing"]}>
   ## M51 follow-up — route teardown, $5 starter, marketing honesty
 
