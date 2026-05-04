@@ -107,13 +107,13 @@ zombiectl events zmb_2041 --actor 'webhook:*' --json    # filter + machine-reada
 
 ### `zombiectl steer <zombie_id> "<message>"`
 
-Post a steer message — a manual trigger that lands on the event stream as `actor=steer:<user>`. Same reasoning loop as a webhook event; useful for ad-hoc investigation or before a webhook is wired up.
+Post a steer message — a manual trigger that runs the same reasoning loop as a webhook event. Useful for ad-hoc investigation or before a webhook is wired up.
 
 ```bash
 zombiectl steer zmb_2041 "morning health check — anything red?"
 ```
 
-The reply streams back live; the result also persists on `core.zombie_events` for replay.
+The reply streams back live; the result also persists to the activity stream for replay.
 
 ---
 

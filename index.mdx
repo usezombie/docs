@@ -19,8 +19,8 @@ usezombie is a durable runtime that captures the senior engineer's playbook in m
   <Card title="Open source" icon="github">
     The runtime that holds your credentials and runs against your infrastructure is code you can read. Apache-2.0.
   </Card>
-  <Card title="BYOK" icon="key">
-    Bring your own model key — Anthropic, OpenAI, Fireworks (Kimi K2), Together, Groq, Moonshot. Zero markup on inference. You pay your provider directly.
+  <Card title="BYOK (Bring Your Own Key)" icon="key">
+    Attach your own model provider's API key — Anthropic, OpenAI, Fireworks (Kimi K2), Together, Groq, Moonshot. Zero markup on inference. You pay your provider directly.
   </Card>
   <Card title="Markdown-defined" icon="file-lines">
     Behaviour lives in `SKILL.md` + `TRIGGER.md`. Iterate on prose, not redeploys. No YAML allowlists, no DAG editors.
@@ -33,26 +33,28 @@ usezombie is a durable runtime that captures the senior engineer's playbook in m
   `npm install -g @usezombie/zombiectl`, then `/usezombie-install-platform-ops` inside Claude Code, Amp, Codex CLI, or OpenCode.
 </Card>
 
-## How a stage runs
+## How a run works
+
+A zombie does its work in **stages** — one stage is one end-to-end run on one trigger: event arrives → agent reasons → tool calls → result. Most zombies finish a stage in seconds.
 
 <Columns cols={2}>
   <Card title="One loop, many event sources" icon="bolt">
-    Webhook firings, scheduled cron stages the zombie sets up itself, and `zombiectl steer` messages all flow through the same reasoning. Every event lands on `core.zombie_events` with actor provenance.
+    Webhooks, scheduled cron jobs the zombie sets up itself, and `zombiectl steer` messages all flow through the same reasoning loop.
   </Card>
-  <Card title="Placeholder credentials" icon="shield-halved">
-    The model never sees raw secret bytes. The tool bridge substitutes at the sandbox boundary; prompt-injection attacks recover only the placeholder.
+  <Card title="The credential firewall" icon="shield-halved">
+    The model never sees raw secret bytes. The firewall substitutes them outside the sandbox; a prompt-injection attack recovers only a placeholder. <a href="/zombies/credentials">More →</a>
   </Card>
-  <Card title="Reasons past the context cap" icon="layer-group">
-    Memory checkpoints, a rolling tool-result window, and stage chunking compose so deep incidents continue past the model's working-memory limit. <a href="/concepts/context-lifecycle">Context lifecycle →</a>
+  <Card title="Long incidents keep going" icon="layer-group">
+    If one run hits the model's context window, the platform restarts it on a fresh prompt with prior findings recovered. <a href="/concepts/context-lifecycle">How long does a zombie run? →</a>
   </Card>
   <Card title="Approval gating" icon="circle-check">
-    Risky actions block until a human clicks Approve in the dashboard or Slack. State machine survives worker restarts.
+    Risky actions block until a human clicks Approve in the dashboard or Slack. The wait survives worker restarts.
   </Card>
   <Card title="Spend ceiling" icon="gauge-high">
-    Per-day and per-month dollar caps on hosted execution. `$5` starter credit that never expires. Inference cost is yours, paid direct.
+    Per-day and per-month dollar caps. `$5` starter credit that never expires. Inference cost is yours, paid to your provider directly.
   </Card>
   <Card title="Kill switch" icon="power-off">
-    `zombiectl kill` checkpoints state mid-stage; nothing lost. Resume via `zombiectl steer`.
+    `zombiectl kill` stops the run cleanly; nothing on the activity stream is lost. Resume via `zombiectl steer`.
   </Card>
 </Columns>
 
