@@ -98,7 +98,7 @@ Safe to run after a `git pull` to refresh the sample baseline.
 | Tool | Purpose |
 |---|---|
 | `http_request` | Outbound calls to GitHub workflow logs, your hosting provider, your data-plane. Domains restricted by SKILL prose. |
-| `memory_store` / `memory_recall` | Snapshot findings during a long incident. Keys live in `core.zombie_memories`. |
+| `memory_store` / `memory_recall` | Snapshot findings during a long incident. Entries live in `memory.memory_entries`. |
 | `cron_add` / `cron_remove` | If `cron_schedule` was set, the zombie schedules its own health checks. |
 | Slack post via `http_request` | The one write path. The agent calls `http_request` against `slack.com/api/chat.postMessage` using the workspace `slack` credential. |
 
