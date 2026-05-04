@@ -1,6 +1,6 @@
 ---
 title: "Key concepts"
-description: "The four nouns, the credential firewall, and how a stage runs."
+description: "The four nouns, the tool bridge, and how a run works."
 ---
 
 <Tip>
@@ -65,7 +65,7 @@ flowchart LR
     Trigger[trigger arrives<br/>webhook · cron · steer] --> Event[event recorded<br/>on the activity stream]
     Event --> Stage[stage opens]
     Stage --> Tool[tool calls<br/>placeholders only]
-    Tool --> Bridge[credential firewall<br/>substitutes secret<br/>outside sandbox]
+    Tool --> Bridge[tool bridge<br/>substitutes secret<br/>outside sandbox]
     Bridge --> Result[result returned<br/>added to context]
     Result --> Tool
     Tool --> Done[stage exits<br/>diagnosis posts<br/>state checkpointed]
@@ -103,11 +103,11 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
     The agent can only call tools that are explicitly listed. A jailbroken agent cannot reach outside the list.
   </Accordion>
 
-  <Accordion title="Credential firewall">
-    The boundary between your secrets and the model. Credentials are stored encrypted in the workspace vault. When the agent invokes a tool, the firewall substitutes the real secret outside the sandbox, makes the call, and returns the response. The model only ever sees `${secrets.NAME.FIELD}` placeholders — never raw API keys, never tokens. A prompt-injection attack recovers only the placeholder. See [Workspace credentials](/zombies/credentials).
+  <Accordion title="Tool bridge">
+    The boundary between your secrets and the model. Credentials are stored encrypted in the workspace vault; the model itself only sees `${secrets.NAME.FIELD}` placeholders. When the agent invokes a tool, the **tool bridge** substitutes the real secret value outside the sandbox, makes the outbound call, and returns the response — never the secret. A prompt-injection attack recovers only the placeholder string. See [Workspace credentials](/zombies/credentials).
   </Accordion>
 
   <Accordion title="Budget">
-    Dollar ceilings on hosted execution declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour window; `monthly_dollars` caps the calendar month. Hitting either ceiling stops new runs from opening. Inference cost is BYOK — your provider's own caps apply there.
+    Dollar ceilings on hosted execution (the platform compute that runs your zombie — separate from your model provider's bill) declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour window; `monthly_dollars` caps the calendar month. Hitting either ceiling stops new runs from opening. Inference cost is BYOK — your provider's own caps apply there.
   </Accordion>
 </AccordionGroup>

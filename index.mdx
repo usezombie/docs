@@ -41,8 +41,8 @@ A zombie does its work in **stages** — one stage is one end-to-end run on one 
   <Card title="One loop, many event sources" icon="bolt">
     Webhooks, scheduled cron jobs the zombie sets up itself, and `zombiectl steer` messages all flow through the same reasoning loop.
   </Card>
-  <Card title="The credential firewall" icon="shield-halved">
-    The model never sees raw secret bytes. The firewall substitutes them outside the sandbox; a prompt-injection attack recovers only a placeholder. <a href="/zombies/credentials">More →</a>
+  <Card title="Secrets stay outside the sandbox" icon="shield-halved">
+    The model never sees raw API keys or tokens — only `${secrets.NAME.FIELD}` placeholders. The **tool bridge** substitutes the real value outside the sandbox when the agent calls a tool. A prompt-injection attack recovers only the placeholder. <a href="/zombies/credentials">More →</a>
   </Card>
   <Card title="Long incidents keep going" icon="layer-group">
     If one run hits the model's context window, the platform restarts it on a fresh prompt with prior findings recovered. <a href="/concepts/context-lifecycle">How long does a zombie run? →</a>

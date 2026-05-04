@@ -3,25 +3,25 @@ title: "Webhooks"
 description: "How external systems deliver events to your zombie, and how the platform authenticates them."
 ---
 
-## Overview
-
 Every zombie with a webhook trigger gets a unique, stable URL:
 
 ```
 https://api.usezombie.com/v1/webhooks/{zombie_id}
 ```
 
-External systems — AgentMail, Slack, GitHub, Grafana, Linear, Jira, Clerk, or any plain HTTP source — POST to this URL. The platform authenticates the request, enqueues the event into the zombie's inbox, and the event loop delivers it to the sandboxed agent. No tunneling, no ngrok, no custom servers on your side.
+External systems POST to this URL. The platform verifies the signature and delivers the event to the zombie. No tunneling, no ngrok, no custom servers on your side.
 
-This page covers the two webhook shapes zombies use: **inbound event webhooks** (how events arrive) and **approval gate webhooks** (how humans acknowledge sensitive actions a zombie proposes).
+<Tip>
+  **Most users don't wire webhooks by hand.** The `platform-ops` install skill prints the URL + secret and walks you through pasting them into your GitHub repo. Use [Quickstart](/quickstart) for that. The reference below is for custom webhooks — your own provider, an internal service, etc.
+</Tip>
 
-## Inbound event webhooks
+## Declaring a webhook trigger
 
-A zombie declares its webhook trigger in `TRIGGER.md` — note that runtime config nests under `x-usezombie:`:
+A zombie declares its webhook in `TRIGGER.md`:
 
 ```yaml
 ---
-name: platform-ops-zombie
+name: my-zombie
 
 x-usezombie:
   trigger:
@@ -34,29 +34,34 @@ x-usezombie:
 ---
 ```
 
-`trigger.source` is a human-readable label (`github`, `slack`, `linear`, `grafana`, ...) that appears in the activity stream; the platform routes strictly by the zombie ID in the URL path. The `signature` block declares how the platform will authenticate incoming requests.
+`trigger.source` is a label that appears in the activity stream (`github`, `slack`, `linear`, etc.) — the platform routes by the zombie ID in the URL, not the label. The `signature` block tells the platform how to verify the request.
 
-### Authentication modes
+## Authentication
 
-A single middleware authenticates every inbound webhook before the agent is notified. Three handlers ship today; the generic HMAC handler covers most upstreams.
+Every inbound webhook is authenticated before the agent is woken. The platform supports **HMAC** signature verification — Hash-based Message Authentication Code, a standard scheme where the sender signs the payload with a shared secret and the receiver re-computes the signature to verify it. GitHub, Slack, Linear, Jira, Grafana, and most SaaS providers use HMAC.
 
-| Mode | Endpoint | How it authenticates | Field in `TRIGGER.md` |
-|------|----------|----------------------|------------------------|
-| Generic HMAC | `POST /v1/webhooks/{zombie_id}` | HMAC against `signature.secret_ref`; header + prefix declared in `TRIGGER.md` | `signature.secret_ref` + `header` (e.g. `x-hub-signature-256`) + `prefix` (e.g. `sha256=`) |
-| GitHub-shaped | `POST /v1/webhooks/{zombie_id}/github` | Same HMAC verification, GitHub-tailored payload normalisation | `source: github` + `signature.secret_ref` |
-| Svix (Clerk-shaped) | `POST /v1/webhooks/svix/{zombie_id}` | Svix multi-signature rotation | URL prefix `/svix/` + `signature.secret_ref` |
+You declare the signature header and prefix in `TRIGGER.md`:
 
-The `secret_ref` field names a credential in the workspace vault that carries the upstream's webhook signing secret (e.g. `github` carries `{api_token, webhook_secret}`). See [Credentials](/zombies/credentials).
+```yaml
+signature:
+  secret_ref: github_secret    # vault key carrying the shared secret
+  header: x-hub-signature-256  # the header your provider sets
+  prefix: "sha256="            # the prefix your provider uses
+```
 
-For upstreams that don't ship a dedicated handler today (Slack, Linear, Jira, Grafana, AgentMail, etc.), use the **Generic HMAC** mode — declare your provider's signature header and prefix in `TRIGGER.md`. If you need a dedicated normaliser for a provider, file an issue.
+`secret_ref` names a credential in the workspace vault that carries the upstream's webhook signing secret. See [Credentials](/zombies/credentials).
 
-### Sending an event
+<Note>
+  **Other auth modes.** GitHub events get a tailored payload normalizer at `POST /v1/webhooks/{zombie_id}/github`. Clerk-shaped (Svix) webhooks are accepted at `POST /v1/webhooks/svix/{zombie_id}` for Svix's multi-signature rotation scheme. Both still use the same `secret_ref` field. Use these only if your provider requires the specific normalization — generic HMAC works for everyone else.
+</Note>
 
-For generic Bearer-authenticated zombies:
+## Sending an event
+
+Once the zombie is installed, your provider POSTs to its URL with a signed body:
 
 ```bash
 curl -X POST https://api.usezombie.com/v1/webhooks/zmb_2041 \
-  -H "Authorization: Bearer $WEBHOOK_TOKEN" \
+  -H "x-hub-signature-256: sha256=<computed-hmac>" \
   -H "Content-Type: application/json" \
   -d '{
     "event_id": "evt-001",
@@ -65,33 +70,29 @@ curl -X POST https://api.usezombie.com/v1/webhooks/zmb_2041 \
   }'
 ```
 
-The platform validates the token against the workspace vault, enqueues the event, and returns `202 Accepted` with a request ID:
+The platform verifies the signature, enqueues the event, and returns `202 Accepted`:
 
 ```json
 { "accepted": true, "request_id": "req_01JQ7K..." }
 ```
 
-Delivery is **at-least-once**. Include a unique `event_id` in the body so the agent can de-duplicate if your upstream retries.
+Delivery is **at-least-once** — your provider may retry on transient failure, so the same event can arrive twice. Include a unique `event_id` in the body so the zombie can dedupe.
 
-### Failure modes
+## Failure responses
 
 | Status | Cause |
 |--------|-------|
-| `401` | Missing, malformed, or mis-signed authentication header. |
-| `404` | Zombie ID does not exist in any workspace. |
+| `401` | Missing, malformed, or mis-signed signature header. |
+| `404` | Zombie ID does not exist. |
 | `410` | Zombie was killed; re-install with `zombiectl install --from <path>`. |
-| `429` | Workspace rate limit hit; back off per `Retry-After`. |
-| `503` | Budget breached, or backpressure applied; safe to retry after the period resets. |
+| `429` | Rate limit hit; back off per `Retry-After`. |
+| `503` | Budget breached, or platform applying backpressure; safe to retry after the period resets. |
 
 ## Approval gate webhooks
 
-Some zombie actions — sending money, merging a PR, posting to a public channel — should not happen without a human in the loop. The **approval gate** lets a zombie pause mid-event, emit an approval request, and wait for a human to click approve or deny in Mission Control or via a webhook callback.
+Some zombie actions — sending money, merging a PR, posting to a public channel — should not happen without a human in the loop. The **approval gate** lets a zombie pause mid-run, emit an approval request, and wait for a human to click approve or deny in Mission Control.
 
-```
-POST https://api.usezombie.com/v1/webhooks/{zombie_id}/approval
-```
-
-The approval webhook carries the approval decision back into the event loop. The approval endpoint is authenticated by the same Bearer token the platform auto-provisions for the zombie at install time.
+For programmatic decisions (e.g. an internal tool calling back into usezombie), POST the decision to:
 
 ```bash
 curl -X POST https://api.usezombie.com/v1/webhooks/zmb_2041/approval \
@@ -100,24 +101,24 @@ curl -X POST https://api.usezombie.com/v1/webhooks/zmb_2041/approval \
   -d '{ "approval_id": "apr_01JQ...", "decision": "approve" }'
 ```
 
-A companion `/grant-approval` endpoint covers the grant-flow case where a zombie asks for permission to attach a new integration (for example, a new Slack workspace) — see [Integration grants](/cli/zombiectl#integration-grants) for the CLI-side view.
-
-## URL-embedded secret form
-
-For upstream systems that cannot attach a header (some form postbacks, some SaaS providers), the platform supports a path-embedded secret:
-
-```
-https://api.usezombie.com/v1/webhooks/{zombie_id}/{url_secret}
-```
-
-The `url_secret` segment is matched against the zombie's configured secret in constant time. Reserved segments (`approval`, `grant-approval`, `svix`) are not allowed as URL secret values.
+The approval token is auto-provisioned for the zombie at install time.
 
 ## Observing webhook traffic
 
-Every accepted and rejected webhook appears in the activity stream. Stream it with:
+Every accepted and rejected webhook appears in the activity stream:
 
 ```bash
 zombiectl events zmb_2041 --follow
 ```
 
-Rejected requests are labelled (`webhook_rejected`, reason code in detail) so you can distinguish a noisy upstream from a real authentication mismatch.
+Rejected requests carry a reason code (`webhook_rejected: signature_mismatch`, etc.) so you can tell a noisy upstream from a real auth bug.
+
+## Advanced: URL-embedded secret
+
+Some upstreams (a few SaaS form-postbacks, a few legacy systems) can't attach a signature header. For those, the platform accepts a path-embedded secret:
+
+```
+https://api.usezombie.com/v1/webhooks/{zombie_id}/{url_secret}
+```
+
+The `url_secret` is matched in constant time. Reserved segments (`approval`, `grant-approval`, `svix`) cannot be used as secret values. Prefer HMAC where the upstream supports it — the URL-embedded form is a fallback.

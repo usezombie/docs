@@ -18,7 +18,7 @@ zombiectl install --from ~/.config/usezombie/samples/platform-ops
 
 The webhook secret is shown **once**. Lost it? See [Quickstart → Wire the GitHub webhook](/quickstart#wire-the-github-webhook) for the rotation procedure.
 
-Re-running against the same workspace is idempotent — your edits to `SKILL.md` / `TRIGGER.md` replace the previous version on the next event.
+Re-running against the same workspace is safe — running it twice has the same effect as running it once. Your edits to `SKILL.md` / `TRIGGER.md` replace the previous version on the next event.
 
 ## Two ways to invoke
 

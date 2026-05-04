@@ -10,8 +10,8 @@
 
 **Run your agents 24/7. Walled, watched, killable.**
 
-[![Docs](https://img.shields.io/badge/UseZombie-Docs-blue?style=for-the-badge)](https://docs.usezombie.com)
-[![Try Free](https://img.shields.io/badge/UseZombie-Try_Free-brightgreen?style=for-the-badge)](https://usezombie.com)
+[![Docs](https://img.shields.io/badge/usezombie-Docs-blue?style=for-the-badge)](https://docs.usezombie.com)
+[![Try Free](https://img.shields.io/badge/usezombie-Try_Free-brightgreen?style=for-the-badge)](https://usezombie.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -35,4 +35,4 @@ Changes pushed to the default branch are deployed automatically via the [Mintlif
 
 ## License
 
-MIT — Copyright (c) 2026 UseZombie
+MIT — Copyright (c) 2026 usezombie
