@@ -19,7 +19,7 @@ The `zombiectl` package ships sample directories under `~/.config/usezombie/samp
 
 ### `platform-ops`
 
-The flagship v2 sample. Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed workflow's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. The same zombie is reachable manually via `zombiectl steer <zombie_id>` for a morning health check, and on a cron schedule for periodic polling. Read-only against GitHub, Fly, and Upstash; the only write path is the Slack post.
+The flagship v2 sample. Wakes on a GitHub Actions `workflow_run.conclusion=failure` webhook, gathers evidence from the failed workflow's logs, your hosting provider, and your data-plane, then posts an evidenced diagnosis to a Slack channel. The same zombie is reachable manually via `zombiectl steer <zombie_id>` for a morning health check, and on a cron schedule for periodic polling. Read-only against your infrastructure; the only write path is the channel post.
 
 ```
 platform-ops/

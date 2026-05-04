@@ -114,7 +114,7 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
 
     ```markdown SKILL.md
     You are the platform-ops zombie. When a deploy fails on production,
-    gather evidence from Fly, Upstash, and the failed GitHub workflow. Post an
+    gather evidence from your hosting provider, your data-plane, and the failed CI workflow. Post an
     evidenced diagnosis to #platform-ops. Read-only outside the Slack post.
     ```
 
@@ -139,7 +139,7 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
     - `cron_add` / `cron_list` / `cron_remove` — schedule future stage triggers.
     - Slack posts, GitHub calls, hosting-provider queries — all happen via `http_request` against the relevant credential.
 
-    Constraint policy (e.g. "read-only against GitHub, Fly, and Upstash; the only write path is the Slack post") lives as prose in `SKILL.md`. The prose is the contract today; structural enforcement comes when a second zombie reuses the same policy.
+    Constraint policy (e.g. "read-only against your infrastructure; the only write path is the channel post") lives as prose in `SKILL.md`. The prose is the contract today; structural enforcement comes when a second zombie reuses the same policy.
   </Accordion>
 
   <Accordion title="Tool bridge (credential firewall)">

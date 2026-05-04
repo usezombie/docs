@@ -170,9 +170,9 @@ Set `context_cap_tokens` explicitly in `TRIGGER.md`. Leaving it at 0 short-circu
 
 The agent doesn't read the runtime logs — those are for the operator. Compaction happens because your `SKILL.md` prose carries a numeric heuristic that matches the runtime defaults (e.g. "after roughly twenty tool calls, rewrite `findings:<id>` tighter"). If your `SKILL.md` doesn't carry such prose, the agent has no instruction to compact. See `samples/platform-ops/SKILL.md` for a template that wires checkpoint cadence, compaction cadence, and hand-off cadence correctly.
 
-**Is `tool_window` going to become tier-aware?**
+**My model has a much larger (or smaller) context cap than 200K. Should `tool_window` adjust?**
 
-Not on the current roadmap. The constant is 20 and the install-skill writes `auto` (which resolves to 20). If your model has a much larger or smaller cap, set `tool_window` explicitly.
+It doesn't — `tool_window: auto` resolves to a flat **20** for every model today (`src/executor/context_budget.zig:54`). If your model needs a different number, set `tool_window` explicitly in `TRIGGER.md`.
 
 ## See also
 

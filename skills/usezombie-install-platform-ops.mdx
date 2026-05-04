@@ -102,7 +102,7 @@ Safe to run after a `git pull` to refresh the sample baseline.
 | `cron_add` / `cron_remove` | If `cron_schedule` was set, the zombie schedules its own health checks. |
 | Slack post via `http_request` | The one write path. The agent calls `http_request` against `slack.com/api/chat.postMessage` using the workspace `slack` credential. |
 
-`SKILL.md` enforces the policy in prose: read-only against GitHub / Fly / Upstash; the only side effect is the Slack post.
+`SKILL.md` enforces the policy in prose: read-only against your infrastructure; the only side effect is the Slack post.
 
 ## Failure modes
 
