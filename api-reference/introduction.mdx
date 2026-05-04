@@ -44,7 +44,7 @@ Every response includes a `request_id` for tracing.
 
 - **IDs** are UUIDs.
 - **Timestamps** are Unix milliseconds.
-- **Action endpoints** use a subpath form (e.g., `/v1/workspaces/{workspace_id}/zombies/{zombie_id}/steer`).
+- **State transitions** are partial updates on the parent resource (e.g., `PATCH /v1/workspaces/{workspace_id}/zombies/{zombie_id}` with body `{status: "stopped"}`). Sub-resources (e.g., `/messages`, `/events`, `/events/stream`) handle data-flow operations.
 - **Streaming endpoints** (activity stream) return Server-Sent Events.
 
 ## Rate limits

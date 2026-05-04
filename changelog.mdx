@@ -7,6 +7,60 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="May 4, 2026" tags={["Breaking", "API", "CLI"]}>
+  ## Follow-up — dormant API + stale CLI teardown
+
+  Six caller-dead surfaces were torn out end-to-end (handlers, route table, OpenAPI, store helpers, tests). The two admin-bootstrap surfaces that *look* dormant but are actually load-bearing (admin platform-keys + tenant API-keys) gained a header pointing at the playbook that drives them, so the next round of "is this dead?" doesn't have to re-derive the answer.
+
+  ## Breaking — API removals
+
+  - **`PATCH /v1/workspaces/{workspace_id}` removed.** Workspace pause/unpause toggle. No first-party UI/CLI ever called it; the marketing-site API summary referenced it, that reference is gone too. `paused`/`paused_reason`/`version` columns on `workspaces` are retained for the existing ops view but are now write-only-default — a future migration can drop them under the schema-removal procedure.
+  - **`GET /v1/tenants/me/diagnostics` removed.** Server-side tenant doctor block. `zombiectl doctor` does not call it (it runs three local probes against `/healthz` + workspace binding). The `describeForDoctor` resolver helper and `DoctorBlock` struct in `src/state/tenant_provider.zig` are removed.
+  - **`GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/telemetry` removed.** Per-zombie execution telemetry HTTP read. The underlying store stays — writers (`src/zombie/metering.zig`) and the tenant-scoped reader behind `GET /v1/tenants/me/billing/charges` are unchanged. Only the per-zombie wrapper (`listTelemetryForZombie`) is gone.
+
+  ## CLI — stale commands removed
+
+  - **`zombiectl admin config add scoring_context_max_tokens` removed.** Called `POST /v1/workspaces/{ws}/scoring/config`, an endpoint that was already absent from the route manifest.
+  - **`zombiectl workspace upgrade-scale` removed.** Called `POST /v1/workspaces/{ws}/billing/scale`, also absent from the manifest.
+  - **`zombiectl workspace billing` removed.** Called `GET /v1/workspaces/{ws}/billing/summary`, same story. Tenant-scoped billing remains via `zombiectl billing show`.
+  - The `OPERATOR COMMANDS` help section and `ZOMBIE_OPERATOR=1` help-toggle env var are gone — there were no operator-only commands left to reveal.
+
+  ## Operator surfaces — documented as bootstrap-only
+
+  - `GET/PUT /v1/admin/platform-keys`, `DELETE /v1/admin/platform-keys/{provider}`, and `POST/GET /v1/api-keys` + `PATCH/DELETE /v1/api-keys/{id}` are kept as they are — they are the call surface used by `playbooks/012_usezombie_admin_bootstrap/001_playbook.md` (admin tenant provisioning, platform Fireworks default registration, API-key minting and rotation). Both handler files now carry a header pointing back at the playbook so the next review round doesn't have to rediscover this.
+
+  ## Breaking — Zombie lifecycle FSM unification
+
+  Every zombie state transition now flows through one endpoint. The bespoke kill-switch endpoint is retired; a hard-purge `DELETE` is added.
+
+  - **`PATCH /v1/workspaces/{workspace_id}/zombies/{zombie_id}` body `{status: ...}`** is the canonical transition surface. Allowed states: `active` | `stopped` | `killed`. The FSM is encoded as SQL gates inside the `UPDATE` statement so the kernel of state-machine truth lives at the storage boundary and cannot be bypassed via parallel writes.
+    - `active   → stopped | killed`
+    - `paused   → stopped | active | killed` (resume from auto-pause)
+    - `stopped  → active  | killed` (resume from operator stop)
+    - `killed   → terminal` (returns 404 on further PATCH)
+    - `paused` is platform-only (anomaly gate); operators cannot set it via PATCH.
+  - **`DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}` added.** Hard-purge: removes the `core.zombies` row and cascades every per-zombie record across schemas (events, telemetry, sessions, approval gates, memory entries). Precondition: `status=killed` — kill the zombie before deleting. Returns 204 on success, 409 if not yet killed. The deletion is irreversible; historical billing debits on `tenant_billing` are not reversed (intentional — debits represent compute already spent).
+  - **`DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}/current-run` removed.** Replaced by `PATCH {status: "stopped"}`. The retired endpoint did not publish to the control stream; the new path emits a `zombie_status_changed` signal so the worker watcher reconciles the running session within one tick.
+  - **Operator-minimum role now applies to *every* status transition.** Previously only the retired `DELETE /current-run` enforced it. Existing callers using workspace-member role for `PATCH {status: "killed"}` will now receive `403 UZ-AUTH-005`. Pure `config_json` patches (no `status` field) still permit workspace-member role.
+
+  ## CLI — new lifecycle subcommands
+
+  - `zombiectl zombie stop <zombie_id>`     — `PATCH {status: "stopped"}`
+  - `zombiectl zombie resume <zombie_id>`   — `PATCH {status: "active"}`
+  - `zombiectl zombie kill <zombie_id>`     — `PATCH {status: "killed"}`
+  - `zombiectl zombie delete <zombie_id>`   — `DELETE` (hard purge; precondition `status=killed`)
+
+  Two-step delete is intentional — there is no `--force` flag. Kill first, then delete.
+
+  ## Dashboard
+
+  The `KillSwitch` panel on the zombie detail page is now state-aware. Stop, Resume, and Kill controls render based on current status; the panel disables itself once a zombie is killed. The previous single-action kill switch is gone.
+
+  ## Discovery files — policy class corrected
+
+  `delete_zombie` was inconsistently classified across `agent-manifest.json` (sensitive) and `skill.md` (critical). It is now `critical` in both files. Agents consuming the manifest will apply the double-confirmation gate appropriate to an irreversible cascade purge.
+</Update>
+
 <Update label="May 4, 2026" tags={["Breaking", "API", "Pricing", "Marketing"]}>
   ## M51 follow-up — route teardown, $5 starter, marketing honesty
 
