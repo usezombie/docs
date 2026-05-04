@@ -18,9 +18,16 @@
             "pages": [
               "index",
               "quickstart",
-              "how-it-works",
               "concepts",
+              "concepts/context-lifecycle",
               "memory"
+            ]
+          },
+          {
+            "group": "Skills",
+            "pages": [
+              "skills/index",
+              "skills/usezombie-install-platform-ops"
             ]
           },
           {
@@ -47,27 +54,6 @@
             "pages": [
               "billing/plans",
               "billing/budgets"
-            ]
-          },
-          {
-            "group": "Self-hosting",
-            "pages": [
-              "operator/deployment/architecture",
-              "operator/deployment/api-server",
-              "operator/deployment/executor",
-              "operator/deployment/worker",
-              "operator/configuration/environment",
-              "operator/configuration/credentials",
-              "operator/configuration/sandbox",
-              "operator/security/model",
-              "operator/security/rbac",
-              "operator/security/sandbox",
-              "operator/observability/overview",
-              "operator/observability/metrics",
-              "operator/observability/posthog-events",
-              "operator/observability/error-codes",
-              "operator/operations/doctor",
-              "operator/operations/fleet"
             ]
           },
           {
@@ -104,18 +90,6 @@
               "GET /healthz",
               "GET /readyz",
               "GET /metrics"
-            ]
-          },
-          {
-            "group": "Internal",
-            "pages": [
-              "GET /internal/v1/telemetry"
-            ]
-          },
-          {
-            "group": "Execution",
-            "pages": [
-              "POST /v1/execute"
             ]
           },
           {

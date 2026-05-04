@@ -44,25 +44,15 @@ zombiectl logout
 
 ## Zombies
 
-### `zombiectl install <template>`
+### `zombiectl install --from <path>`
 
-Scaffold a zombie from a bundled template into the current directory. Writes `SKILL.md` and `TRIGGER.md`. No API call, no authentication required.
-
-```bash
-zombiectl install slack-bug-fixer
-```
-
-Bundled templates include `slack-bug-fixer` and the flagship `homelab` zombie. See [Templates](/zombies/templates).
-
-### `zombiectl up`
-
-Deploy the zombie in the current directory to the active workspace. Reads `SKILL.md` and `TRIGGER.md`, POSTs them to `/v1/workspaces/{workspace_id}/zombies`, and starts the event loop.
+Scaffold a zombie from a sample directory. Writes `SKILL.md` and `TRIGGER.md` into the active workspace. The `--from` flag is required — there are no bare-name template aliases.
 
 ```bash
-zombiectl up
+zombiectl install --from ~/.config/usezombie/samples/platform-ops
 ```
 
-Output includes the new zombie's ID and webhook URL. See [Starting and observing](/zombies/running).
+The `samples/` directory ships with `zombiectl` and contains the flagship `platform-ops` sample. The host-agent install skill (`/usezombie-install-platform-ops`) drives this command under the hood. See [Skills catalog](/skills) and [Templates](/zombies/templates).
 
 ### `zombiectl list`
 
@@ -89,41 +79,70 @@ List every zombie in the current workspace with state, events processed, and bud
 zombiectl status
 ```
 
-### `zombiectl kill [<zombie-name>]`
+### `zombiectl kill <zombie_id>`
 
-Stop a zombie by name.
+Stop a zombie by its ID. State is checkpointed; nothing on the event stream is lost.
 
 ```bash
-zombiectl kill slack-bug-fixer
+zombiectl kill zmb_2041
 ```
 
-### `zombiectl logs --zombie <id>`
+### `zombiectl events <zombie_id>`
 
-Stream the activity stream for one zombie.
+Stream the activity stream for one zombie. Replaces the older `zombiectl logs --zombie` form (still accepted as an alias).
 
 ```bash
-zombiectl logs --zombie zm_01JABC... --limit 50
+zombiectl events zmb_2041 --follow                      # tail SSE in real time
+zombiectl events zmb_2041 --since 2h --limit 100
+zombiectl events zmb_2041 --actor 'webhook:*' --json    # filter + machine-readable
 ```
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--zombie <id>` | *(required)* | Zombie ID to stream. |
-| `--limit <n>` | `20` | Maximum events to return. |
+| `--follow` | off | Tail the SSE stream in real time. |
+| `--actor <glob>` | *(none)* | Filter by actor — `webhook:*`, `cron:*`, `steer:*`, `continuation:*`. |
+| `--since <duration>` | `24h` | Time window — e.g. `2h`, `7d`. |
 | `--cursor <cursor>` | *(none)* | Pagination cursor from a previous response. |
+| `--limit <n>` | `50` | Max events per page (clamped to `200`). |
+| `--json` | off | Emit raw JSON for scripting. |
+
+### `zombiectl steer <zombie_id> "<message>"`
+
+Post a steer message — a manual trigger that lands on the event stream as `actor=steer:<user>`. Same reasoning loop as a webhook event; useful for ad-hoc investigation or before a webhook is wired up.
+
+```bash
+zombiectl steer zmb_2041 "morning health check — anything red?"
+```
+
+The reply streams back live; the result also persists on `core.zombie_events` for replay.
 
 ---
 
 ## Credentials
 
-### `zombiectl credential add <name> --value=<value>`
+### `zombiectl credential add <name> --data='<json>'`
 
-Store a secret in the current workspace vault. The agent can reference it by name from `TRIGGER.md`.
+Store a JSON-shaped secret in the current workspace vault. The agent references it by name from `TRIGGER.md`.
+
+Pipe JSON on stdin — never via `--data='<json>'` directly, because that puts the secret in shell history and process argv:
 
 ```bash
-zombiectl credential add agentmail_api_key --value=$AGENTMAIL_KEY
+zombiectl credential add github --data @- <<'JSON'
+{ "api_token": "ghp_...", "webhook_secret": "<32-byte hex>" }
+JSON
 ```
 
-See [Workspace credentials](/zombies/credentials) for how the vault and credential firewall work.
+Default behaviour is skip-if-exists. Use `--force` to overwrite for rotation.
+
+See [Workspace credentials](/zombies/credentials) for the full vault model.
+
+### `zombiectl credential show <name>`
+
+Print metadata (created, last-rotated). **Values are never returned.**
+
+### `zombiectl credential delete <name>`
+
+Remove a credential from the workspace vault. Any zombie still referencing it will fail with `ERR_ZOMBIE_CREDENTIAL_MISSING` on the next event until you re-add (or update `TRIGGER.md`).
 
 ### `zombiectl credential list`
 
@@ -174,14 +193,6 @@ zombiectl workspace show
 ```
 
 Prints the workspace id, active marker, repo URL, and default branch. Use `--json` for scripting.
-
-### `zombiectl workspace credentials`
-
-Workspace-level credential vault surface. Paired with the Mission Control `/credentials` placeholder — both sides are placeholders today. The backing vault ships in a future release; for per-zombie credential overrides available now, see the [credentials section above](#credentials).
-
-```bash
-zombiectl workspace credentials
-```
 
 ### `zombiectl workspace remove <id>`
 
@@ -285,4 +296,4 @@ Administrative workspace operations.
 zombiectl admin config set scoring_context_max_tokens 2048 --workspace-id ws_abc
 ```
 
-See the [operator documentation](/operator/operations/doctor) for the full operator surface.
+See [`docs/architecture/`](https://github.com/usezombie/usezombie/tree/main/docs/architecture) for the full technical reference.

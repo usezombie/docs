@@ -82,6 +82,22 @@ No vector search, no embeddings. Pre-filter with tags/categories/recency, then l
 
 ---
 
+## Memory and the context lifecycle
+
+Memory does double duty. The cross-event learning case (a zombie remembering a customer between Monday's and Friday's tickets) is what most of this page is about — a fact written on Monday survives across stages, restarts, and worker handoffs. **There is a second use, lower down the stack.** When a long incident accumulates more tool results than the model's working memory can hold, the agent compacts older results into a single distilled entry by calling:
+
+```text
+memory_store(category='conversation', key='findings:<event-id>', content='<distilled summary>')
+```
+
+The summary is *staging*, not enforcement: it makes the agent's findings durable so that when the stage chunks (or Nullclaw's internal compaction summarises the message buffer), the agent can recover them via `memory_recall` instead of re-investigating. The runtime emits log signals at a tunable cadence; the agent's `SKILL.md` prose responds by writing this kind of `conversation`-category entry. See [Concepts → Context lifecycle](/concepts/context-lifecycle) for the full four-layer picture.
+
+Use `conversation` (not `core`) for these compactions — it's the right scope. `conversation` is stage-scoped and ephemeral; `core` is for durable cross-event learning that should outlive any one incident. Mixing them means a Monday compaction shows up in Friday's cross-event recall.
+
+For the operator-side picture — when the runtime emits the signals that prompt this compaction, what the stage-chunk continuation chain does, and how Nullclaw's separate auto-compaction interacts — see [Concepts → Context lifecycle](/concepts/context-lifecycle). Frame: this page is the API; that page is the choreography.
+
+---
+
 ## Memory entry format (the human-readable view)
 
 Memory is stored in a dedicated Postgres database but exported as markdown for human review and editing. Each entry round-trips through this format:
