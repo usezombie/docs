@@ -100,7 +100,7 @@ Safe to run after a `git pull` to refresh the sample baseline.
 | `http_request` | Outbound calls to GitHub workflow logs, your hosting provider, your data-plane. Domains restricted by SKILL prose. |
 | `memory_store` / `memory_recall` | Snapshot findings during a long incident. Keys live in `core.zombie_memories`. |
 | `cron_add` / `cron_remove` | If `cron_schedule` was set, the zombie schedules its own health checks. |
-| `slack_post` | The one write path. Posts the evidenced diagnosis to your channel. |
+| Slack post via `http_request` | The one write path. The agent calls `http_request` against `slack.com/api/chat.postMessage` using the workspace `slack` credential. |
 
 `SKILL.md` enforces the policy in prose: read-only against GitHub / Fly / Upstash; the only side effect is the Slack post.
 

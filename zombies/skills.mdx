@@ -142,11 +142,17 @@ Validation under this block is rigid: an unknown subkey is rejected with a typo 
 
 ### Tools
 
-The `tools:` list is the explicit allowlist of platform-catalog tools the agent may invoke (`agentmail`, `slack`, `git`, `github`, `linear`, `jira`, `grafana`, `clerk`, generic `http_request`, plus the built-in `memory_*` and `cron_*` tools). A compromised or jailbroken agent cannot reach outside this list.
+The `tools:` list is the explicit allowlist of tools the agent may invoke. Real tool names today:
+
+- **`http_request`** — outbound HTTP calls. The credential firewall substitutes secrets in headers and bodies at the sandbox boundary; the agent never sees raw bytes. Slack posts, GitHub API calls, and any provider-specific endpoint all go through this one tool.
+- **`memory_store` / `memory_recall` / `memory_list` / `memory_forget`** — durable cross-event learning. See [Memory](/memory).
+- **`cron_add` / `cron_list` / `cron_remove`** — schedule future stage triggers from inside the agent loop.
+
+A compromised or jailbroken agent cannot reach outside this list.
 
 ### Credentials
 
-Each entry under `credentials:` is a **bare vault key name** — no URI scheme, no path. The firewall resolves the name at tool-call time; the agent sees the tool's response, never the raw secret. Add and rotate via [Credentials](/zombies/credentials).
+Each entry under `credentials:` is a **bare vault key name** referencing a JSON-shaped secret in the workspace vault (e.g. `github` carrying `{api_token, webhook_secret}`, `slack` carrying `{bot_token}`). Names like `github`, `slack`, `linear`, `jira` are credential references — **not** tool names. The firewall resolves the named credential at `http_request` time and substitutes its fields into outbound calls; the agent sees the response, never the raw secret. Add and rotate via [Credentials](/zombies/credentials).
 
 ### Network allowlist
 

@@ -38,20 +38,17 @@ x-usezombie:
 
 ### Authentication modes
 
-A single middleware authenticates every inbound webhook before the agent is notified. Seven first-class providers ship today, each matching the signature scheme the upstream service uses:
+A single middleware authenticates every inbound webhook before the agent is notified. Three handlers ship today; the generic HMAC handler covers most upstreams.
 
-| Provider / mode | How it authenticates | Field in `TRIGGER.md` |
-|-----------------|--------------------|------------------------|
-| Generic Bearer | `Authorization: Bearer <token>` header | `signature.bearer_ref` |
-| AgentMail | AgentMail HMAC signature | `source: agentmail` + `signature.secret_ref` |
-| Grafana | Bearer token | `source: grafana` + `signature.bearer_ref` |
-| Slack | Slack signing secret HMAC | `source: slack` + `signature.secret_ref` |
-| GitHub | GitHub webhook HMAC | `source: github` + `signature.secret_ref` |
-| Linear | Linear HMAC | `source: linear` + `signature.secret_ref` |
-| Jira | Jira HMAC | `source: jira` + `signature.secret_ref` |
-| Clerk (Svix) | Svix multi-signature rotation | URL prefix `/v1/webhooks/svix/{zombie_id}` + `signature.secret_ref` |
+| Mode | Endpoint | How it authenticates | Field in `TRIGGER.md` |
+|------|----------|----------------------|------------------------|
+| Generic HMAC | `POST /v1/webhooks/{zombie_id}` | HMAC against `signature.secret_ref`; header + prefix declared in `TRIGGER.md` | `signature.secret_ref` + `header` (e.g. `x-hub-signature-256`) + `prefix` (e.g. `sha256=`) |
+| GitHub-shaped | `POST /v1/webhooks/{zombie_id}/github` | Same HMAC verification, GitHub-tailored payload normalisation | `source: github` + `signature.secret_ref` |
+| Svix (Clerk-shaped) | `POST /v1/webhooks/svix/{zombie_id}` | Svix multi-signature rotation | URL prefix `/svix/` + `signature.secret_ref` |
 
-The `secret_ref` and `bearer_ref` fields name entries in the workspace vault. See [Credentials](/zombies/credentials).
+The `secret_ref` field names a credential in the workspace vault that carries the upstream's webhook signing secret (e.g. `github` carries `{api_token, webhook_secret}`). See [Credentials](/zombies/credentials).
+
+For upstreams that don't ship a dedicated handler today (Slack, Linear, Jira, Grafana, AgentMail, etc.), use the **Generic HMAC** mode — declare your provider's signature header and prefix in `TRIGGER.md`. If you need a dedicated normaliser for a provider, file an issue.
 
 ### Sending an event
 

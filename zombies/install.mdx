@@ -111,7 +111,7 @@ x-usezombie:
 |---|---|
 | `name:` (top-level) | The zombie's display name. |
 | `x-usezombie.trigger:` | **One** declared trigger — `type: webhook` with a provider `source` and `signature` block. Cron and steer feed the same event stream as actor-provenance, not as additional triggers. |
-| `x-usezombie.tools:` | Allow-list of tool names the agent may invoke. Real names: `http_request`, `memory_store`/`memory_recall`/`memory_list`/`memory_forget`, `cron_add`/`cron_list`/`cron_remove`, `slack_post`. |
+| `x-usezombie.tools:` | Allow-list of tool names the agent may invoke. Real names: `http_request`, `memory_store`/`memory_recall`/`memory_list`/`memory_forget`, `cron_add`/`cron_list`/`cron_remove`. Provider-specific calls (Slack, GitHub, your hosting provider) all happen through `http_request` with the credential firewall substituting secrets at the sandbox boundary. |
 | `x-usezombie.credentials:` | Workspace credential names the firewall will substitute into outbound calls. The agent never sees raw secret bytes. |
 | `x-usezombie.context.*` | Optional context-lifecycle knobs. Defaults work for almost every workload — see [Context lifecycle](/concepts/context-lifecycle). |
 

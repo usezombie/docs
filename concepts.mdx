@@ -137,9 +137,9 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
     - `http_request` — make an outbound HTTP call. Domains restricted by SKILL prose.
     - `memory_store` / `memory_recall` / `memory_list` / `memory_forget` — durable cross-event learning. See [`/memory`](/memory) for the API + four categories.
     - `cron_add` / `cron_list` / `cron_remove` — schedule future stage triggers.
-    - `slack_post` — post to a configured Slack channel.
+    - Slack posts, GitHub calls, hosting-provider queries — all happen via `http_request` against the relevant credential.
 
-    Constraint policy (e.g. "only `kubectl get`, never `delete`") lives as prose in `SKILL.md`. The prose is the contract today; structural enforcement comes when a second zombie reuses the same policy.
+    Constraint policy (e.g. "read-only against GitHub, Fly, and Upstash; the only write path is the Slack post") lives as prose in `SKILL.md`. The prose is the contract today; structural enforcement comes when a second zombie reuses the same policy.
   </Accordion>
 
   <Accordion title="Tool bridge (credential firewall)">
