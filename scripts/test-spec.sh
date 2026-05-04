@@ -64,6 +64,56 @@ check "test_homelab_pages_404" \
 check "test_api_tab_routes_resolve_in_openapi" \
   'make _lint-openapi-drift'
 
+# ── Regression guards (M51_001 corrections) ─────────────────────────────────
+#
+# Each pins a real drift caught during the PR. A grep returning a non-historical
+# hit means someone re-introduced framing the runtime no longer ships. The
+# changelog/ directory is excluded — historical Update entries reflect the
+# product as it was when the entry was written and are intentionally stale.
+
+# v1 sample names. Only platform-ops ships in usezombie/usezombie:samples/.
+# Re-introducing `slack-bug-fixer` or `homelab` in a current page sends
+# operators down `zombiectl install <name>` paths that fail with
+# MISSING_ARGUMENT.
+check "test_no_v1_sample_names_in_current_docs" \
+  '! grep -rEl --include="*.mdx" --exclude-dir=changelog "slack-bug-fixer|slack_bug_fixer|\bhomelab\b|lead[_-]collector|lead[_-]scorer|homebox|pr-reviewer|pr_reviewer" . | grep -v "^./changelog.mdx$" | grep -q .'
+
+# `zombiectl up` does not exist in zombiectl/src/program/routes.js. Install IS
+# the deploy in v2. Re-introducing it in a user-visible page sends operators
+# down a "command not found" rabbit hole.
+check "test_no_zombiectl_up_in_current_docs" \
+  '! grep -rEl --include="*.mdx" "zombiectl up\b" . | grep -v "^./changelog.mdx$" | grep -q .'
+
+# Top-level CLI verb is `zombiectl login`, not `zombiectl auth login`. Verified
+# against zombiectl/src/program/routes.js (the `login` route entry).
+check "test_no_zombiectl_auth_login_in_current_docs" \
+  '! grep -rEl --include="*.mdx" "zombiectl auth login" . | grep -v "^./changelog.mdx$" | grep -q .'
+
+# Webhook URL canonical form is api.usezombie.com, per usezombie/usezombie:
+# samples/platform-ops/README.md and skills/usezombie-install-platform-ops/
+# SKILL.md. Re-introducing hooks.usezombie.com sends webhooks to a domain that
+# does not resolve.
+check "test_webhook_url_canonical_subdomain" \
+  '! grep -rE --include="*.mdx" "hooks\\.usezombie\\.com" . | grep -v "^./changelog.mdx" | grep -q .'
+
+# Memory entries land in memory.memory_entries per schema/013_memory_entries.
+# sql:29 in usezombie/usezombie. core.zombie_memories never existed.
+check "test_memory_table_canonical_name" \
+  '! grep -rE --include="*.mdx" "core\\.zombie_memories|zombie_memories" . | grep -q .'
+
+# Real credential CLI shape per zombiectl/src/commands/zombie_credential.js
+# is `--data='<json>'` or `--data=@-` (stdin). Stale flags: `--value=`,
+# `--api-token`, `--bot-token`, `--host` for credential add. Each would fail
+# with parseFlags rejecting the unknown flag.
+check "test_credential_add_uses_data_flag" \
+  '! grep -rE --include="*.mdx" "credential add[^|]*--(value|api-token|bot-token|host)=" . | grep -v "^./changelog.mdx" | grep -q .'
+
+# v1 noun-form bans per ~/Projects/docs/AGENTS.md:30. Verb usage of "run/runs"
+# (e.g. "the runtime runs") is allowed; this guard catches the specific noun
+# phrasings that recurred in this PR's history.
+check "test_no_v1_noun_phrasings" \
+  '! grep -rE --include="*.mdx" "(failed run\b|production-branch run\b|webhook-driven runs|cron runs the|future runs\b|running the spec)" . | grep -v "^./changelog.mdx" | grep -q .'
+
 echo
 echo "  $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
