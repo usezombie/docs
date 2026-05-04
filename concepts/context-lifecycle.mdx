@@ -30,15 +30,15 @@ The runtime emits three structured log lines as observability hooks. **It does n
 
 | Signal | Fires when | Source |
 |---|---|---|
-| `runner_progress.memory_checkpoint_due` | Every Nth completed tool call (`memory_checkpoint_every`, default 5) | [`src/executor/runner_progress.zig:150-159`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig) |
-| `runner_progress.tool_window_exceeded` | Every tool call after the cumulative count crosses `tool_window` (default 20) | [`src/executor/runner_progress.zig:166-173`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig) |
-| `runner_progress.chunk_threshold_breached` | Every LLM response where `prompt_tokens / context_cap_tokens ≥ stage_chunk_threshold` (default 0.75) | [`src/executor/runner_progress.zig:175-198`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig) |
+| `runner_progress.memory_checkpoint_due` | Every Nth completed tool call (`memory_checkpoint_every`, default 5) | [`src/executor/runner_progress.zig:150-159`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig#L150-L159) |
+| `runner_progress.tool_window_exceeded` | Every tool call after the cumulative count crosses `tool_window` (default 20) | [`src/executor/runner_progress.zig:166-173`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig#L166-L173) |
+| `runner_progress.chunk_threshold_breached` | Every LLM response where `prompt_tokens / context_cap_tokens ≥ stage_chunk_threshold` (default 0.75) | [`src/executor/runner_progress.zig:175-198`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig#L175-L198) |
 
 The runtime can't drop tool results from a live conversation — the underlying agent loop (Nullclaw) doesn't expose mid-loop conversation mutation. So Layer 1 is a partnership: the runtime watches, the agent reacts.
 
-### Layer 2 — Agent enforcement via `memory_store`
+### Layer 2 — Agent staging via `memory_store`
 
-When `SKILL.md` prose sees the runtime signals, it calls the [`memory_*` tools](/memory) to compact older tool results into a durable summary. The canonical pattern:
+When `SKILL.md` prose sees the runtime signals, it calls the [`memory_*` tools](/memory) to write a distilled summary of findings so far:
 
 ```
 memory_store(
@@ -48,22 +48,24 @@ memory_store(
 )
 ```
 
-The summary lands in `memory.memory_entries`, scoped to the workspace, recoverable via `memory_recall`. The original tool results stay on `core.zombie_events` (durable forever) but leave the active model prompt because the SKILL prose chooses to keep only the summary in subsequent reasoning.
+The summary lands in `memory.memory_entries`, scoped to the workspace, recoverable via `memory_recall`.
 
-**The runtime does not write this entry.** Skill templates are responsible for the prose that produces it. See [`/memory`](/memory) for the four categories — `conversation` is the right one for context-lifecycle compactions because it's ephemeral and stage-scoped, unlike `core` which is for durable cross-event learning.
+**Important: this does not shrink the active prompt by itself.** Nullclaw does not expose mid-loop conversation mutation, so the agent cannot evict its own earlier tool results — they stay in the live conversation until either Layer 3 ends the stage and the next stage opens fresh, or Layer 4 (Nullclaw's autoCompactHistory) summarises the message buffer. Layer 2 is a *staging* mechanism: it makes the synthesis durable so that when Layer 3 or Layer 4 fires, the agent can recover its findings via `memory_recall` instead of re-investigating from scratch.
+
+Skill templates are responsible for the prose that triggers `memory_store`. The runtime never writes this entry. See [`/memory`](/memory) for the four categories — `conversation` is the right one for context-lifecycle stagings because it's ephemeral and stage-scoped, unlike `core` which is for durable cross-event learning.
 
 ### Layer 3 — Stage chunking + continuation chain
 
-When the agent decides the prompt is too full to keep going, it ends the stage with `exit_ok: false` and a `checkpoint_id`. The worker classifier in [`src/zombie/continuation.zig`](https://github.com/usezombie/usezombie/blob/main/src/zombie/continuation.zig) sees this, looks up how many continuations the chain has already produced, and either:
+When the agent decides the prompt is too full to keep going, it ends the stage with `exit_ok: false` and a `checkpoint_id`. The worker classifier in [`src/zombie/continuation.zig:67-86`](https://github.com/usezombie/usezombie/blob/main/src/zombie/continuation.zig#L67-L86) sees this, looks up how many continuations the chain has already produced, and either:
 
 - **`enqueue`** — re-XADDs the chain as a synthetic continuation event with `actor=continuation:<original_actor>` (flat — already-continuation actors are idempotent). The next stage opens with a fresh prompt; SKILL prose calls `memory_recall(checkpoint_id)` to load the snapshot.
 - **`force_stop`** — at the **11th attempt** on the same chain (`max_continuations_per_chain = 10`, `continuation.zig:38`), the worker writes `failure_label = "chunk_chain_escalate_human"` to the originating row and stops. The zombie itself stays alive; only this one chain forfeits.
 
-Crucially, the runtime cannot *force* the agent to chunk. Layer 1's `chunk_threshold_breached` log is a hint; the agent's `SKILL.md` prose decides whether to honour it ("when context fills, return content='needs continuation' with a checkpoint_id"). This boundary is documented in [`runner_progress.zig:63-67`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig).
+Crucially, the runtime cannot *force* the agent to chunk. Layer 1's `chunk_threshold_breached` log is a hint; the agent's `SKILL.md` prose decides whether to honour it ("when context fills, return content='needs continuation' with a checkpoint_id"). This boundary is documented in [`runner_progress.zig:63-67`](https://github.com/usezombie/usezombie/blob/main/src/executor/runner_progress.zig#L63-L67).
 
 ### Layer 4 — Nullclaw `autoCompactHistory` (independent, transparent)
 
-Inside the agent loop itself, an entirely separate compaction runs. It is **not** wired to `x-usezombie.context.*`; it lives in the vendored Nullclaw runtime at [`agent/compaction.zig:79-101`](https://github.com/nullclaw/nullclaw).
+Inside the agent loop itself, an entirely separate compaction runs. It is **not** wired to `x-usezombie.context.*`; it lives in the vendored Nullclaw runtime at [`agent/compaction.zig:79-101`](https://github.com/nullclaw/nullclaw/blob/v2026.4.9/src/agent/compaction.zig#L79-L101).
 
 It triggers on:
 

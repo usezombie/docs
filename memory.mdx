@@ -90,7 +90,7 @@ Memory does double duty. The cross-event learning case (a zombie remembering a c
 memory_store(category='conversation', key='findings:<event-id>', content='<distilled summary>')
 ```
 
-The original tool results stay on `core.zombie_events` (durable forever) but leave the active model prompt — subsequent reasoning sees the summary instead. This is the *enforcement primitive* the runtime relies on for its "rolling tool-result window" framing: the runtime emits log signals at a tunable cadence; the agent's `SKILL.md` prose responds by writing this kind of `conversation`-category entry.
+The summary is *staging*, not enforcement: it makes the agent's findings durable so that when the stage chunks (or Nullclaw's internal compaction summarises the message buffer), the agent can recover them via `memory_recall` instead of re-investigating. The runtime emits log signals at a tunable cadence; the agent's `SKILL.md` prose responds by writing this kind of `conversation`-category entry. See [Concepts → Context lifecycle](/concepts/context-lifecycle) for the full four-layer picture.
 
 Use `conversation` (not `core`) for these compactions — it's the right scope. `conversation` is stage-scoped and ephemeral; `core` is for durable cross-event learning that should outlive any one incident. Mixing them means a Monday compaction shows up in Friday's cross-event recall.
 
