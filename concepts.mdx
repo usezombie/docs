@@ -135,8 +135,8 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
   <Accordion title="Tool">
     A named verb the agent can invoke. Declared in `TRIGGER.md`. Examples:
     - `http_request` — make an outbound HTTP call. Domains restricted by SKILL prose.
-    - `memory_store` / `memory_recall` — persist a snapshot keyed by string.
-    - `cron_add` / `cron_remove` — schedule future stage triggers.
+    - `memory_store` / `memory_recall` / `memory_list` / `memory_forget` — durable cross-event learning. See [`/memory`](/memory) for the API + four categories.
+    - `cron_add` / `cron_list` / `cron_remove` — schedule future stage triggers.
     - `slack_post` — post to a configured Slack channel.
 
     Constraint policy (e.g. "only `kubectl get`, never `delete`") lives as prose in `SKILL.md`. The prose is the contract today; structural enforcement comes when a second zombie reuses the same policy.
@@ -153,11 +153,17 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
   </Accordion>
 
   <Accordion title="Memory checkpoint">
-    A durable snapshot the agent writes to during a long stage via `memory_store`. Layer 1 of the [context lifecycle](/concepts/context-lifecycle) — even if the rolling tool window drops old results from the active context, the checkpoint survives in `core.zombie_memories` and is recoverable via `memory_recall`.
+    A durable snapshot the agent writes during a long stage by calling `memory_store`. The runtime emits a `memory_checkpoint_due` signal every N tool calls (`memory_checkpoint_every`, default 5) and the agent's `SKILL.md` prose decides what to record. The runtime never auto-snapshots — see [context lifecycle](/concepts/context-lifecycle) for who actually enforces what.
   </Accordion>
 
   <Accordion title="Stage chunking">
-    The failsafe when the active context approaches the model's working-memory cap. The agent writes a final snapshot, exits the stage with `exit_ok: false`, and the worker re-enqueues the same event chain as a fresh stage. The new stage starts clean and immediately calls `memory_recall` to load the snapshot. See [context lifecycle](/concepts/context-lifecycle) for the full picture.
+    The failsafe for when the agent's prompt is approaching the model's context cap. The agent voluntarily ends the stage with `exit_ok: false` + a `checkpoint_id`; the worker re-enqueues the same event chain as a synthetic continuation event with `actor=continuation:<original_actor>` (`src/zombie/continuation.zig`). The next stage starts on a fresh prompt; `SKILL.md` prose tells the agent to call `memory_recall` to pick up state.
+
+    Each chain caps at **10 continuations** — past that the worker stops re-enqueueing and labels the originating row `chunk_chain_escalate_human`. See [context lifecycle](/concepts/context-lifecycle).
+  </Accordion>
+
+  <Accordion title="Session state (resume-on-crash)">
+    `core.zombie_sessions.context_json` is a thin per-zombie row that carries `{last_event_id, last_response}` (response truncated to 2 KB) so the worker can pick up after a crash without losing its place. It is **not** the conversation history — that lives in the LLM message buffer for the duration of one stage and on `core.zombie_events` durably; cross-event learning lives in [`/memory`](/memory). Wiring at `src/zombie/event_loop_helpers.zig:69-89`.
   </Accordion>
 
   <Accordion title="Approval gate">
