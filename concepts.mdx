@@ -9,7 +9,7 @@ description: "The four nouns, the credential firewall, and how a stage runs."
 
 ## The four nouns
 
-UseZombie has four primary objects. Everything else is infrastructure.
+usezombie has four primary objects. Everything else is infrastructure.
 
 <CardGroup cols={2}>
   <Card title="Tenant" icon="building">
@@ -52,8 +52,8 @@ Every stage debits the same tenant balance regardless of which workspace the zom
 
 New tenants start with **$5** seeded at signup — never expires.
 
-- **Hosted execution is metered.** UseZombie debits credits on event receipt and per-stage execution. That's what the credit pool pays for.
-- **Inference is BYOK.** You attach your own model key (Anthropic, OpenAI, Fireworks, Together, Groq, Moonshot). UseZombie marks up zero. The executor resolves your credential at the tool bridge and your provider bills you directly.
+- **Hosted execution is metered.** usezombie debits credits on event receipt and per-stage execution. That's what the credit pool pays for.
+- **Inference is BYOK.** You attach your own model key (Anthropic, OpenAI, Fireworks, Together, Groq, Moonshot). usezombie marks up zero. The executor resolves your credential at the tool bridge and your provider bills you directly.
 - **Debits happen on completed work only.** A stage that fails before producing output does not debit.
 
 See [Billing and cost control](/billing/plans).
@@ -180,6 +180,6 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
   </Accordion>
 
   <Accordion title="Budget">
-    Dollar ceilings on hosted execution declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour window; `monthly_dollars` caps the calendar month. Hitting either ceiling stops new stages from opening; in-flight stages drain. Inference cost is BYOK and not subject to UseZombie's budget — your provider's caps apply there.
+    Dollar ceilings on hosted execution declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour window; `monthly_dollars` caps the calendar month. Hitting either ceiling stops new stages from opening; in-flight stages drain. Inference cost is BYOK and not subject to usezombie's budget — your provider's caps apply there.
   </Accordion>
 </AccordionGroup>

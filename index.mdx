@@ -1,17 +1,17 @@
 ---
-title: UseZombie
+title: usezombie
 description: "Durable, BYOK, markdown-defined agent runtime — for operators who own their outcomes."
 ---
 
-<Tip>
-  🧟 **v2 — Early Access** · Hosted on `api.usezombie.com`. Self-host arrives in v3.
-</Tip>
+<Warning>
+  🧟 **v2 — Early Access · do not run in production.** This release is for design partners and internal testing only. APIs, agent behaviour, schemas, and CLI flags will change without warning. Please don't point real workloads at `api.usezombie.com` yet — we will tell you when it's ready. Self-host arrives in v3.
+</Warning>
 
 ## A long-lived runtime for one operational outcome
 
 You have a deploy that fails at 2am. Your senior on-call engineer is asleep. You guess at the cause from a stack trace, ship a patch, hope.
 
-UseZombie is a durable runtime that captures the senior engineer's playbook in markdown — `SKILL.md` plus `TRIGGER.md`, no workflow DAG — and runs it against your infrastructure when the trigger fires. The flagship `platform-ops` zombie wakes on a GitHub Actions deploy failure, gathers evidence from your hosting provider, your data-plane, and the failed workflow, and posts an evidenced diagnosis to Slack. The same zombie is reachable via `zombiectl steer` for a manual investigation.
+usezombie is a durable runtime that captures the senior engineer's playbook in markdown — `SKILL.md` plus `TRIGGER.md`, no workflow DAG — and runs it against your infrastructure when the trigger fires. The flagship `platform-ops` zombie wakes on a GitHub Actions deploy failure, gathers evidence from your hosting provider, your data-plane, and the failed workflow, and posts an evidenced diagnosis to Slack. The same zombie is reachable via `zombiectl steer` for a manual investigation.
 
 ## Three pillars
 

@@ -5,7 +5,7 @@ description: "How a 40-tool-call incident keeps reasoning past the model's worki
 
 > **New here?** A *zombie* is a durable agent runtime instance scoped to one operational outcome — `SKILL.md` + `TRIGGER.md` define its behaviour, the runtime drives its reasoning loop on every trigger. See [Concepts → the four nouns](/concepts) for the full taxonomy.
 
-A long deploy investigation can issue forty-plus tool calls — `gh run view`, log tails, infra probes, memory writes — across a single stage. No current model holds forty tool results in working memory. UseZombie keeps the incident coherent through four layers that work *together*, not three independent runtime mechanisms acting alone.
+A long deploy investigation can issue forty-plus tool calls — `gh run view`, log tails, infra probes, memory writes — across a single stage. No current model holds forty tool results in working memory. usezombie keeps the incident coherent through four layers that work *together*, not three independent runtime mechanisms acting alone.
 
 Knowing which layer does what is the difference between debugging a context-overflow incident in 10 minutes and 10 hours.
 

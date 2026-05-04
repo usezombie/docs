@@ -30,7 +30,7 @@ The **observability layer on top of memory** (see Metrics section) exists for a 
 
 ## Log vs memory (the distinction that makes or breaks the feature)
 
-**Log** = what happened. Tool calls, events, timestamps. Raw history. UseZombie already has this via SSE streams and the events history endpoint.
+**Log** = what happened. Tool calls, events, timestamps. Raw history. usezombie already has this via SSE streams and the events history endpoint.
 
 **Memory** = what the zombie *learned* from what happened. Curated, distilled, judged. The agent decides "this fact is worth keeping, that one isn't."
 
@@ -183,7 +183,7 @@ zombiectl memory import --zombie {zombie_id} --from ./zombie-memory/
 cd ./zombie-memory && git init && git add . && git commit -m "Correct Acme plan"
 ```
 
-This composes with two primitives UseZombie already shipped:
+This composes with two primitives usezombie already shipped:
 
 | Primitive | When | What it does |
 |---|---|---|
@@ -315,7 +315,7 @@ The skill template encodes these choices.
 
 ## External agent variant
 
-Any external pipeline (LangGraph, CrewAI, custom Python) can use UseZombie memory
+Any external pipeline (LangGraph, CrewAI, custom Python) can use usezombie memory
 by calling the memory API directly:
 
 ```bash
@@ -336,4 +336,4 @@ curl -X POST https://api.usezombie.com/v1/memory/store \
 
 Same isolation model (row-level `zombie_id` scope), same edit-then-replay via
 export/import. Useful for mixed workflows: scoring in CrewAI, notifications via
-UseZombie, memory shared between them.
+usezombie, memory shared between them.

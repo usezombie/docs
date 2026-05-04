@@ -3,13 +3,13 @@ title: "Workspaces"
 description: "What a workspace is and how it relates to your tenant."
 ---
 
-A **workspace** is a container for zombies and credentials, scoped inside your tenant. It binds a GitHub repository to UseZombie via the UseZombie GitHub App.
+A **workspace** is a container for zombies and credentials, scoped inside your tenant. It binds a GitHub repository to usezombie via the usezombie GitHub App.
 
 ## What a workspace contains
 
 Each workspace has its own:
 
-- **Repository connection** — a 1:1 binding to a GitHub repo via the UseZombie GitHub App.
+- **Repository connection** — a 1:1 binding to a GitHub repo via the usezombie GitHub App.
 - **Zombies** — the configured agents that live and run here.
 - **Credentials** — the vault keys zombies in this workspace can read. Workspace-scoped on purpose: credentials do not leak across workspaces.
 - **Webhook namespace** — every zombie in a workspace gets its own unique URL under `https://api.usezombie.com/v1/webhooks/{zombie_id}`.

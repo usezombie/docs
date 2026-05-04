@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "UseZombie",
+  "name": "usezombie",
   "colors": {
     "primary": "#d96b2b",
     "light": "#e78a3c",

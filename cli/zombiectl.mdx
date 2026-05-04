@@ -14,7 +14,6 @@ description: "Complete zombiectl command reference."
 | External agents | `agent create`, `agent list`, `agent delete` |
 | Integration grants | `grant list`, `grant revoke` |
 | Diagnostics | `doctor` |
-| Operator | `admin` |
 
 Every command accepts the [global flags](/cli/flags). Every command that returns structured data supports `--json` for machine-readable output.
 
@@ -285,15 +284,5 @@ zombiectl doctor
 ```
 
 ---
-
-## Operator commands
-
-### `zombiectl admin`
-
-Administrative workspace operations.
-
-```bash
-zombiectl admin config set scoring_context_max_tokens 2048 --workspace-id ws_abc
-```
 
 See [`docs/architecture/`](https://github.com/usezombie/usezombie/tree/main/docs/architecture) for the full technical reference.
