@@ -78,10 +78,15 @@ The webhook secret is workspace-scoped — the same secret serves every zombie i
 The secret is **not** stored anywhere user-visible after install. Rotate the workspace credential:
 
 ```bash
-zombiectl credential add github --data @-
+zombiectl credential add github --data @- --force <<'JSON'
+{
+  "api_token": "ghp_...",
+  "webhook_secret": "<new 32-byte hex>"
+}
+JSON
 ```
 
-Pipe the JSON on stdin. The old secret stops working immediately; update the new one in every repo's webhook config.
+`--force` is required to overwrite — without it, the default skip-if-exists behaviour leaves the old credential in place. The old secret stops working immediately; update the new one in every repo's webhook config. See [Credentials](/zombies/credentials) for the full vault model.
 
 ## Idempotency
 

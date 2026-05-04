@@ -92,7 +92,7 @@ This walks through installing the flagship `platform-ops` zombie on one of your 
     zombiectl credential add github --data @-
     ```
 
-    Pipe the JSON on stdin. Update the new secret in every repo's webhook settings; the old one stops working immediately.
+    Pipe the JSON on stdin (shape: `{ "api_token": "ghp_...", "webhook_secret": "<new>" }` — see [Credentials](/zombies/credentials) for the full reference and `--force` rotation flag). Update the new secret in every repo's webhook settings; the old one stops working immediately.
   </Warning>
 </Step>
 
