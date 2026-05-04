@@ -148,7 +148,7 @@ The `tools:` list is the explicit allowlist of tools the agent may invoke. **Thi
 |---|---|
 | `http_request` | Outbound HTTP. Slack posts, GitHub API calls, hosting-provider queries — every external call goes through this one tool. The tool bridge substitutes secrets into headers and bodies outside the sandbox; the agent never sees raw bytes. |
 | `memory_store` / `memory_recall` / `memory_list` / `memory_forget` | Durable cross-event learning. See [Memory](/memory) for the four categories. |
-| `cron_add` / `cron_list` / `cron_remove` | Schedule future runs from inside the reasoning loop. |
+| `cron_add` / `cron_list` / `cron_remove` | Schedule future stages from inside the reasoning loop. |
 
 A compromised or jailbroken agent cannot reach outside this list.
 

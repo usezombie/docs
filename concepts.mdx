@@ -1,6 +1,6 @@
 ---
 title: "Key concepts"
-description: "The four nouns, the tool bridge, and how a run works."
+description: "The four nouns, the tool bridge, and how a stage works."
 ---
 
 <Tip>
@@ -81,15 +81,15 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
   </Accordion>
 
   <Accordion title="Stage">
-    One end-to-end run of the agent on one trigger: webhook arrives → agent reasons → tool calls → result. Most zombies do one stage per event in a few seconds. See [How long does a zombie run?](/concepts/context-lifecycle).
+    One end-to-end execution of the agent on one trigger: webhook arrives → agent reasons → tool calls → result. Most zombies finish a stage in a few seconds. See [How long does a stage take?](/concepts/context-lifecycle).
   </Accordion>
 
   <Accordion title="Trigger">
     What wakes a zombie. Three sources, all feeding the same reasoning loop:
 
     - **Webhook** — an external system (GitHub, Slack, your monitoring) POSTs to `https://api.usezombie.com/v1/webhooks/{zombie_id}`.
-    - **Cron** — the zombie schedules its own future runs via the `cron_add` tool.
-    - **Steer** — a human runs `zombiectl steer <zombie_id> "..."` for a manual run.
+    - **Cron** — the zombie schedules its own future stages via the `cron_add` tool.
+    - **Steer** — a human invokes `zombiectl steer <zombie_id> "..."` for a manual stage.
 
     `SKILL.md` decides what to do based on the event payload.
   </Accordion>
@@ -98,7 +98,7 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
     A named verb the agent can invoke, declared in `TRIGGER.md`:
     - `http_request` — outbound HTTP. Slack posts, GitHub calls, your provider — all go through this.
     - `memory_store` / `memory_recall` / `memory_list` / `memory_forget` — durable cross-event learning. See [Memory](/memory).
-    - `cron_add` / `cron_list` / `cron_remove` — schedule future runs.
+    - `cron_add` / `cron_list` / `cron_remove` — schedule future stages.
 
     The agent can only call tools that are explicitly listed. A jailbroken agent cannot reach outside the list.
   </Accordion>
@@ -108,6 +108,6 @@ A trigger lands on the event stream. A stage opens. The agent calls tools allow-
   </Accordion>
 
   <Accordion title="Budget">
-    Dollar ceilings on hosted execution (the platform compute that runs your zombie — separate from your model provider's bill) declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour window; `monthly_dollars` caps the calendar month. Hitting either ceiling stops new runs from opening. Inference cost is BYOK — your provider's own caps apply there.
+    Dollar ceilings on hosted execution (the platform compute that runs your zombie — separate from your model provider's bill) declared in `TRIGGER.md`. `daily_dollars` caps spend over a rolling 24-hour window; `monthly_dollars` caps the calendar month. Hitting either ceiling stops new stages from opening. Inference cost is BYOK — your provider's own caps apply there.
   </Accordion>
 </AccordionGroup>
