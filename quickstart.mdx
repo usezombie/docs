@@ -40,8 +40,14 @@ This walks through installing the flagship `platform-ops` zombie on one of your 
   This opens a Clerk OAuth flow in your browser. New accounts come with a `$10` starter credit pool — never expires, applies to hosted execution only. Inference is BYOK and billed by your provider directly.
 </Step>
 
-<Step title="Run the install skill">
-  In your host agent, invoke:
+<Step title="Install and run the install skill">
+  Install the `usezombie` skill family into your host agent:
+
+  ```bash
+  npx skills add usezombie/usezombie
+  ```
+
+  Then, in your host agent, invoke:
 
   ```
   /usezombie-install-platform-ops
@@ -86,13 +92,22 @@ This walks through installing the flagship `platform-ops` zombie on one of your 
   </Tip>
 
   <Warning>
-    **Lost the secret?** It's not stored anywhere user-visible after install. Rotate the workspace `github` credential:
+    **Lost the secret?** It's not stored anywhere user-visible after install — you have to rotate. Two steps:
+
+    **1. Rotate the workspace `github` credential.** Generate a new webhook secret (any random value, e.g. `openssl rand -hex 32`), then pipe the credential JSON to `zombiectl` on stdin:
 
     ```bash
-    zombiectl credential add github --data @-
+    cat <<EOF | zombiectl credential add github --data @- --force
+    {
+      "api_token": "ghp_...",
+      "webhook_secret": "<new-secret>"
+    }
+    EOF
     ```
 
-    Pipe the JSON on stdin (shape: `{ "api_token": "ghp_...", "webhook_secret": "<new>" }` — see [Credentials](/zombies/credentials) for the full reference and `--force` rotation flag). Update the new secret in every repo's webhook settings; the old one stops working immediately.
+    The `--data @-` flag reads JSON from stdin; `--force` overwrites the existing credential. See [Credentials](/zombies/credentials) for the full schema.
+
+    **2. Update every repo's webhook.** In each GitHub repo using this workspace, go to **Settings → Webhooks → Edit** and paste `<new-secret>` into the **Secret** field. The old secret stops working the moment step 1 completes, so do this immediately after.
   </Warning>
 </Step>
 

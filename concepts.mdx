@@ -29,15 +29,20 @@ UseZombie has four primary objects. Everything else is infrastructure.
 ### How they relate
 
 ```
-Tenant (wallet: $10.00, BYOK: anthropic)
+Tenant  (wallet: $10.00, BYOK: anthropic)
+│
 ├── Workspace: "platform-ops"
-│   ├── Zombie: platform-ops              (zmb_2041)
-│   │   └── Tools: http_request, memory_store, cron_add
+│   │
+│   ├── Zombie: platform-ops      (zmb_2041)
+│   │   ├── Tools:    http_request, memory_store, cron_add
 │   │   └── Triggers: webhook (GitHub Actions), cron, steer
-│   └── Credential: github                (workspace-scoped, shared)
+│   │
+│   └── Credential: github        (workspace-scoped, shared)
+│
 └── Workspace: "support"
-    └── Zombie: ticket-triage             (zmb_2042)
-        └── Tools: http_request, memory_store
+    │
+    └── Zombie: ticket-triage     (zmb_2042)
+        ├── Tools:    http_request, memory_store
         └── Triggers: webhook (Zendesk), steer
 ```
 
