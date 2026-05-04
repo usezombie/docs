@@ -112,8 +112,7 @@
           {
             "group": "Tenants",
             "pages": [
-              "GET /v1/tenants/me/workspaces",
-              "GET /v1/tenants/me/diagnostics"
+              "GET /v1/tenants/me/workspaces"
             ]
           },
           {
@@ -135,7 +134,6 @@
             "group": "Workspaces",
             "pages": [
               "POST /v1/workspaces",
-              "PATCH /v1/workspaces/{workspace_id}",
               "GET /v1/workspaces/{workspace_id}/events"
             ]
           },
@@ -170,7 +168,7 @@
               "GET /v1/workspaces/{workspace_id}/zombies",
               "POST /v1/workspaces/{workspace_id}/zombies",
               "PATCH /v1/workspaces/{workspace_id}/zombies/{zombie_id}",
-              "DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}/current-run"
+              "DELETE /v1/workspaces/{workspace_id}/zombies/{zombie_id}"
             ]
           },
           {
@@ -191,8 +189,7 @@
             "group": "Zombie events",
             "pages": [
               "GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/events",
-              "GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/events/stream",
-              "GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/telemetry"
+              "GET /v1/workspaces/{workspace_id}/zombies/{zombie_id}/events/stream"
             ]
           },
           {
