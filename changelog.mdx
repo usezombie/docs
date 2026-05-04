@@ -7,6 +7,42 @@ description: "Stay up to date with UseZombie product updates, new features, and 
   UseZombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="May 4, 2026" tags={["Breaking", "API", "Pricing", "Marketing"]}>
+  ## M51 follow-up — route teardown, $5 starter, marketing honesty
+
+  Two caller-dead routes were torn out end-to-end (handlers, OpenAPI, LLM/agent advertisements, error registry orphans), the starter credit was halved to align with the new marketing copy, and the FAQ context-window answer was rewritten to match what the runtime actually does.
+
+  ## Breaking — API removals
+
+  - **`POST /v1/execute` is removed.** The endpoint was retired under the M10 pipeline-v1 removal but the handler had survived as orphan code with no internal caller. It is now gone from the binary, OpenAPI, `public/llms.txt`, `public/skill.md`, and `public/agent-manifest.json`. **External LLM-agent integrators (LangGraph, CrewAI, Composio) that hardcoded the `execute_tool` operationId will see HTTP 404.** Pre-v2.0.0 we do not graceful-410; if you were depending on this endpoint, contact us — the right replacement is the per-zombie webhook + agent-key flow.
+  - **`GET /internal/v1/telemetry` is removed.** Operator endpoint with no admin tool wired to it; the auth story was deferred and never landed. **Telemetry data collection continues** — `src/zombie/metering.zig` writers stay alive, the customer-facing `GET /v1/workspaces/{ws}/zombies/{id}/telemetry` is unchanged, and the operator endpoint will be re-activated as a clean wire-up once an admin surface exists.
+  - Three execute-path-only error codes (`UZ-CRED-004`, `UZ-PROXY-001`, `UZ-GATE-005`) removed alongside their handlers. Zero callers in `src/`.
+
+  ## Pricing — $5 starter, two-debit framing
+
+  - **Starter credit is now $5 (was $10).** The Clerk `user.created` webhook still auto-grants on signup; `STARTER_GRANT_CENTS` in `src/state/tenant_billing.zig` is the only constant that changed.
+  - **Marketing copy now names the two debit points everywhere it talks about pricing.** Hosted execution is metered against the credit pool with debits firing on event receipt and per-stage execution. BYOK pays only the stage flat overhead; platform-managed pays both plus the model-rate-based token charge with no UseZombie markup.
+
+  ## Marketing — hero trim and FAQ honesty
+
+  - **Hero rewritten.** "Operational knowledge isn't executable. When a deploy fails, teams guess." Trimmed kicker leads on markdown-defined agents, SKILL.md + TRIGGER.md, and the GitHub Actions → diagnosis-to-Slack flow.
+  - **FAQ context-window answer rewritten to match the runtime.** Previous copy claimed "the runtime layers three independent mechanisms" — that misattributed enforcement. The truth: the runtime emits three signals (tool-result window, memory checkpoints, stage-chunk threshold), the agent enforces via `memory_store(category='conversation', ...)`, the worker re-enqueues stages on a continuation chain capped at 10, and nullclaw runs its own rolling-summary compaction underneath. Page anchored to actual file:line references at `concepts/context-lifecycle`.
+  - Vendor name-drops on the marketing site (Fly, Upstash) were genericized to "your infrastructure and run logs" — the platform-ops sample still names them in its README because the sample is specifically about diagnosing those failures.
+
+  ## App polish — auth redirects, install command rename
+
+  - **Unauthenticated dashboard hits redirect to `/sign-in`.** Previously every dashboard page returned 404 on no-token via `notFound()`. Now all 9 pages call `redirect("/sign-in")` for auth failures; `notFound()` is reserved for legitimate missing resources (workspace, zombie, gate).
+  - **Install form shows `zombiectl install --from`** as the preferred CLI command. The `zombiectl up` reference was a documentation drift — the command was already removed from the CLI; the UI was the last surface still naming it.
+
+  ## Design system
+
+  - Marketing pricing tier cards and feature-flow rows now use the `Card` design-system primitive via `asChild`, with overrides only where the Card defaults conflict with bespoke marketing CSS. Visually identical to before; semantically aligned with the rest of the dashboard.
+
+  ## Why this matters
+
+  Pre-launch credibility math: every claim on the marketing page either anchors to runtime code or it is a future commitment we cannot keep. The FAQ rewrite, the orphan-route teardown, and the pricing copy alignment are the same pattern — say only what is true today, drop everything else. The $5 grant is small enough to not encourage abuse but large enough to seed a real platform-ops install on a real repo.
+</Update>
+
 <Update label="May 3, 2026" tags={["Feature", "CLI", "Integrations"]}>
   ## Follow-up — One-command install for platform-ops
 
