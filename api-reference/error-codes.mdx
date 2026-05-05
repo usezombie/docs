@@ -117,7 +117,12 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 
 | Code | HTTP | Title | Common Causes |
 |---|---|---|---|
-| `UZ-TOOL-005` | 400 | Unknown tool | Tool name not recognized |
+| `UZ-TOOL-004` | 400 | Tool not attached | The tool isn't in this zombie's `tools:` list. Add it to `TRIGGER.md` `x-usezombie.tools:` and re-install. |
+| `UZ-TOOL-005` | 400 | Unknown tool | Tool name not recognized — typo against the [Tools catalogue](/zombies/tools) is the usual cause. |
+
+<Note>
+**Registered, not always emitted.** The two `UZ-TOOL-*` codes are registered in the platform's error registry but, in v2 today, the user-facing failure path for a missing or misspelled tool is a NullClaw-level "no such tool" message in the activity stream rather than one of these wire codes. Treat the codes as authoritative for *meaning* if you do see them, but don't expect them as the primary signal — audit `zombiectl logs <zombie_id>` for the actual error text.
+</Note>
 
 ## Zombie
 

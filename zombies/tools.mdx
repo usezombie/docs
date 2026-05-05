@@ -137,7 +137,7 @@ The practical consequences:
 - **Disabled tools are also silently dropped.** Setting `enabled: false` on a tool entry skips it without a warning.
 - **`UZ-TOOL-005` is a log warning, not a wire response.** It won't appear as an HTTP error to a webhook caller; it's a server-side observability signal.
 
-The runtime guard that *does* surface to the agent is `UZ-TOOL-004` (Tool not attached), which fires when the agent tries to invoke a tool not in the zombie's resolved `tools:` set.
+When the agent tries to invoke a tool not in the zombie's resolved `tools:` set, the underlying agent runtime returns a "no such tool" error to the agent in-prompt — visible in the activity-stream entry, not as a wire response. The platform registers `UZ-TOOL-004` (Tool not attached) for this case but the v2 emission path stays inside the activity stream. See [Error codes → Tool](/api-reference/error-codes#tool).
 
 ## See also
 
