@@ -45,7 +45,7 @@ zombiectl logout
 
 ### `zombiectl install --from <path>`
 
-Scaffold a zombie from a sample directory. Writes `SKILL.md` and `TRIGGER.md` into the active workspace. The `--from` flag is required — there are no bare-name template aliases.
+Reads `SKILL.md` and `TRIGGER.md` from `<path>`, validates them, and uploads to the active workspace. The two markdown files are the configuration; the `usezombie-install-platform-ops` host-agent skill is what generates them under `.usezombie/<zombie>/` in your repo. The `--from` flag is required — there are no bare-name template aliases.
 
 ```bash
 zombiectl install --from ~/.config/usezombie/samples/platform-ops
@@ -119,14 +119,14 @@ The reply streams back live; the result also persists to the activity stream for
 
 ## Credentials
 
-### `zombiectl credential add <name> --data='<json>'`
+### `zombiectl credential add <name> --data=@-`
 
 Store a JSON-shaped secret in the current workspace vault. The agent references it by name from `TRIGGER.md`.
 
-Pipe JSON on stdin — never via `--data='<json>'` directly, because that puts the secret in shell history and process argv:
+Always pipe JSON on stdin via `--data=@-`. Never pass it inline as `--data='{...}'` — that puts the secret in shell history and process argv:
 
 ```bash
-zombiectl credential add github --data @- <<'JSON'
+zombiectl credential add github --data=@- <<'JSON'
 { "api_token": "ghp_...", "webhook_secret": "<32-byte hex>" }
 JSON
 ```
@@ -141,7 +141,7 @@ Print metadata (created, last-rotated). **Values are never returned.**
 
 ### `zombiectl credential delete <name>`
 
-Remove a credential from the workspace vault. Any zombie still referencing it will fail with `ERR_ZOMBIE_CREDENTIAL_MISSING` on the next event until you re-add (or update `TRIGGER.md`).
+Remove a credential from the workspace vault. Any zombie still referencing it will fail with `UZ-ZMB-003` (credential missing) on the next event until you re-add it (or update `TRIGGER.md`). See [Error codes](/api-reference/error-codes).
 
 ### `zombiectl credential list`
 
@@ -155,15 +155,16 @@ zombiectl credential list
 
 ## Workspaces
 
-### `zombiectl workspace add <repo-url>`
+### `zombiectl workspace add [name]`
 
-Connect a GitHub repository as a workspace.
+Create a new workspace under the current tenant and set it as active. The optional positional `name` is a human label; if omitted, the server picks a default. There is no repo URL — workspaces are not bound to a specific GitHub repo at creation time.
 
 ```bash
-zombiectl workspace add https://github.com/org/repo
+zombiectl workspace add                       # server-assigned name
+zombiectl workspace add my-platform-ops       # named workspace
 ```
 
-The CLI opens the GitHub App install page; after install, the workspace is bound automatically. Use `--default-branch <branch>` to override the default branch (defaults to `main`).
+Returns the new `workspace_id` and persists it as `current_workspace_id` in `~/.config/zombiectl/workspaces.json`. Subsequent commands use it by default.
 
 ### `zombiectl workspace list`
 

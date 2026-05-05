@@ -32,7 +32,9 @@
               "zombies/credentials",
               "zombies/webhooks",
               "zombies/authoring",
-              "zombies/templates"
+              "zombies/tools",
+              "zombies/templates",
+              "zombies/troubleshooting"
             ]
           },
           {
@@ -268,5 +270,10 @@
       "github": "https://github.com/usezombie",
       "discord": "https://discord.gg/H9hH2nqQjh"
     }
+  },
+  "feedback": {
+    "thumbsRating": true,
+    "suggestEdits": true,
+    "raiseIssue": true
   }
 }

@@ -94,4 +94,5 @@ The underlying system changed but memory didn't. Steer the zombie to call `memor
 |---|---|---|
 | Recall returns nothing on a known entity | Inconsistent key convention | Use a stable, deterministic key derivation in `SKILL.md` (e.g. `customer_<email-slug>`). |
 | Memory grows forever | No pruning on `core` (by design) | Steer the zombie to call `memory_forget` on stale keys, or move time-bounded entries to `daily`. |
-| `UZ-MEM-001` on store | Memory backend unreachable | Re-run the trigger; if persistent, file an issue. |
+| `UZ-MEM-003` on store | Memory backend unavailable | Re-run the trigger; if persistent, file an issue. |
+| `UZ-MEM-001` on store | Memory scope denied (cross-zombie access attempt) | Memory is per-zombie. Use `workspace`-category writes if you need to share facts across zombies. |

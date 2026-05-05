@@ -6,21 +6,18 @@ description: "Create, list, and remove workspaces."
 ## Add a workspace
 
 ```bash
-zombiectl workspace add <repo-url>
+zombiectl workspace add [name]
 ```
+
+The optional positional `name` is a human label; if omitted, the server picks a default. There is no repo URL — workspaces are tenant-scoped containers for credentials, zombies, and webhook namespaces. Repos enter the picture later, when you configure per-zombie webhooks (see [Quickstart](/quickstart)).
 
 For example:
 
 ```bash
-zombiectl workspace add https://github.com/your-org/your-repo
+zombiectl workspace add platform-ops
 ```
 
-This connects the GitHub repository as a workspace:
-
-1. If the usezombie GitHub App is not yet installed on the organization, opens the installation flow in your browser.
-2. Creates the workspace.
-
-If the GitHub App is already installed on the target organization, the command skips the installation step and connects the repository directly.
+The command creates the workspace, returns its `workspace_id`, and persists it as the active workspace in `~/.config/zombiectl/workspaces.json`.
 
 ## List workspaces
 

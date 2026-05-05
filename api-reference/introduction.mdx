@@ -31,14 +31,14 @@ All errors follow a consistent format:
 ```json
 {
   "error": {
-    "code": "WORKSPACE_NOT_FOUND",
+    "code": "UZ-WORKSPACE-001",
     "message": "No workspace with the given ID exists."
   },
   "request_id": "req_01JQ7K..."
 }
 ```
 
-Every response includes a `request_id` for tracing.
+Error codes follow the `UZ-<DOMAIN>-NNN` scheme. Every response includes a `request_id` for tracing. See [Error codes](/api-reference/error-codes) for the full registry.
 
 ## Conventions
 
