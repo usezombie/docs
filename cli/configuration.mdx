@@ -25,7 +25,9 @@ A value at a higher level always wins. Use `ZOMBIE_TOKEN` in CI so no interactiv
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `ZOMBIE_API_URL` | API base URL | `https://api.usezombie.com` |
-| `ZOMBIE_TOKEN` | Auth token (for CI and scripts) | *(from `zombiectl login`)* |
+| `ZOMBIE_TOKEN` | Auth token (for CI and scripts; user-bound, from `zombiectl login`) | *(from `zombiectl login`)* |
+| `ZOMBIE_API_KEY` | Service auth (machine-bound, from `zombiectl agent add`). Use this for service-to-service calls and external agents (LangGraph, CrewAI, Composio, your own code). | — |
+| `NO_COLOR` | Set to `1` to disable color output. | — |
 
 ## CI usage
 

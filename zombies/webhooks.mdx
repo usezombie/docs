@@ -132,7 +132,7 @@ The approval token is auto-provisioned for the zombie at install time.
 Every accepted and rejected webhook appears in the activity stream:
 
 ```bash
-zombiectl events zmb_2041 --follow
+zombiectl logs zmb_2041
 ```
 
 Rejected requests carry a reason code (`webhook_rejected: signature_mismatch`, etc.) so you can tell a noisy upstream from a real auth bug.

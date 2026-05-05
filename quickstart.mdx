@@ -127,13 +127,13 @@ This walks through installing the flagship `platform-ops` zombie on one of your 
   - The zombie wakes, calls the tools `TRIGGER.md` allow-lists (`http_request` against your hosting provider, `memory_store` for findings), gathers evidence from the failed workflow.
   - An evidenced diagnosis posts to your Slack channel.
 
-  Tail it live — replace `<zombie_id>` with the value the install step printed (e.g. `zmb_2041`):
+  Tail it — replace `<zombie_id>` with the value the install step printed (e.g. `zmb_2041`):
 
   ```bash
-  zombiectl events zmb_2041 --follow
+  zombiectl logs zmb_2041
   ```
 
-  Lost track of it? `zombiectl list` prints every zombie in the active workspace with its ID. Or watch the same stream in Mission Control — the web dashboard at `app.usezombie.com`.
+  Need to slice by source or time window? `zombiectl events zmb_2041 --actor 'webhook:*' --since 30m`. Lost track of the ID? `zombiectl list` prints every zombie in the active workspace. Or watch the same stream in Mission Control — the web dashboard at `app.usezombie.com`.
 </Step>
 
 </Steps>

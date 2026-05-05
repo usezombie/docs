@@ -23,14 +23,14 @@ flowchart LR
 ```
 
 1. **Alive.** `zombiectl install --from <path>` reads the local `SKILL.md` + `TRIGGER.md`, validates the schema, uploads to your workspace, provisions the webhook URL, and starts the event loop. Install is the deploy — there is no separate `up` step.
-2. **Processing.** When a signed event arrives (webhook, cron, or steer), the platform opens a **stage**: the agent reads the event, reasons, invokes the tools listed in `TRIGGER.md`, and produces a result. The activity stream is the durable record — replay any time with `zombiectl events <zombie_id>`.
+2. **Processing.** When a signed event arrives (webhook, cron, or steer), the platform opens a **stage**: the agent reads the event, reasons, invokes the tools listed in `TRIGGER.md`, and produces a result. The activity stream is the durable record — replay any time with `zombiectl logs <zombie_id>` (or `events --actor 'webhook:*'` for filtered history).
 3. **Killed.** `zombiectl kill <zombie_id>` stops the in-flight stage and marks the zombie as killed. State is checkpointed; nothing on the event stream is lost. Re-install with the same name to bring it back.
 
 You can inspect state at any time:
 
 ```bash
 zombiectl status                     # every zombie in the active workspace
-zombiectl events zmb_2041 --follow   # tail the live activity stream for one zombie
+zombiectl logs zmb_2041              # tail one zombie's recent activity
 zombiectl steer zmb_2041 "morning health check"   # manual trigger
 ```
 
