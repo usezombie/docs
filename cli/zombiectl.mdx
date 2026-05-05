@@ -10,7 +10,7 @@ description: "Complete zombiectl command reference."
 | Authentication | `login`, `logout` |
 | Zombies | `install`, `up`, `list`, `status`, `kill`, `logs` |
 | Credentials | `credential add`, `credential list` |
-| Workspaces | `workspace add`, `workspace list`, `workspace use`, `workspace show`, `workspace credentials`, `workspace remove`, `workspace upgrade-scale`, `workspace billing` |
+| Workspaces | `workspace add`, `workspace list`, `workspace use`, `workspace show`, `workspace credentials`, `workspace delete`, `workspace upgrade-scale`, `workspace billing` |
 | External agents | `agent create`, `agent list`, `agent delete` |
 | Integration grants | `grant list`, `grant revoke` |
 | Diagnostics | `doctor` |
@@ -192,14 +192,14 @@ Show the active workspace (or a specific one via `--workspace-id`) — mirrors t
 zombiectl workspace show
 ```
 
-Prints the workspace id, active marker, repo URL, and default branch. Use `--json` for scripting.
+Prints the workspace's `workspace_id`, `name`, `created_at`, and active marker. Use `--json` for scripting.
 
-### `zombiectl workspace remove <id>`
+### `zombiectl workspace delete <id>`
 
-Remove a workspace from local config.
+Delete a workspace and everything in it. Stops accepting new events immediately, lets in-flight stages finish, retains stage history for 30 days. Cannot be undone — recreating a workspace produces a fresh `workspace_id` and fresh `zombie_id`s, so any upstream webhooks pointing at the old workspace's zombies need to be re-wired.
 
 ```bash
-zombiectl workspace remove ws_abc123
+zombiectl workspace delete ws_abc123
 ```
 
 ### `zombiectl workspace upgrade-scale`
