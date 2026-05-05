@@ -110,6 +110,8 @@ Every `4xx` and `5xx` response uses `Content-Type: application/problem+json`:
 | `UZ-WH-003` | 403 | Zombie paused | Zombie exists but is not active |
 | `UZ-WH-010` | 401 | Invalid webhook signature | HMAC or Svix signature verification failed. Verify the `secret_ref` vault entry matches the signing secret configured with the provider. |
 | `UZ-WH-011` | 401 | Stale webhook timestamp | Webhook timestamp is older than 5 minutes (replay protection). Ensure the sender clock is not skewed. |
+| `UZ-WH-020` | 401 | Webhook credential not configured | No webhook credential is configured for this zombie's source. Run `zombiectl credential add <source> --data=@-` with `{ "webhook_secret": "..." }` in the zombie's workspace, then resend. |
+| `UZ-WH-030` | 413 | Webhook payload too large | Webhook body exceeds the 1 MiB ingest limit. Reduce the payload at the source or filter fields before forwarding. |
 
 ## Tool
 
