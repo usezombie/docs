@@ -34,7 +34,7 @@ The `--json` output carries the wire error code:
 
 For other codes, check [Error codes](/api-reference/error-codes) and grep for the `UZ-` prefix.
 
-**Local validation tip:** the parser the platform uses is the same one `zombiectl install --from` runs. There's no separate lint command. If you want to dry-run, `zombiectl install --from <path> --json` returns the validation outcome without doing anything irreversible (the call still uploads on success — there is no `--validate-only` flag).
+**Local validation tip:** the parser the platform uses is the same one `zombiectl install --from` runs — there's no separate lint command. To catch schema errors before committing, run `zombiectl install --from <path> --json` and read the structured error output. Note the call still uploads on success; there is no `--validate-only` flag.
 
 ## 2. Webhook delivered but zombie silent
 
