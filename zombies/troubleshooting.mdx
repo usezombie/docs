@@ -98,9 +98,13 @@ zombiectl events <zombie_id> --since 1h --json | jq 'select(.error)'
 |---|---|---|
 | `UZ-ZMB-003` | A required vault credential is absent | The credential name in `TRIGGER.md` `credentials:` doesn't exist in the workspace vault. `zombiectl credential list` to confirm; `zombiectl credential add <name> --data=@-` to add. |
 | `UZ-ZMB-002` | Agent timeout | The model didn't return within the per-event ceiling. Often a sign the prompt is too large or the model is overwhelmed. Tighten `SKILL.md` or check `tool_window` in [Context lifecycle](/concepts/context-lifecycle). |
-| `UZ-TOOL-005` | Unknown tool | `tools:` in `TRIGGER.md` lists a name not in the catalogue. Check spelling against [Tools catalogue](/zombies/tools). |
+| `UZ-TOOL-004` | Tool not attached | The agent tried to invoke a tool that isn't in the zombie's resolved `tools:` set. Either add it to `TRIGGER.md` and re-install, or correct the agent prose so it doesn't reach for that tool. |
 | `UZ-MEM-003` | Memory backend unavailable | Transient. Re-trigger; if persistent, file an issue. |
 | `UZ-MEM-001` | Memory scope denied | The agent tried to read another zombie's memory. Check the `key` derivation in `SKILL.md` — keys are zombie-scoped. |
+
+<Note>
+**Unknown tool names (typos in `TRIGGER.md`) don't surface as a wire code here.** The executor logs `UZ-TOOL-005` at warn level and silently skips the unknown tool while the rest of the stage runs. Audit `zombiectl logs <zombie_id>` for the skip warning if your zombie seems to be ignoring a tool you declared. See [Tools catalogue → Validation](/zombies/tools#validation).
+</Note>
 
 ### Network allowlist drops
 
