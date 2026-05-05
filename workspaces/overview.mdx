@@ -36,4 +36,4 @@ Both plans allow unlimited workspaces under a tenant. The plan-tier difference i
 1. **Create** — `zombiectl workspace add [name]` provisions a new workspace under your tenant and sets it active. Workspaces are not bound to a specific GitHub repo at creation time — repo bindings happen later via per-zombie webhook configuration (see [Quickstart](/quickstart)).
 2. **Active** — zombies can be installed, deployed, and triggered.
 3. **Paused** — `POST /v1/workspaces/{workspace_id}/pause` via the API (no CLI subcommand yet). New stages rejected; in-flight stages complete.
-4. **Removed** — `zombiectl workspace remove <workspace-id>`. Stage history retained 30 days; GitHub App connection uninstalled for that repo.
+4. **Removed** — `zombiectl workspace remove <workspace-id>`. Stage history retained 30 days.
