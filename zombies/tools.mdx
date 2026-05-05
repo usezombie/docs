@@ -18,16 +18,16 @@ x-usezombie:
 
 ## Network
 
-The bread-and-butter category — how a zombie talks to the outside world. Every outbound call is gated by `network.allow:` in `TRIGGER.md`.
+How a zombie talks to the outside world. Each network tool has a different relationship with `network.allow:` — read the column carefully before declaring one.
 
-| Tool | What it does | Reach for when |
-|---|---|---|
-| `http_request` | HTTPS calls (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS`) to external APIs. The tool bridge substitutes credential references (`${secrets.NAME.FIELD}`) into headers and bodies outside the sandbox. Default response cap: 1 MB. | Any third-party API. Slack, GitHub, Linear, your hosting provider, your monitoring — everything goes through this. |
-| `web_search` | Internet search across multiple providers (SearxNG, DuckDuckGo, Brave, Firecrawl, Tavily, Perplexity, Exa, Jina). | Open-web research during a stage — finding a CVE writeup, looking up a stack trace, etc. |
-| `web_fetch` | Fetch an HTTPS page and convert it to readable markdown. | Pulling docs, blog posts, status pages into the agent's context without writing a custom HTML parser. |
+| Tool | What it does | `network.allow:` enforced? | Reach for when |
+|---|---|---|---|
+| `http_request` | HTTPS calls (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS`) to external APIs. The tool bridge substitutes credential references (`${secrets.NAME.FIELD}`) into headers and bodies outside the sandbox. Default response cap: 1 MB. | **Yes.** Off-list hosts dropped by the sandbox firewall before the request leaves. | Any third-party API. Slack, GitHub, Linear, your hosting provider, your monitoring — everything goes through this. |
+| `web_search` | Internet search across platform-managed providers (SearxNG, DuckDuckGo, Brave, Firecrawl, Tavily, Perplexity, Exa, Jina). The provider chain is hardcoded; the agent picks among them with the `provider` argument. | **No.** Provider hosts aren't user-controllable, so they bypass `network.allow:` entirely. You don't list `searxng.org` etc. in your `network.allow:` — the platform handles that. | Open-web research during a stage — finding a CVE writeup, looking up a stack trace, etc. |
+| `web_fetch` | Fetch an HTTPS page and convert it to readable markdown. | **No (today).** The tool is built with an empty allowlist on hosted v2, which NullClaw treats as allow-any-HTTPS. Don't rely on `network.allow:` to constrain `web_fetch` — if you need host scoping for fetched content, gate it through `http_request` instead. | Pulling docs, blog posts, status pages into the agent's context without writing a custom HTML parser. |
 
 <Note>
-**Network allowlist is mandatory.** Even with `http_request` declared, outbound calls to hosts not in `network.allow:` are dropped at the sandbox firewall.
+**Three different stories on one page.** The `network.allow:` list **only** governs `http_request`. `web_search` uses platform-managed search backends. `web_fetch` is currently unconstrained (no host filter) — this is a known limitation on hosted v2 and may tighten in a future release.
 </Note>
 
 ## Memory
@@ -66,13 +66,17 @@ Lets one zombie hand work to another agent. Powerful but advanced — most zombi
 
 ## Browser
 
-Real-browser interaction running on the executor host. For most operational zombies, prefer `http_request` + `web_fetch` — the browser tools exist for the cases where you genuinely need a rendered page or session cookies.
+Three independently-declarable tools that look related but overlap awkwardly. **Most operational zombies should not declare these.** Prefer `http_request` for API calls and `web_fetch` for HTML extraction — both work cleanly on the headless cloud executor. The browser tools exist for desktop/local use cases that don't translate to hosted v2.
 
-| Tool | What it does |
-|---|---|
-| `browser` | Drive a browser session: `open`, `screenshot`, `click`, `type`, `scroll`, `read`. |
-| `screenshot` | Capture the executor's current screen. Returns an `[IMAGE:path]` marker the agent includes in its response. |
-| `browser_open` | Open an allowlisted HTTPS URL in the default browser on the executor. |
+| Tool | What it does | What it actually does on hosted v2 |
+|---|---|---|
+| `browser` | Multi-action verb. The schema advertises `open`, `screenshot`, `click`, `type`, `scroll`, `read` — but only `open` and `read` are functional. **`screenshot` redirects** to the standalone tool (`return ToolResult.fail("Use the screenshot tool instead")`). **`click`/`type`/`scroll` always fail** ("CDP not available"). `read` is a curl-based HTML fetcher capped at 8 KB. | `open` shells out to `open`/`xdg-open` on the executor host — no display on a headless cloud worker, so this no-ops or errors. `read` works but is inferior to `web_fetch`. |
+| `screenshot` | Independent tool. Captures the executor's screen via platform-native commands. Returns an `[IMAGE:path]` marker. | The hosted v2 executor is headless. There's no display to capture, and the tool reflects that — declare only if you're running a self-hosted executor with a display attached. |
+| `browser_open` | Independent tool. Open an allowlisted HTTPS URL in the executor's default browser. | **Currently non-functional on hosted v2.** The platform passes an empty `allowed_domains` list to the underlying tool, and the tool fails closed on empty (`"No allowed_domains configured for browser_open"`). Effectively unreachable until the platform wires the allowlist through. |
+
+<Warning>
+**Declaring `browser` does NOT unlock `screenshot` or `browser_open` capabilities.** Each tool is independent; the sub-action names overlap by accident. If you want a screen capture, declare `screenshot`. If you want to launch a URL, declare `browser_open`. Declaring both `browser` and `screenshot` is fine — they don't conflict.
+</Warning>
 
 ## Git
 
