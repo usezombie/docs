@@ -14,7 +14,7 @@ x-usezombie:
     - cron_add
 ```
 
-24 tools are user-callable today. They group into nine categories below. For the file format, validation rules, and frontmatter, see [Authoring a zombie](/zombies/authoring).
+23 tools are user-callable today. They group into nine categories below. For the file format, validation rules, and frontmatter, see [Authoring a zombie](/zombies/authoring).
 
 ## Network
 
@@ -72,10 +72,9 @@ Three independently-declarable tools that look related but overlap awkwardly. **
 |---|---|---|
 | `browser` | Multi-action verb. The schema advertises `open`, `screenshot`, `click`, `type`, `scroll`, `read` — but only `open` and `read` are functional. **`screenshot` redirects** to the standalone tool (`return ToolResult.fail("Use the screenshot tool instead")`). **`click`/`type`/`scroll` always fail** ("CDP not available"). `read` is a curl-based HTML fetcher capped at 8 KB. | `open` shells out to `open`/`xdg-open` on the executor host — no display on a headless cloud worker, so this no-ops or errors. `read` works but is inferior to `web_fetch`. |
 | `screenshot` | Independent tool. Captures the executor's screen via platform-native commands. Returns an `[IMAGE:path]` marker. | The hosted v2 executor is headless. There's no display to capture, and the tool reflects that — declare only if you're running a self-hosted executor with a display attached. |
-| `browser_open` | Independent tool. Open an allowlisted HTTPS URL in the executor's default browser. | **Currently non-functional on hosted v2.** The platform passes an empty `allowed_domains` list to the underlying tool, and the tool fails closed on empty (`"No allowed_domains configured for browser_open"`). Effectively unreachable until the platform wires the allowlist through. |
 
 <Warning>
-**Declaring `browser` does NOT unlock `screenshot` or `browser_open` capabilities.** Each tool is independent; the sub-action names overlap by accident. If you want a screen capture, declare `screenshot`. If you want to launch a URL, declare `browser_open`. Declaring both `browser` and `screenshot` is fine — they don't conflict.
+**Declaring `browser` does NOT unlock `screenshot` capabilities.** They're independent tools; the sub-action name overlap is incidental. If you want a screen capture, declare `screenshot`. Declaring both `browser` and `screenshot` is fine — they don't conflict.
 </Warning>
 
 ## Git
