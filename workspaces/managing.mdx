@@ -6,21 +6,18 @@ description: "Create, list, and remove workspaces."
 ## Add a workspace
 
 ```bash
-zombiectl workspace add <repo-url>
+zombiectl workspace add [name]
 ```
+
+The optional positional `name` is a human label; if omitted, the server picks a default. There is no repo URL — workspaces are tenant-scoped containers for credentials, zombies, and webhook namespaces. Repos enter the picture later, when you configure per-zombie webhooks (see [Quickstart](/quickstart)).
 
 For example:
 
 ```bash
-zombiectl workspace add https://github.com/your-org/your-repo
+zombiectl workspace add platform-ops
 ```
 
-This connects the GitHub repository as a workspace:
-
-1. If the usezombie GitHub App is not yet installed on the organization, opens the installation flow in your browser.
-2. Creates the workspace.
-
-If the GitHub App is already installed on the target organization, the command skips the installation step and connects the repository directly.
+The command creates the workspace, returns its `workspace_id`, and persists it as the active workspace in `~/.config/zombiectl/workspaces.json`.
 
 ## List workspaces
 
@@ -28,14 +25,16 @@ If the GitHub App is already installed on the target organization, the command s
 zombiectl workspace list
 ```
 
-Displays all workspaces in your account with their status, connected repository, and plan tier.
+Lists every workspace under your tenant that the local CLI knows about, with the active marker.
 
 ```
-ID                  REPO                        STATUS   PLAN
-ws_01J8XV9R2M       acme/backend                ACTIVE   Scale
-ws_01J8XVKA3M       acme/frontend               ACTIVE   Hobby
-ws_01J8XVKB7N       acme/infra                  PAUSED   Scale
+   WORKSPACE          NAME
+*  ws_01J8XV9R2M      platform-ops
+   ws_01J8XVKA3M      stripe-recon
+   ws_01J8XVKB7N      sentry-triage
 ```
+
+The leading `*` marks the active workspace (the one set by `zombiectl workspace use`). Add `--json` for the raw `{ items, current_workspace_id }` envelope.
 
 ## Switch the active workspace
 
@@ -43,7 +42,7 @@ ws_01J8XVKB7N       acme/infra                  PAUSED   Scale
 zombiectl workspace use <workspace-id>
 ```
 
-Makes the workspace active for subsequent CLI commands — `zombiectl install --from`, `zombiectl list`, `zombiectl status`, `zombiectl events`, `zombiectl steer`, and anything else that accepts a `--workspace-id` flag defaults to this value when the flag is omitted.
+Makes the workspace active for subsequent CLI commands — `zombiectl install --from`, `zombiectl list`, `zombiectl status`, `zombiectl logs`, `zombiectl events`, `zombiectl steer`, and anything else that accepts a `--workspace-id` flag defaults to this value when the flag is omitted.
 
 The choice is persisted to `~/.config/zombiectl/workspaces.json` (`current_workspace_id` field), so it survives across shells and sessions.
 
@@ -59,23 +58,22 @@ Errors out if the id isn't in your local list — run `zombiectl workspace list`
 zombiectl workspace show
 ```
 
-Prints the active workspace's id, repo URL, default branch, and active marker. Pass `--workspace-id <id>` to inspect a specific workspace without changing the active one. Add `--json` for scripting.
+Prints the active workspace's `workspace_id`, `name`, `created_at`, and active marker. Pass `--workspace-id <id>` to inspect a specific workspace without changing the active one. Add `--json` for scripting.
 
 This mirrors the Mission Control **Settings** page.
 
-## Remove a workspace
+## Delete a workspace
 
 ```bash
-zombiectl workspace remove <workspace-id>
+zombiectl workspace delete <workspace-id>
 ```
 
-Removing a workspace:
+Deleting a workspace:
 
 - Stops accepting new events immediately.
 - Allows in-flight stages to complete.
 - Retains stage history for 30 days.
-- Uninstalls the GitHub App connection for that repository.
 
 <Warning>
-  This action cannot be undone. You will need to re-add the workspace and reinstall the GitHub App to reconnect.
+  This action cannot be undone. You'll need to recreate the workspace, re-add its credentials, and re-install its zombies. Webhook URLs change because each new zombie gets a fresh `zombie_id`, so any upstream webhook configurations will need to be updated too.
 </Warning>

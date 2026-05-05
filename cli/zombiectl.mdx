@@ -8,11 +8,12 @@ description: "Complete zombiectl command reference."
 | Group | Commands |
 |-------|----------|
 | Authentication | `login`, `logout` |
-| Zombies | `install`, `up`, `list`, `status`, `kill`, `logs` |
-| Credentials | `credential add`, `credential list` |
-| Workspaces | `workspace add`, `workspace list`, `workspace use`, `workspace show`, `workspace credentials`, `workspace remove`, `workspace upgrade-scale`, `workspace billing` |
-| External agents | `agent create`, `agent list`, `agent delete` |
-| Integration grants | `grant list`, `grant revoke` |
+| Zombies (top-level) | `install --from`, `list`, `status`, `stop`, `resume`, `kill`, `delete`, `logs`, `events`, `steer` |
+| Credentials | `credential add`, `credential show`, `credential list`, `credential delete` |
+| Workspaces | `workspace add`, `workspace list`, `workspace use`, `workspace show`, `workspace credentials`, `workspace delete` |
+| External agents | `agent add`, `agent list`, `agent delete` |
+| Integration grants | `grant list`, `grant delete` |
+| Billing | `billing show` |
 | Diagnostics | `doctor` |
 
 Every command accepts the [global flags](/cli/flags). Every command that returns structured data supports `--json` for machine-readable output.
@@ -45,7 +46,7 @@ zombiectl logout
 
 ### `zombiectl install --from <path>`
 
-Scaffold a zombie from a sample directory. Writes `SKILL.md` and `TRIGGER.md` into the active workspace. The `--from` flag is required — there are no bare-name template aliases.
+Reads `SKILL.md` and `TRIGGER.md` from `<path>`, validates them, and uploads to the active workspace. The two markdown files are the configuration; the `usezombie-install-platform-ops` host-agent skill is what generates them under `.usezombie/<zombie>/` in your repo. The `--from` flag is required — there are no bare-name template aliases.
 
 ```bash
 zombiectl install --from ~/.config/usezombie/samples/platform-ops
@@ -78,32 +79,63 @@ List every zombie in the current workspace with state, events processed, and bud
 zombiectl status
 ```
 
-### `zombiectl kill <zombie_id>`
+### Zombie lifecycle: `stop` / `resume` / `kill` / `delete`
 
-Stop a zombie by its ID. State is checkpointed; nothing on the event stream is lost.
+Four verbs control a zombie's lifecycle, in increasing order of irreversibility:
+
+| Verb | What it does | Reversible? |
+|---|---|---|
+| `stop <zombie_id>` | Halt the running session. New events stop dispatching; in-flight stage finishes cleanly. | Yes — `zombiectl resume`. |
+| `resume <zombie_id>` | Resume from `stopped` or auto-paused state. | — |
+| `kill <zombie_id>` | Mark terminal. The zombie won't process events again, but its row, history, and webhook URL persist. | No, but the zombie can be `delete`d after. |
+| `delete <zombie_id>` | Hard-delete. Removes the zombie row and its webhook URL. **Must `kill` first.** | No. |
 
 ```bash
-zombiectl kill zmb_2041
+zombiectl stop   zmb_2041   # pause; resumable
+zombiectl resume zmb_2041   # back to active
+zombiectl kill   zmb_2041   # terminal; webhook still 200s but routes nowhere new
+zombiectl delete zmb_2041   # hard-delete; webhook URL starts returning UZ-WH-001
 ```
 
-### `zombiectl events <zombie_id>`
+State is checkpointed at every transition — nothing on the activity stream is lost until the final `delete`.
 
-Stream the activity stream for one zombie. Replaces the older `zombiectl logs --zombie` form (still accepted as an alias).
+### `zombiectl logs <zombie_id>`
+
+Print the zombie's recent activity stream — newest-first, paginated.
 
 ```bash
-zombiectl events zmb_2041 --follow                      # tail SSE in real time
-zombiectl events zmb_2041 --since 2h --limit 100
-zombiectl events zmb_2041 --actor 'webhook:*' --json    # filter + machine-readable
+zombiectl logs zmb_2041
+zombiectl logs zmb_2041 --limit 50 --cursor <next_cursor>
+zombiectl logs zmb_2041 --json
 ```
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--follow` | off | Tail the SSE stream in real time. |
+| `--limit <n>` | `20` | Page size. |
+| `--cursor <cursor>` | *(none)* | Pagination cursor returned as `next_cursor` in a previous response. |
+| `--json` | off | Emit the raw `{ items, next_cursor }` envelope. |
+
+The zombie ID may also be passed via `--zombie <id>` for scripting symmetry with `events`.
+
+### `zombiectl events <zombie_id>` — filtered history
+
+Richer filter surface than `logs`. Use this when you need to slice by actor or time window — for example, when [troubleshooting](/zombies/troubleshooting) a specific webhook source.
+
+```bash
+zombiectl events zmb_2041 --actor 'webhook:*' --since 2h
+zombiectl events zmb_2041 --actor 'steer:*' --since 7d --limit 100
+zombiectl events zmb_2041 --json | jq 'select(.error)'
+```
+
+| Flag | Default | Purpose |
+|------|---------|---------|
 | `--actor <glob>` | *(none)* | Filter by actor — `webhook:*`, `cron:*`, `steer:*`, `continuation:*`. |
-| `--since <duration>` | `24h` | Time window — e.g. `2h`, `7d`. |
+| `--since <duration>` | `24h` | Time window — Go-style duration (`2h`, `7d`) or RFC 3339 timestamp. |
 | `--cursor <cursor>` | *(none)* | Pagination cursor from a previous response. |
-| `--limit <n>` | `50` | Max events per page (clamped to `200`). |
+| `--limit <n>` | `50` | Max events per page. |
 | `--json` | off | Emit raw JSON for scripting. |
+
+There is no `--follow`/streaming-tail flag today. To watch live, poll `events --since 30s` from a script.
 
 ### `zombiectl steer <zombie_id> "<message>"`
 
@@ -119,14 +151,14 @@ The reply streams back live; the result also persists to the activity stream for
 
 ## Credentials
 
-### `zombiectl credential add <name> --data='<json>'`
+### `zombiectl credential add <name> --data=@-`
 
 Store a JSON-shaped secret in the current workspace vault. The agent references it by name from `TRIGGER.md`.
 
-Pipe JSON on stdin — never via `--data='<json>'` directly, because that puts the secret in shell history and process argv:
+Always pipe JSON on stdin via `--data=@-`. Never pass it inline as `--data='{...}'` — that puts the secret in shell history and process argv:
 
 ```bash
-zombiectl credential add github --data @- <<'JSON'
+zombiectl credential add github --data=@- <<'JSON'
 { "api_token": "ghp_...", "webhook_secret": "<32-byte hex>" }
 JSON
 ```
@@ -141,7 +173,7 @@ Print metadata (created, last-rotated). **Values are never returned.**
 
 ### `zombiectl credential delete <name>`
 
-Remove a credential from the workspace vault. Any zombie still referencing it will fail with `ERR_ZOMBIE_CREDENTIAL_MISSING` on the next event until you re-add (or update `TRIGGER.md`).
+Remove a credential from the workspace vault. Any zombie still referencing it will fail with `UZ-ZMB-003` (credential missing) on the next event until you re-add it (or update `TRIGGER.md`). See [Error codes](/api-reference/error-codes).
 
 ### `zombiectl credential list`
 
@@ -155,15 +187,16 @@ zombiectl credential list
 
 ## Workspaces
 
-### `zombiectl workspace add <repo-url>`
+### `zombiectl workspace add [name]`
 
-Connect a GitHub repository as a workspace.
+Create a new workspace under the current tenant and set it as active. The optional positional `name` is a human label; if omitted, the server picks a default. There is no repo URL — workspaces are not bound to a specific GitHub repo at creation time.
 
 ```bash
-zombiectl workspace add https://github.com/org/repo
+zombiectl workspace add                       # server-assigned name
+zombiectl workspace add my-platform-ops       # named workspace
 ```
 
-The CLI opens the GitHub App install page; after install, the workspace is bound automatically. Use `--default-branch <branch>` to override the default branch (defaults to `main`).
+Returns the new `workspace_id` and persists it as `current_workspace_id` in `~/.config/zombiectl/workspaces.json`. Subsequent commands use it by default.
 
 ### `zombiectl workspace list`
 
@@ -191,30 +224,14 @@ Show the active workspace (or a specific one via `--workspace-id`) — mirrors t
 zombiectl workspace show
 ```
 
-Prints the workspace id, active marker, repo URL, and default branch. Use `--json` for scripting.
+Prints the workspace's `workspace_id`, `name`, `created_at`, and active marker. Use `--json` for scripting.
 
-### `zombiectl workspace remove <id>`
+### `zombiectl workspace delete <id>`
 
-Remove a workspace from local config.
-
-```bash
-zombiectl workspace remove ws_abc123
-```
-
-### `zombiectl workspace upgrade-scale`
-
-Upgrade a workspace to the Scale plan.
+Delete a workspace and everything in it. Stops accepting new events immediately, lets in-flight stages finish, retains stage history for 30 days. Cannot be undone — recreating a workspace produces a fresh `workspace_id` and fresh `zombie_id`s, so any upstream webhooks pointing at the old workspace's zombies need to be re-wired.
 
 ```bash
-zombiectl workspace upgrade-scale --workspace-id ws_abc123 --subscription-id sub_xxx
-```
-
-### `zombiectl workspace billing`
-
-Show the billing summary for a workspace over a given period (default 30 days).
-
-```bash
-zombiectl workspace billing --workspace-id ws_abc123 --period 30d
+zombiectl workspace delete ws_abc123
 ```
 
 ---
@@ -223,12 +240,12 @@ zombiectl workspace billing --workspace-id ws_abc123 --period 30d
 
 External agents are API-key–authenticated callers (LangGraph, CrewAI, Composio, your own code) that drive a specific zombie programmatically.
 
-### `zombiectl agent create`
+### `zombiectl agent add`
 
 Mint an API key bound to one zombie.
 
 ```bash
-zombiectl agent create --workspace ws_abc --zombie zm_xyz --name my-agent
+zombiectl agent add --workspace ws_abc --zombie zm_xyz --name my-agent
 ```
 
 The raw key (`zmb_…`) is returned **once**; store it in your secret manager.
@@ -263,13 +280,36 @@ List pending and approved grants for a zombie.
 zombiectl grant list --zombie zm_01JABC...
 ```
 
-### `zombiectl grant revoke --zombie <id> <grant-id>`
+### `zombiectl grant delete --zombie <id> <grant-id>`
 
 Revoke a granted integration. Further attempts by the zombie to reach that integration fail with `UZ-GRANT-003`.
 
 ```bash
-zombiectl grant revoke --zombie zm_01JABC... gr_01JXYZ...
+zombiectl grant delete --zombie zm_01JABC... gr_01JXYZ...
 ```
+
+---
+
+## Billing
+
+### `zombiectl billing show`
+
+Show the tenant's wallet balance and recent charges. Tenant-scoped (the wallet is tenant-level), not per-workspace.
+
+```bash
+zombiectl billing show
+zombiectl billing show --limit 50
+zombiectl billing show --cursor <next_cursor>
+zombiectl billing show --json
+```
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--limit <n>` | *(server)* | Page size for the charges list. |
+| `--cursor <cursor>` | *(none)* | Pagination cursor from a previous response. |
+| `--json` | off | Emit raw JSON for scripting. |
+
+For per-zombie spend breakdowns, use `zombiectl logs <zombie_id> --json` and aggregate the `tokens` / `wall_ms` fields client-side. Plan changes (Hobby ↔ Scale) and payment-method updates happen at [app.usezombie.com/billing](https://app.usezombie.com/billing).
 
 ---
 

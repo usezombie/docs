@@ -15,22 +15,22 @@ A zombie moves through three observable states.
 
 ```mermaid
 flowchart LR
-    install[zombiectl install --from path] --> alive[Alive<br/>webhook live]
-    alive -->|event arrives| processing[Processing<br/>agent reasoning]
-    processing -->|stage exits| alive
-    alive -->|zombiectl kill zmb_id| killed[Killed<br/>stopped]
-    killed -->|zombiectl install --from path| alive
+    Install[zombiectl install --from path] --> Alive[Alive<br/>webhook live]
+    Alive -->|event arrives| Processing[Processing<br/>agent reasoning]
+    Processing -->|stage exits| Alive
+    Alive -->|zombiectl kill zmb_id| Killed[Killed<br/>stopped]
+    Killed -->|zombiectl install --from path| Alive
 ```
 
 1. **Alive.** `zombiectl install --from <path>` reads the local `SKILL.md` + `TRIGGER.md`, validates the schema, uploads to your workspace, provisions the webhook URL, and starts the event loop. Install is the deploy — there is no separate `up` step.
-2. **Processing.** When a signed event arrives (webhook, cron, or steer), the platform opens a **stage**: the agent reads the event, reasons, invokes the tools listed in `TRIGGER.md`, and produces a result. The activity stream is the durable record — replay any time with `zombiectl events <zombie_id>`.
+2. **Processing.** When a signed event arrives (webhook, cron, or steer), the platform opens a **stage**: the agent reads the event, reasons, invokes the tools listed in `TRIGGER.md`, and produces a result. The activity stream is the durable record — replay any time with `zombiectl logs <zombie_id>` (or `events --actor 'webhook:*'` for filtered history).
 3. **Killed.** `zombiectl kill <zombie_id>` stops the in-flight stage and marks the zombie as killed. State is checkpointed; nothing on the event stream is lost. Re-install with the same name to bring it back.
 
 You can inspect state at any time:
 
 ```bash
 zombiectl status                     # every zombie in the active workspace
-zombiectl events zmb_2041 --follow   # tail the live activity stream for one zombie
+zombiectl logs zmb_2041              # tail one zombie's recent activity
 zombiectl steer zmb_2041 "morning health check"   # manual trigger
 ```
 
@@ -44,7 +44,7 @@ Every zombie belongs to exactly one **workspace**. The workspace is the boundary
 
 Billing is **not** workspace-scoped. Every stage — no matter which workspace it lives in — debits the same tenant wallet. See [Key concepts](/concepts#credits) for the single-wallet model.
 
-The current workspace is set automatically by `zombiectl workspace add` or can be switched via `zombiectl workspace list` and the Mission Control dashboard.
+`zombiectl workspace add [name]` creates a new workspace and sets it as active. Switch between existing ones with `zombiectl workspace use <id>` (run `zombiectl workspace list` first to see the IDs). Mission Control's active-workspace selection is independent — switching there does not affect the CLI and vice versa.
 
 ## What's next
 

@@ -35,10 +35,6 @@ Scale billing is usage-based. You are charged for compute and token consumption 
 
 ## Choosing a plan
 
-Start with Hobby. When you hit the priority queue or want email support, upgrade to Scale from the dashboard at [app.usezombie.com/billing](https://app.usezombie.com/billing) or via the CLI:
-
-```bash
-zombiectl workspace upgrade-scale --workspace-id ws_abc --subscription-id sub_xxx
-```
+Start with Hobby. When you hit the priority queue or want email support, upgrade to Scale at [app.usezombie.com/billing](https://app.usezombie.com/billing). Plan changes happen via the dashboard, not the CLI — the CLI surface is `zombiectl billing show` for read-only balance and charge history.
 
 Upgrades and top-ups apply to the tenant, not an individual workspace — the subscription follows the wallet.

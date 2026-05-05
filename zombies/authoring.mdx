@@ -130,27 +130,33 @@ Validation under this block is rigid: an unknown subkey is rejected with a typo 
 
 | Subkey | Required | Purpose |
 |---|---|---|
-| `trigger.type` | yes | One of `webhook` \| `cron` \| `api` \| `chain`. |
-| `trigger.source` | per type | Required for `webhook` and `chain`. |
+| `trigger.type` | yes | One of `webhook` \| `cron` \| `api`. See the table below. |
+| `trigger.source` | per type | Required for `webhook`. Carries the upstream label (e.g. `github`, `slack`, `linear`) and unlocks signature defaults — see [Webhooks](/zombies/webhooks). |
 | `trigger.event` | optional | Provider-specific event filter (e.g. `message.received`). |
 | `trigger.signature.secret_ref` | optional | Vault key whose value verifies webhook signatures (first-class providers). |
-| `tools` | yes | Non-empty list of tool names from the platform catalog. |
+| `tools` | yes | Non-empty list of tool names from the [Tools catalogue](/zombies/tools). |
 | `credentials` | optional | Vault key names the zombie reads at event time. |
 | `network.allow` | yes | Outbound hostname allowlist enforced by the sandbox. |
 | `budget.daily_dollars` | yes | Rolling 24-hour dollar ceiling. |
 | `budget.monthly_dollars` | optional | Calendar-month dollar ceiling. |
 
+#### `trigger.type` values
+
+| YAML value | Wakes from | Use when | Companion fields |
+|---|---|---|---|
+| `webhook` | An external HTTP `POST` to `https://api.usezombie.com/v1/webhooks/{zombie_id}` with a signed body. | Most production zombies — anything driven by a third-party event (GitHub, Slack, Linear, Jira, etc.). | `trigger.source` (label) + `trigger.signature` (HMAC config). See [Webhooks](/zombies/webhooks). |
+| `cron` | A self-scheduled timer the zombie sets via the `cron_add` tool. | Periodic health checks, drift sweeps, scheduled cleanups. | None at the trigger level — schedules live inside the reasoning loop. |
+| `api` | A `zombiectl steer` invocation or a `POST /v1/.../zombies/{id}/messages` API call. | Steerable, operator-driven zombies — manual investigation, on-demand workflows, the install-time smoke test. | None. |
+
+A zombie typically has one trigger type, but any zombie can also be steered via `zombiectl steer` regardless of its declared `trigger.type` — steer always works. The `api` value is for zombies whose *primary* surface is steer (no inbound webhook).
+
+<Note>**Long-stage continuations are not a trigger type.** When a stage runs out of context, the runtime re-enqueues the same event with `actor=continuation:<original_actor>` automatically. You don't declare this in `TRIGGER.md`; it happens regardless of which trigger type woke the original stage. See [Context lifecycle](/concepts/context-lifecycle).</Note>
+
 ### Tools
 
-The `tools:` list is the explicit allowlist of tools the agent may invoke. **This page is the canonical reference for the tools catalogue.**
+The `tools:` list is the explicit allowlist of tools the agent may invoke. A compromised or jailbroken agent cannot reach outside this list.
 
-| Tool | What it does |
-|---|---|
-| `http_request` | Outbound HTTP. Slack posts, GitHub API calls, hosting-provider queries — every external call goes through this one tool. The tool bridge substitutes secrets into headers and bodies outside the sandbox; the agent never sees raw bytes. |
-| `memory_store` / `memory_recall` / `memory_list` / `memory_forget` | Durable cross-event learning. See [Memory](/memory) for the four categories. |
-| `cron_add` / `cron_list` / `cron_remove` | Schedule future stages from inside the reasoning loop. |
-
-A compromised or jailbroken agent cannot reach outside this list.
+23 tools are user-callable today, grouped by category — network (`http_request`, `web_search`, `web_fetch`), memory (`memory_store`/`recall`/`list`/`forget`), cron (`cron_add`/`list`/`remove`/`update`/`run`/`runs`), agent orchestration (`delegate`, `spawn`, `schedule`), browser, git, file edits, and stateless utilities. **See [Tools catalogue](/zombies/tools) for every tool with its purpose and use cases.**
 
 ### Credentials
 
