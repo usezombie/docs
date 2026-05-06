@@ -7,6 +7,38 @@ description: "Stay up to date with usezombie product updates, new features, and 
   usezombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="May 7, 2026" tags={["CLI", "Bug fix"]}>
+  ## `zombiectl` customer-default hardening — first-install just works
+
+  Two real bugs fixed in the CLI, both at the moment a customer ran their very first command. Plus a third bug found while writing tests that would have caught the first two.
+
+  ## Bug fix — `npm install -g @usezombie/zombiectl@next && zombiectl login` now reaches production
+
+  The published CLI's default API URL was `http://localhost:3000`. A new customer running `zombiectl login` with no env vars hit `ECONNREFUSED` against their own loopback before any documentation got a chance to explain the toggle. Default is now `https://api.usezombie.com`. Engineers continue to override locally via `ZOMBIE_API_URL` (or `--api`).
+
+  Override precedence (highest first): `--api` flag → `ZOMBIE_API_URL` env → `API_URL` env → saved `credentials.json` → default.
+
+  ## Bug fix — `creds.api_url` (the "sticky per-install" leg) now works
+
+  `zombiectl login --api https://api-dev.usezombie.com` would write the URL into `~/.config/zombiectl/credentials.json`, but every subsequent `zombiectl` invocation silently fell back to the production default — the documented "sticky per-install" behavior was structural fiction. `parseGlobalArgs` was eagerly resolving `DEFAULT_API_URL` at parse time, making `global.apiUrl` truthy and short-circuiting `creds.api_url` in `cli.js`'s `||` chain. Fix moves the default-resolution to a single composition site so `creds.api_url` actually wins when no flag/env is set.
+
+  Pinned by a 16-case integration matrix that walks every combination of (flag, `ZOMBIE_API_URL`, `API_URL`, `creds.api_url`) — any future regression in the chain fails 16 named tests with case labels describing the broken combination.
+
+  ## Bug fix — `zombiectl agent add` no longer crashes in non-JSON mode
+
+  `zombiectl agent add ...` (without `--json`) crashed with `TypeError: ui.bold is not a function` on every invocation. The CLI's UI theme exports no `bold` member; the call site predated a theme rewrite. Replaced with `ui.warn(...)`, which has the warning marker that semantically matches the "API key shown once — store securely" intent. Discovered while writing the new `agent.integration.test.js` suite.
+
+  ## Test coverage
+
+  300 → 354 unit + integration tests on the `zombiectl` suite. New CLI-integration scaffolding spins up a real `Bun.serve` loopback per test so the full request lifecycle (parser → ctx construction → `request()` helper → http-client error parsing) gets exercised end-to-end. Mocking happens at the system boundary only.
+
+  Cross-cutting failure-mode tests use the actual error codes the Zig backend emits — `UZ-AUTH-003`, `UZ-AUTH-004`, `UZ-WORKSPACE-002`, `UZ-ZMB-006`, `UZ-EXEC-013` (the "install returned 201 but the worker died" path), `UZ-INTERNAL-001` — so a CLI regression that swallows a real production error surfaces in CI before customers see it.
+
+  ## What's deferred — telemetry consent prompt
+
+  An exploration of an opt-in consent prompt at first login was attempted and then deferred. Rationale: the bundled PostHog write key is a placeholder, no actual ingest happens, and a first-run prompt at the customer's most-fragile onboarding moment is friction without privacy benefit. The implementation lives at commit `fe748ee9` for cherry-pick if/when the key becomes valid; reactivation conditions are documented in the M63_002 spec's Discovery section.
+</Update>
+
 <Update label="May 4, 2026" tags={["Breaking", "API", "CLI"]}>
   ## Follow-up — dormant API + stale CLI teardown
 
