@@ -21,11 +21,11 @@ description: "Stay up to date with usezombie product updates, new features, and 
 
   - A regression test harness now exercises the production executor pipeline against a deterministic LLM stub and asserts on captured wire bytes. Future redactor regressions land caught instead of silent.
   - The harness covers four invariants: tool-arg redaction at the sandbox boundary, response-chunk redaction, terminal-response redaction, and pub/sub channel no-leak (the last gated by an integration env var so CI exercises it without local Postgres+Redis).
-  - Multi-secret coverage: both LLM api_key and GitHub installation token redact in the same run.
+  - Multi-secret coverage: both LLM api_key and GitHub installation token redact in the same execution.
 
   ## Bug fixes
 
-  - Closed an executor-side memory leak where the agent's final-reply buffer was duplicated and then never freed across the run.
+  - Closed an executor-side memory leak where the agent's final-reply buffer was duplicated and then never freed across the execution.
 </Update>
 
 <Update label="May 4, 2026" tags={["Breaking", "API", "CLI"]}>
