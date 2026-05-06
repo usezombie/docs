@@ -15,7 +15,7 @@ description: "Stay up to date with usezombie product updates, new features, and 
   - **Streaming response chunks.** When the agent streamed text replies, each chunk's payload travelled un-redacted through the progress channel.
   - **Terminal stage responses.** The final assistant reply attached to a `StartStage` response was returned as the model produced it, with no scrub pass.
 
-  Both now apply the same placeholder substitution the tool-arg path has always used (`${secrets.llm.api_key}`, `${secrets.github.token}`). Operators watching live activity feeds, audit logs, or pub/sub subscribers no longer see resolved secret bytes for any frame variant.
+  Both now apply the same placeholder substitution the tool-arg path has always used (`${secrets.llm.api_key}`, `${secrets.github.token}`). Operators watching the activity stream or pub/sub subscribers no longer see resolved secret bytes for any frame variant.
 
   ## What's new
 
