@@ -7,6 +7,27 @@ description: "Stay up to date with usezombie product updates, new features, and 
   usezombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="May 6, 2026" tags={["Bug fixes", "Security", "Internal"]}>
+  ## Secrets no longer appear in the activity stream
+
+  Resolved secret values are now scrubbed from every event the executor emits, not just from tool-call arguments. Two event types previously surfaced raw secret bytes:
+
+  - **Streaming agent replies.** When the agent streamed text back, each chunk reached the activity stream with secret values intact.
+  - **Final agent replies.** The terminal assistant message at the end of an execution was emitted as the model produced it, with no scrub pass.
+
+  Both now apply the same placeholder substitution that tool-call arguments have always used (`${secrets.llm.api_key}`, `${secrets.github.token}`). Operators watching the activity stream or pub/sub subscribers no longer see resolved secret bytes in any event variant.
+
+  ## What's new
+
+  - A regression test harness asserts on the bytes the executor emits to the activity stream against a deterministic LLM stub. Future redactor regressions land caught instead of silent.
+  - The harness covers four invariants: tool-arg redaction, streaming-reply redaction, final-reply redaction, and pub/sub channel no-leak (the last gated by an integration env var so CI exercises it without local Postgres+Redis).
+  - Multi-secret coverage: both LLM api_key and GitHub installation token redact within the same execution.
+
+  ## Bug fixes
+
+  - Closed an executor-side memory leak where the agent's final-reply buffer was duplicated and then never freed at the end of an execution.
+</Update>
+
 <Update label="May 4, 2026" tags={["Breaking", "API", "CLI"]}>
   ## Follow-up — dormant API + stale CLI teardown
 
