@@ -7,6 +7,27 @@ description: "Stay up to date with usezombie product updates, new features, and 
   usezombie is in **Early Access Preview** and pre-production. APIs and agent behavior may change between releases without long deprecation windows.
 </Tip>
 
+<Update label="May 6, 2026" tags={["Bug fixes", "Security", "Internal"]}>
+  ## Executor no longer leaks resolved secrets onto the wire
+
+  The executor's secret redactor now scrubs every outbound RPC frame, not just tool-call arguments. Two paths previously emitted resolved secret bytes raw:
+
+  - **Streaming response chunks.** When the agent streamed text replies, each chunk's payload travelled un-redacted through the progress channel.
+  - **Terminal stage responses.** The final assistant reply attached to a `StartStage` response was returned as the model produced it, with no scrub pass.
+
+  Both now apply the same placeholder substitution the tool-arg path has always used (`${secrets.llm.api_key}`, `${secrets.github.token}`). Operators watching live activity feeds, audit logs, or pub/sub subscribers no longer see resolved secret bytes for any frame variant.
+
+  ## What's new
+
+  - A regression test harness now exercises the production executor pipeline against a deterministic LLM stub and asserts on captured wire bytes. Future redactor regressions land caught instead of silent.
+  - The harness covers four invariants: tool-arg redaction at the sandbox boundary, response-chunk redaction, terminal-response redaction, and pub/sub channel no-leak (the last gated by an integration env var so CI exercises it without local Postgres+Redis).
+  - Multi-secret coverage: both LLM api_key and GitHub installation token redact in the same run.
+
+  ## Bug fixes
+
+  - Closed an executor-side memory leak where the agent's final-reply buffer was duplicated and then never freed across the run.
+</Update>
+
 <Update label="May 4, 2026" tags={["Breaking", "API", "CLI"]}>
   ## Follow-up — dormant API + stale CLI teardown
 
